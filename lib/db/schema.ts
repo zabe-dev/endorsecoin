@@ -304,6 +304,38 @@ export const coinSubmissionLinks = pgTable(
   ],
 );
 
+export const airdropSubmissions = pgTable(
+  'airdrop_submissions',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    coinId: integer('coin_id')
+      .references(() => coins.id, { onDelete: 'cascade' })
+      .notNull(),
+    submittedByUserId: text('submitted_by_user_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    requesterEmail: text('requester_email').notNull(),
+    name: text('name').notNull(),
+    claimRewardsUrl: text('claim_rewards_url').notNull(),
+    description: text('description').notNull(),
+    rewards: text('rewards').notNull(),
+    winnersCount: integer('winners_count').notNull(),
+    startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
+    endsAt: timestamp('ends_at', { withTimezone: true }).notNull(),
+    website: text('website').notNull(),
+    socialLinks: jsonb('social_links').default({}).notNull(),
+    status: text('status').default('pending').notNull(),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => [
+    index('airdrop_submissions_status_created_idx').on(table.status, table.createdAt),
+    index('airdrop_submissions_coin_status_idx').on(table.coinId, table.status),
+    index('airdrop_submissions_schedule_idx').on(table.startsAt, table.endsAt),
+    index('airdrop_submissions_user_idx').on(table.submittedByUserId),
+  ],
+);
+
 export const payments = pgTable(
   'payments',
   {
@@ -374,11 +406,7 @@ export const coinPromotions = pgTable(
   (table) => [
     index('coin_promotions_coin_status_idx').on(table.coinId, table.status),
     index('coin_promotions_expires_idx').on(table.expiresAt),
-    index('coin_promotions_status_schedule_idx').on(
-      table.status,
-      table.startsAt,
-      table.expiresAt,
-    ),
+    index('coin_promotions_status_schedule_idx').on(table.status, table.startsAt, table.expiresAt),
     index('coin_promotions_rank_schedule_idx').on(
       table.status,
       table.startsAt,

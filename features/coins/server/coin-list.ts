@@ -661,7 +661,7 @@ function buildDefaultDexUrl(network: NetworkId, contractAddress: string) {
   }
 
   if (network === 'polygon') {
-    return `https://quickswap.exchange/#/swap?outputCurrency=${encodeURIComponent(contractAddress)}`;
+    return `https://dapp.quickswap.exchange/swap?type=best&to=${encodeURIComponent(contractAddress)}`;
   }
 
   if (network === 'kcc') {

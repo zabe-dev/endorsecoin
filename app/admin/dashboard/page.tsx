@@ -16,6 +16,7 @@ import { hasAdminAccess } from '@/lib/auth/roles';
 import { getCurrentSession } from '@/lib/auth/session';
 import { db } from '@/lib/db/client';
 import {
+  airdropSubmissions,
   coinBoosts,
   coinPromotions,
   coins,
@@ -53,6 +54,7 @@ export default async function AdminDashboardPage({
     userRows,
     coinRows,
     submissionRows,
+    airdropSubmissionRows,
     sessionRows,
     activeBoostRows,
     activePromotionRows,
@@ -61,6 +63,7 @@ export default async function AdminDashboardPage({
     activeBoostCoinCountRows,
     activePromotionCoinCountRows,
     pendingSubmissionCount,
+    pendingAirdropSubmissionCount,
     changeRequestRows,
     pendingChangeRequestCount,
     bannerAdRows,
@@ -69,6 +72,22 @@ export default async function AdminDashboardPage({
     db.select().from(users).orderBy(desc(users.createdAt)).limit(200),
     db.select().from(coins).orderBy(desc(coins.submittedAt)).limit(200),
     db.select().from(coinSubmissions).orderBy(desc(coinSubmissions.createdAt)).limit(500),
+    db
+      .select({ submission: airdropSubmissions, coin: coins })
+      .from(airdropSubmissions)
+      .innerJoin(coins, eq(airdropSubmissions.coinId, coins.id))
+      .orderBy(desc(airdropSubmissions.createdAt))
+      .limit(500)
+      .catch((error) => {
+        if (isMissingAirdropSubmissionsTable(error)) {
+          console.warn(
+            '[admin] airdrop_submissions table is unavailable. Run migrations to enable airdrops.',
+          );
+          return [];
+        }
+
+        throw error;
+      }),
     db.select().from(sessions).orderBy(desc(sessions.updatedAt)).limit(1000),
     db
       .select()
@@ -118,6 +137,14 @@ export default async function AdminDashboardPage({
       .where(
         and(eq(coinSubmissions.submissionType, 'new-coin'), eq(coinSubmissions.status, 'pending')),
       ),
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(airdropSubmissions)
+      .where(eq(airdropSubmissions.status, 'pending'))
+      .catch((error) => {
+        if (isMissingAirdropSubmissionsTable(error)) return [{ count: 0 }];
+        throw error;
+      }),
     db.select().from(changeRequests).orderBy(desc(changeRequests.createdAt)).limit(200),
     db
       .select({ count: sql<number>`count(*)::int` })
@@ -182,7 +209,7 @@ export default async function AdminDashboardPage({
     activePromotionRows.map((promotion) => [promotion.coinId, promotion]),
   );
 
-  const pendingSubmissions: AdminSubmissionRow[] = submissionRows
+  const pendingCoinSubmissions: AdminSubmissionRow[] = submissionRows
     .filter(
       (submission) => submission.submissionType === 'new-coin' && submission.status === 'pending',
     )
@@ -194,6 +221,7 @@ export default async function AdminDashboardPage({
 
       return {
         id: submission.id,
+        submissionKind: 'coin',
         logoUrl: data.logoUrl,
         name: data.name,
         symbol: data.symbol,
@@ -206,6 +234,31 @@ export default async function AdminDashboardPage({
         flag: buildSubmissionFlag(data),
         details: buildSubmissionDetails(submission.coinData),
         rawData: JSON.stringify(submission.coinData, null, 2),
+      };
+    });
+
+  const pendingAirdropSubmissions: AdminSubmissionRow[] = airdropSubmissionRows
+    .filter(({ submission }) => submission.status === 'pending')
+    .map(({ submission, coin }) => {
+      const submitter = submission.submittedByUserId
+        ? userById.get(submission.submittedByUserId)
+        : null;
+
+      return {
+        id: submission.id,
+        submissionKind: 'airdrop',
+        logoUrl: coin.logoUrl || null,
+        name: submission.name,
+        symbol: coin.symbol,
+        chain: coin.name,
+        submittedBy: submitter?.name || submitter?.email || submission.requesterEmail,
+        contactEmail: submission.requesterEmail,
+        contactTelegram: readAirdropSocialLink(submission.socialLinks, 'telegram'),
+        submittedAt: formatDateTime(submission.createdAt),
+        status: submission.status,
+        flag: 'Airdrop',
+        details: buildAirdropSubmissionDetails(submission, coin),
+        rawData: JSON.stringify(submission, null, 2),
       };
     });
 
@@ -279,6 +332,7 @@ export default async function AdminDashboardPage({
     promotedCoins: readCount(activePromotionCoinCountRows),
     activeBanners: readCount(activeBannerCountRows),
     pendingSubmissions: readCount(pendingSubmissionCount),
+    pendingAirdrops: readCount(pendingAirdropSubmissionCount),
     changeRequests: readCount(pendingChangeRequestCount),
   };
 
@@ -334,7 +388,8 @@ export default async function AdminDashboardPage({
 
         <AdminDashboardClient
           summary={summary}
-          pendingSubmissions={pendingSubmissions}
+          pendingSubmissions={pendingCoinSubmissions}
+          pendingAirdropSubmissions={pendingAirdropSubmissions}
           changeRequests={adminChangeRequests}
           listedCoins={listedCoins}
           bannerAds={adminBannerAds}
@@ -345,6 +400,55 @@ export default async function AdminDashboardPage({
       <SiteFooter />
     </main>
   );
+}
+
+function buildAirdropSubmissionDetails(
+  submission: typeof airdropSubmissions.$inferSelect,
+  coin: typeof coins.$inferSelect,
+) {
+  const socialLinks = isRecord(submission.socialLinks) ? submission.socialLinks : {};
+
+  return [
+    {
+      title: 'Airdrop',
+      rows: [
+        detail('Name', submission.name),
+        detail('Project', `${coin.name}${coin.symbol ? ` (${coin.symbol})` : ''}`),
+        detail('Description', submission.description),
+        detail('Rewards', submission.rewards),
+        detail('Number of winners', submission.winnersCount),
+        detail('Claim Rewards URL', submission.claimRewardsUrl),
+      ],
+    },
+    {
+      title: 'Schedule',
+      rows: [
+        detail('Start', submission.startsAt.toISOString()),
+        detail('End', submission.endsAt.toISOString()),
+      ],
+    },
+    {
+      title: 'Links',
+      rows: [
+        detail('Website', submission.website),
+        detail('Telegram', socialLinks.telegram),
+        detail('X / Twitter', socialLinks.x),
+        detail('Reddit', socialLinks.reddit),
+        detail('Discord', socialLinks.discord),
+        detail('YouTube', socialLinks.youtube),
+        detail('Facebook', socialLinks.facebook),
+      ],
+    },
+    {
+      title: 'Contact',
+      rows: [detail('Email', submission.requesterEmail)],
+    },
+  ];
+}
+
+function readAirdropSocialLink(value: unknown, key: string) {
+  if (!isRecord(value)) return '';
+  return readString(value[key]) || '';
 }
 
 function readSubmissionData(value: unknown) {
@@ -548,4 +652,16 @@ function emailInitials(email: string) {
 function emailTone(email: string) {
   const total = Array.from(email).reduce((sum, letter) => sum + letter.charCodeAt(0), 0);
   return (total % 6) + 1;
+}
+
+function isMissingAirdropSubmissionsTable(error: unknown) {
+  if (!error || typeof error !== 'object') return false;
+  const candidate = error as { code?: string; message?: string; cause?: unknown };
+  if (candidate.code === '42P01') return true;
+  if (candidate.message?.includes('airdrop_submissions')) return true;
+
+  const cause = candidate.cause;
+  if (!cause || typeof cause !== 'object') return false;
+  const nested = cause as { code?: string; message?: string };
+  return nested.code === '42P01' || Boolean(nested.message?.includes('airdrop_submissions'));
 }

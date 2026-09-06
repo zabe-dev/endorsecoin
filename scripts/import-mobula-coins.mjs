@@ -124,7 +124,7 @@ const dexSwapUrlBuilders = {
   arbitrum: (address) => `https://app.uniswap.org/swap?outputCurrency=${address}&chain=arbitrum`,
   base: (address) => `https://app.uniswap.org/swap?outputCurrency=${address}&chain=base`,
   bsc: (address) => `https://pancakeswap.finance/swap?outputCurrency=${address}`,
-  polygon: (address) => `https://quickswap.exchange/#/swap?outputCurrency=${address}`,
+  polygon: (address) => `https://dapp.quickswap.exchange/swap?type=best&to=${address}`,
 };
 
 const chartUrlBuilders = {

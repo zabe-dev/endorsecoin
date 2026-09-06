@@ -8,6 +8,7 @@ import {
   ChevronDown,
   CircleUserRound,
   Compass,
+  Gift,
   Handshake,
   Heart,
   LogOut,
@@ -16,7 +17,6 @@ import {
   Settings,
   Shield,
   UserRound,
-  Zap,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
@@ -264,7 +264,7 @@ function MenuIcon({
     | 'logout';
 }) {
   if (type === 'discover') return <Compass className="menu-item-icon" aria-hidden="true" />;
-  if (type === 'airdrops') return <Zap className="menu-item-icon" aria-hidden="true" />;
+  if (type === 'airdrops') return <Gift className="menu-item-icon" aria-hidden="true" />;
   if (type === 'partners') return <Handshake className="menu-item-icon" aria-hidden="true" />;
   if (type === 'advertise') return <Megaphone className="menu-item-icon" aria-hidden="true" />;
   if (type === 'account') return <CircleUserRound className="menu-item-icon" aria-hidden="true" />;

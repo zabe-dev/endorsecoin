@@ -94,7 +94,17 @@ const initialValues = (email: string): CoinSubmissionValues => ({
   turnstileToken: '',
 });
 
-export function CoinSubmissionForm({ userEmail }: { userEmail: string }) {
+export function CoinSubmissionForm({
+  userEmail,
+  embedded = false,
+  onStatusChange,
+  onSubmittedChange,
+}: {
+  userEmail: string;
+  embedded?: boolean;
+  onStatusChange?: (status: { label: string; meta: string }) => void;
+  onSubmittedChange?: (submitted: boolean) => void;
+}) {
   const [stepIndex, setStepIndex] = useState(0);
   const [values, setValues] = useState<CoinSubmissionValues>(() => initialValues(userEmail));
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -115,6 +125,11 @@ export function CoinSubmissionForm({ userEmail }: { userEmail: string }) {
     errors['logo.width'] ||
     errors['logo.height'] ||
     errors['logo.dataUrl'];
+
+  useEffect(() => {
+    onStatusChange?.({ label: activeStep, meta: `Step ${stepIndex + 1} of ${steps.length}` });
+    if (!submitted) onSubmittedChange?.(false);
+  }, [activeStep, onStatusChange, onSubmittedChange, stepIndex, submitted]);
 
   useEffect(() => {
     if (!submitted) return;
@@ -287,7 +302,7 @@ export function CoinSubmissionForm({ userEmail }: { userEmail: string }) {
     event.preventDefault();
     setSubmitting(true);
 
-    const turnstileToken = values.turnstileToken || (await turnstileRef.current?.verify()) || '';
+    const turnstileToken = (await turnstileRef.current?.verify()) || '';
     if (process.env.NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_SITE_KEY && !turnstileToken) {
       setSubmitting(false);
       setErrors({
@@ -315,6 +330,9 @@ export function CoinSubmissionForm({ userEmail }: { userEmail: string }) {
     setSubmitting(false);
 
     if (!response.ok) {
+      turnstileRef.current?.reset();
+      setValues((current) => ({ ...current, turnstileToken: '' }));
+
       if (!showRateLimitToast(body, 'submit')) {
         setErrors({ form: body.message || 'Could not submit your project right now.' });
       }
@@ -323,6 +341,7 @@ export function CoinSubmissionForm({ userEmail }: { userEmail: string }) {
 
     setErrors({});
     setSubmitted(true);
+    onSubmittedChange?.(true);
   }
 
   if (submitted) {
@@ -342,6 +361,7 @@ export function CoinSubmissionForm({ userEmail }: { userEmail: string }) {
             type="button"
             onClick={() => {
               setSubmitted(false);
+              onSubmittedChange?.(false);
               setStepIndex(0);
               setValues(initialValues(userEmail));
               setErrors({});
@@ -362,21 +382,23 @@ export function CoinSubmissionForm({ userEmail }: { userEmail: string }) {
 
   return (
     <div className="submission-flow">
-      <div className="submission-card-head">
-        <div>
-          <p className="eyebrow">
-            <span>●</span> Submissions
-          </p>
-          <h1>Submit your project</h1>
-          <p>Add your project details for review.</p>
+      {!embedded && (
+        <div className="submission-card-head">
+          <div>
+            <p className="eyebrow">
+              <span>●</span> Submissions
+            </p>
+            <h1>Submit your project</h1>
+            <p>Add your project details for review.</p>
+          </div>
+          <div className="submission-status">
+            <b>{activeStep}</b>
+            <span>
+              Step {stepIndex + 1} of {steps.length}
+            </span>
+          </div>
         </div>
-        <div className="submission-status">
-          <b>{activeStep}</b>
-          <span>
-            Step {stepIndex + 1} of {steps.length}
-          </span>
-        </div>
-      </div>
+      )}
 
       <form className="submission-form" onSubmit={submit}>
         <section className="submission-card">

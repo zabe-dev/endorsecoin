@@ -50,6 +50,7 @@ async function main() {
     await tx`delete from coin_votes`;
     await tx`delete from coin_promotions`;
     await tx`delete from coin_boosts`;
+    await deleteIfTableExists(tx, 'airdrop_submissions');
     await tx`delete from payments`;
     await tx`delete from coin_submissions`;
     await tx`delete from change_requests`;
@@ -62,6 +63,12 @@ async function main() {
     await resetIdentity(tx, 'market_snapshots', 'id');
 
     console.log(buildCompletionMessage(preservedUser));
+  });
+}
+
+async function deleteIfTableExists(tx, tableName) {
+  await tx.unsafe(`delete from ${tableName}`).catch((error) => {
+    if (error?.code !== '42P01') throw error;
   });
 }
 

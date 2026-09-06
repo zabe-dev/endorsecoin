@@ -10,6 +10,7 @@ import {
   removeCoinBoost,
   removePromotedCoin,
   updateAdminCoin,
+  updateAdminAirdropSubmission,
   updateAdminSubmission,
   updateAdminUser,
   updateBannerAd,
@@ -26,6 +27,7 @@ import {
   Check,
   ExternalLink,
   Eye,
+  Gift,
   Image as ImageIcon,
   LayoutDashboard,
   Megaphone,
@@ -61,11 +63,13 @@ export type AdminSummary = {
   promotedCoins: number;
   activeBanners: number;
   pendingSubmissions: number;
+  pendingAirdrops: number;
   changeRequests: number;
 };
 
 export type AdminSubmissionRow = {
   id: string;
+  submissionKind: 'coin' | 'airdrop';
   logoUrl: string | null;
   name: string;
   symbol: string;
@@ -165,6 +169,7 @@ export type AdminUserRow = {
 type AdminDashboardClientProps = {
   summary: AdminSummary;
   pendingSubmissions: AdminSubmissionRow[];
+  pendingAirdropSubmissions: AdminSubmissionRow[];
   changeRequests: AdminChangeRequestRow[];
   listedCoins: AdminCoinRow[];
   bannerAds: AdminBannerRow[];
@@ -190,6 +195,7 @@ const boostPackages = [
 const adminTabs = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
   { id: 'submissions', label: 'Submissions', icon: Eye },
+  { id: 'airdrops', label: 'Airdrops', icon: Gift },
   { id: 'coins', label: 'Coins', icon: ExternalLink },
   { id: 'promotions', label: 'Promotions', icon: Megaphone },
   { id: 'banners', label: 'Banner ads', icon: ImageIcon },
@@ -203,6 +209,7 @@ const tabCounts = (summary: AdminSummary) =>
   ({
     overview: 0,
     submissions: summary.pendingSubmissions,
+    airdrops: summary.pendingAirdrops,
     coins: summary.coins,
     promotions: summary.activeBoosts + summary.promotedCoins,
     banners: summary.activeBanners,
@@ -213,6 +220,7 @@ const tabCounts = (summary: AdminSummary) =>
 export function AdminDashboardClient({
   summary,
   pendingSubmissions,
+  pendingAirdropSubmissions,
   changeRequests,
   listedCoins,
   bannerAds,
@@ -274,6 +282,7 @@ export function AdminDashboardClient({
           <AdminOverview
             summary={summary}
             pendingSubmissions={pendingSubmissions}
+            pendingAirdropSubmissions={pendingAirdropSubmissions}
             changeRequests={changeRequests}
             promotedRows={promotedRows}
             bannerAds={bannerAds}
@@ -281,7 +290,16 @@ export function AdminDashboardClient({
           />
         )}
         {activeTab === 'submissions' && (
-          <PendingSubmissionsTable rows={pendingSubmissions} popover={popover} />
+          <PendingSubmissionsTable
+            rows={pendingSubmissions}
+            popover={popover}
+            title="Pending submissions"
+            note="Projects waiting for approval. They become public only after admin review."
+            searchPlaceholder="Search project, symbol, or chain"
+          />
+        )}
+        {activeTab === 'airdrops' && (
+          <PendingAirdropsTable rows={pendingAirdropSubmissions} popover={popover} />
         )}
         {activeTab === 'coins' && <ListedCoinsTable rows={listedCoins} popover={popover} />}
         {activeTab === 'promotions' && <PromotionsTable rows={listedCoins} popover={popover} />}
@@ -296,6 +314,7 @@ export function AdminDashboardClient({
 function AdminOverview({
   summary,
   pendingSubmissions,
+  pendingAirdropSubmissions,
   changeRequests,
   promotedRows,
   bannerAds,
@@ -303,6 +322,7 @@ function AdminOverview({
 }: {
   summary: AdminSummary;
   pendingSubmissions: AdminSubmissionRow[];
+  pendingAirdropSubmissions: AdminSubmissionRow[];
   changeRequests: AdminChangeRequestRow[];
   promotedRows: AdminCoinRow[];
   bannerAds: AdminBannerRow[];
@@ -312,45 +332,66 @@ function AdminOverview({
 
   return (
     <section className="admin-overview">
+      <div className="admin-overview-focus">
+        <div>
+          <span>Needs review</span>
+          <strong>
+            {pendingSubmissions.length +
+              pendingAirdropSubmissions.length +
+              changeRequests.filter((request) => request.status === 'pending').length}
+          </strong>
+          <small>Items waiting for an admin decision.</small>
+        </div>
+        <div className="admin-attention-grid">
+          <OverviewQueueCard
+            title="Projects"
+            value={pendingSubmissions.length}
+            label="submissions"
+            action="Review"
+            onClick={() => onSelectTab('submissions')}
+          />
+          <OverviewQueueCard
+            title="Airdrops"
+            value={pendingAirdropSubmissions.length}
+            label="campaigns"
+            action="Review"
+            onClick={() => onSelectTab('airdrops')}
+          />
+          <OverviewQueueCard
+            title="Reports"
+            value={changeRequests.filter((request) => request.status === 'pending').length}
+            label="requests"
+            action="Open"
+            onClick={() => onSelectTab('reports')}
+          />
+        </div>
+      </div>
+
       <div className="admin-dashboard-grid" aria-label="Admin summary">
         <SummaryCard label="Users" value={summary.users} />
         <SummaryCard label="Listed coins" value={summary.coins} />
         <SummaryCard label="Active boosts" value={summary.activeBoosts} />
         <SummaryCard label="Promoted coins" value={summary.promotedCoins} />
         <SummaryCard label="Active banners" value={summary.activeBanners} />
-        <SummaryCard label="Pending submissions" value={summary.pendingSubmissions} />
-        <SummaryCard label="Change requests" value={summary.changeRequests} />
+        <SummaryCard label="Scheduled banners" value={scheduledBanners} />
       </div>
 
-      <div className="admin-attention-grid">
-        <OverviewQueueCard
-          title="Submissions"
-          value={pendingSubmissions.length}
-          label="waiting for review"
-          action="Review submissions"
-          onClick={() => onSelectTab('submissions')}
-        />
-        <OverviewQueueCard
-          title="Reports"
-          value={changeRequests.filter((request) => request.status === 'pending').length}
-          label="open requests"
-          action="Open reports"
-          onClick={() => onSelectTab('reports')}
-        />
-        <OverviewQueueCard
-          title="Promotions"
-          value={promotedRows.length}
-          label="coins with visibility"
-          action="Manage promotions"
-          onClick={() => onSelectTab('promotions')}
-        />
-        <OverviewQueueCard
-          title="Banner ads"
-          value={scheduledBanners}
-          label="scheduled banners"
-          action="Manage banners"
-          onClick={() => onSelectTab('banners')}
-        />
+      <div className="admin-overview-shortcuts">
+        <button type="button" onClick={() => onSelectTab('promotions')}>
+          <span>Promotion desk</span>
+          <b>{promotedRows.length}</b>
+          <small>coins with active visibility</small>
+        </button>
+        <button type="button" onClick={() => onSelectTab('banners')}>
+          <span>Banner schedule</span>
+          <b>{summary.activeBanners}</b>
+          <small>active placements</small>
+        </button>
+        <button type="button" onClick={() => onSelectTab('coins')}>
+          <span>Listings</span>
+          <b>{summary.coins}</b>
+          <small>approved coins</small>
+        </button>
       </div>
     </section>
   );
@@ -563,9 +604,15 @@ function ReportDetailsModal({ row, onClose }: { row: AdminChangeRequestRow; onCl
 function PendingSubmissionsTable({
   rows,
   popover,
+  title,
+  note,
+  searchPlaceholder,
 }: {
   rows: AdminSubmissionRow[];
   popover: PopoverController;
+  title: string;
+  note: string;
+  searchPlaceholder: string;
 }) {
   const [detailRow, setDetailRow] = useState<AdminSubmissionRow | null>(null);
 
@@ -573,11 +620,11 @@ function PendingSubmissionsTable({
     <>
       <AdminPanel
         eyebrow="Review queue"
-        title="Pending submissions"
+        title={title}
         count={`${rows.length} pending`}
-        note="Projects waiting for approval. They are not public coins until an admin approves them."
+        note={note}
         rows={rows}
-        searchPlaceholder="Search project, symbol, or chain"
+        searchPlaceholder={searchPlaceholder}
         search={(row) => [row.name, row.symbol, row.chain, row.contactEmail, row.contactTelegram]}
         empty={emptyTableMessage}
         renderTable={(visibleRows) => (
@@ -655,6 +702,117 @@ function PendingSubmissionsTable({
                         message={`Reject ${row.name}? Add the reason so the review trail is clear.`}
                         fields={{
                           submissionId: row.id,
+                          status: 'rejected',
+                        }}
+                        reasonName="reviewReason"
+                        reasonPlaceholder="Reason required"
+                      >
+                        <X aria-hidden="true" />
+                      </ConfirmAction>
+                    </ActionGroup>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      />
+      {detailRow && <SubmissionDetailsModal row={detailRow} onClose={() => setDetailRow(null)} />}
+    </>
+  );
+}
+
+function PendingAirdropsTable({
+  rows,
+  popover,
+}: {
+  rows: AdminSubmissionRow[];
+  popover: PopoverController;
+}) {
+  const [detailRow, setDetailRow] = useState<AdminSubmissionRow | null>(null);
+
+  return (
+    <>
+      <AdminPanel
+        eyebrow="Review queue"
+        title="Pending airdrops"
+        count={`${rows.length} pending`}
+        note="Airdrop campaigns waiting for approval. Approved airdrops appear on the public airdrops page."
+        rows={rows}
+        searchPlaceholder="Search airdrop, project, or contact"
+        search={(row) => [row.name, row.symbol, row.chain, row.contactEmail, row.contactTelegram]}
+        empty={emptyTableMessage}
+        renderTable={(visibleRows) => (
+          <table className="admin-table admin-airdrops-table">
+            <thead>
+              <tr>
+                <th>Logo</th>
+                <th>Airdrop</th>
+                <th>Project</th>
+                <th>Symbol</th>
+                <th>Submitted By</th>
+                <th>Contact Email</th>
+                <th>Date Submitted</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleRows.map((row) => (
+                <tr key={row.id}>
+                  <td>
+                    <LogoUrlAction logoUrl={row.logoUrl} name={row.name} />
+                  </td>
+                  <td>
+                    <strong>{row.name}</strong>
+                  </td>
+                  <td>{row.chain || '—'}</td>
+                  <td>{row.symbol ? `$${row.symbol}` : '—'}</td>
+                  <td>{row.submittedBy || '—'}</td>
+                  <td>{row.contactEmail || '—'}</td>
+                  <td>{row.submittedAt}</td>
+                  <td>
+                    <StatusPill tone={row.status === 'pending' ? 'warning' : 'neutral'}>
+                      {labelize(row.status)}
+                    </StatusPill>
+                  </td>
+                  <td>
+                    <ActionGroup>
+                      <button
+                        type="button"
+                        className="admin-icon-button neutral"
+                        title="View full airdrop"
+                        aria-label={`View full airdrop for ${row.name}`}
+                        onClick={() => {
+                          popover.setActivePopoverId(null);
+                          setDetailRow(row);
+                        }}
+                      >
+                        <Eye aria-hidden="true" />
+                      </button>
+                      <ConfirmAction
+                        popover={popover}
+                        popoverId={`airdrop-approve-${row.id}`}
+                        action={updateAdminAirdropSubmission}
+                        title="Approve airdrop"
+                        tone="success"
+                        message={`Approve ${row.name}? This will make it eligible for the public airdrops page.`}
+                        fields={{
+                          airdropSubmissionId: row.id,
+                          status: 'approved',
+                        }}
+                      >
+                        <Check aria-hidden="true" />
+                      </ConfirmAction>
+                      <ConfirmAction
+                        popover={popover}
+                        popoverId={`airdrop-reject-${row.id}`}
+                        action={updateAdminAirdropSubmission}
+                        title="Reject airdrop"
+                        tone="danger"
+                        message={`Reject ${row.name}? Add the reason so the review trail is clear.`}
+                        fields={{
+                          airdropSubmissionId: row.id,
                           status: 'rejected',
                         }}
                         reasonName="reviewReason"
@@ -1625,8 +1783,12 @@ function SubmissionDetailsModal({
             <small>Full submission</small>
             <h2 id="admin-submission-details-title">{row.name}</h2>
             <p>
-              {row.symbol ? `$${row.symbol}` : 'No symbol'} · {row.chain || 'No chain'} ·{' '}
-              {row.submittedAt}
+              {row.submissionKind === 'airdrop'
+                ? 'Airdrop'
+                : row.symbol
+                  ? `$${row.symbol}`
+                  : 'No symbol'}{' '}
+              · {row.chain || 'No project'} · {row.submittedAt}
             </p>
           </div>
           <button type="button" onClick={onClose} aria-label="Close submission details">

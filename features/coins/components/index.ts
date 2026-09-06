@@ -4,3 +4,4 @@ export { FormattedPrice } from './formatted-price';
 export { BoltIcon, DiscoveryIcon } from './icons';
 export { InfoRow, SectionTitle } from './section-title';
 export { TableScroller } from './table-scroller';
+export { PromotedCoinsTable } from './promoted-coins-table';

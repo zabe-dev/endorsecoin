@@ -4,10 +4,12 @@ import { invalidateBannerAdCache } from '@/features/ads/server/cache-invalidatio
 import { bannerPlacementLabels, bannerPlacements } from '@/features/ads/types';
 import { invalidateCoinDiscoveryCache } from '@/features/coins/server/cache-invalidation';
 import { getCurrentSession } from '@/lib/auth/session';
+import { bumpCacheVersion } from '@/lib/cache/cache-version';
 import { hasAdminAccess } from '@/lib/auth/roles';
 import { db } from '@/lib/db/client';
 import {
   adminAuditLogs,
+  airdropSubmissions,
   bannerAds,
   changeRequests,
   coinBoosts,
@@ -24,6 +26,13 @@ import { notFound, redirect } from 'next/navigation';
 const userRoles = ['user', 'admin'] as const;
 const coinStatuses = ['active', 'hidden', 'suspended', 'rejected'] as const;
 const submissionStatuses = [
+  'pending',
+  'in-review',
+  'needs-changes',
+  'approved',
+  'rejected',
+] as const;
+const airdropSubmissionStatuses = [
   'pending',
   'in-review',
   'needs-changes',
@@ -188,6 +197,50 @@ export async function updateAdminSubmission(formData: FormData) {
   if (approvedCoinId) revalidatePath(`/coin/${approvedCoinId}`);
 }
 
+export async function updateAdminAirdropSubmission(formData: FormData) {
+  const adminUser = await requireAdmin();
+  const submissionId = readRequired(formData, 'airdropSubmissionId');
+  const status = readEnum(formData, 'status', airdropSubmissionStatuses);
+  const reviewReason = readOptional(formData, 'reviewReason');
+  let previousStatus: string | null = null;
+  let requesterEmail: string | null = null;
+
+  if (status === 'rejected' && !reviewReason) {
+    throw new Error('A rejection reason is required.');
+  }
+
+  const [submission] = await db
+    .select()
+    .from(airdropSubmissions)
+    .where(eq(airdropSubmissions.id, submissionId))
+    .limit(1);
+
+  if (!submission) throw new Error('Airdrop submission not found.');
+
+  previousStatus = submission.status;
+  requesterEmail = submission.requesterEmail;
+
+  await db
+    .update(airdropSubmissions)
+    .set({
+      status,
+      reviewedAt: ['approved', 'rejected'].includes(status) ? new Date() : null,
+      updatedAt: new Date(),
+    })
+    .where(eq(airdropSubmissions.id, submissionId));
+
+  await audit(adminUser.id, 'airdrop-submission.updated', 'airdrop-submission', submissionId, {
+    previousStatus,
+    status,
+    reviewReason,
+    requesterEmail,
+    coinId: submission.coinId,
+  });
+  await invalidateAirdropCache();
+  revalidatePath('/admin/dashboard');
+  revalidatePath('/airdrops');
+}
+
 export async function grantCoinBoost(formData: FormData) {
   const adminUser = await requireAdmin();
   const coinId = readNumber(formData, 'coinId');
@@ -272,7 +325,9 @@ export async function removeCoinBoost(formData: FormData) {
   const activeBoosts = await db
     .select()
     .from(coinBoosts)
-    .where(and(eq(coinBoosts.coinId, coinId), sql`${coinBoosts.status} in ('active', 'scheduled')`));
+    .where(
+      and(eq(coinBoosts.coinId, coinId), sql`${coinBoosts.status} in ('active', 'scheduled')`),
+    );
 
   await cancelActiveBoosts(coinId);
   await audit(adminUser.id, 'boost.removed', 'coin', String(coinId), {
@@ -311,7 +366,10 @@ export async function addPromotedCoin(formData: FormData) {
     .limit(1);
 
   if (existingPromotion) {
-    const currentStatus = getScheduleStatus(existingPromotion.startsAt, existingPromotion.expiresAt);
+    const currentStatus = getScheduleStatus(
+      existingPromotion.startsAt,
+      existingPromotion.expiresAt,
+    );
     if (currentStatus === 'active') {
       if (extensionDays < 1) throw new Error('Add at least 1 day to extend an active promotion.');
       await db
@@ -379,7 +437,10 @@ export async function removePromotedCoin(formData: FormData) {
     .select()
     .from(coinPromotions)
     .where(
-      and(eq(coinPromotions.coinId, coinId), sql`${coinPromotions.status} in ('active', 'scheduled')`),
+      and(
+        eq(coinPromotions.coinId, coinId),
+        sql`${coinPromotions.status} in ('active', 'scheduled')`,
+      ),
     );
 
   await cancelActivePromotions(coinId);
@@ -687,14 +748,18 @@ async function cancelActiveBoosts(coinId: number) {
   await db
     .update(coinBoosts)
     .set({ status: 'canceled', updatedAt: new Date() })
-    .where(and(eq(coinBoosts.coinId, coinId), sql`${coinBoosts.status} in ('active', 'scheduled')`));
+    .where(
+      and(eq(coinBoosts.coinId, coinId), sql`${coinBoosts.status} in ('active', 'scheduled')`),
+    );
 }
 
 async function cancelOpenBoosts(coinId: number) {
   await db
     .update(coinBoosts)
     .set({ status: 'canceled', updatedAt: new Date() })
-    .where(and(eq(coinBoosts.coinId, coinId), sql`${coinBoosts.status} in ('active', 'scheduled')`));
+    .where(
+      and(eq(coinBoosts.coinId, coinId), sql`${coinBoosts.status} in ('active', 'scheduled')`),
+    );
 }
 
 async function cancelActivePromotions(coinId: number) {
@@ -702,7 +767,10 @@ async function cancelActivePromotions(coinId: number) {
     .update(coinPromotions)
     .set({ status: 'canceled', updatedAt: new Date() })
     .where(
-      and(eq(coinPromotions.coinId, coinId), sql`${coinPromotions.status} in ('active', 'scheduled')`),
+      and(
+        eq(coinPromotions.coinId, coinId),
+        sql`${coinPromotions.status} in ('active', 'scheduled')`,
+      ),
     );
 }
 
@@ -817,4 +885,9 @@ function getScheduleStatus(startsAt: Date, expiresAt: Date | null) {
   if (expiresAt && expiresAt <= now) return 'inactive';
   if (startsAt > now) return 'scheduled';
   return 'active';
+}
+
+async function invalidateAirdropCache() {
+  await bumpCacheVersion('public-airdrops');
+  revalidateTag('public-airdrops', 'max');
 }

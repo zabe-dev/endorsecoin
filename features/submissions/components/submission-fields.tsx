@@ -666,6 +666,7 @@ function ChainPicker({
 
 export type TurnstileSlotHandle = {
   verify: () => Promise<string>;
+  reset: () => void;
 };
 
 export const TurnstileSlot = forwardRef<
@@ -674,9 +675,10 @@ export const TurnstileSlot = forwardRef<
     token: string;
     onToken: (nextValue: string) => void;
   }
->(({ token, onToken }, handleRef) => {
+>(({ onToken }, handleRef) => {
   const siteKey = process.env.NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_SITE_KEY;
   const ref = useRef<HTMLDivElement>(null);
+  const [widgetVersion, setWidgetVersion] = useState(0);
   const widgetIdRef = useRef<string | number | null>(null);
   const pendingRef = useRef<((token: string) => void) | null>(null);
   const onTokenRef = useRef(onToken);
@@ -708,12 +710,16 @@ export const TurnstileSlot = forwardRef<
                 sitekey: string;
                 size?: 'normal' | 'compact' | 'flexible';
                 execution?: 'render' | 'execute';
+                appearance?: 'always' | 'execute' | 'interaction-only';
+                theme?: 'auto' | 'light' | 'dark';
                 callback: (token: string) => void;
                 'error-callback': () => void;
                 'expired-callback': () => void;
               },
             ) => string | number;
-            execute: (widgetId: string) => void;
+            execute: (widgetId: string | number) => void;
+            remove?: (widgetId: string | number) => void;
+            reset?: (widgetId: string | number) => void;
           };
         }
       ).turnstile;
@@ -722,7 +728,9 @@ export const TurnstileSlot = forwardRef<
       widgetIdRef.current = turnstile.render(ref.current, {
         sitekey: siteKey,
         size: 'normal',
-        execution: 'execute',
+        appearance: 'always',
+        execution: 'render',
+        theme: 'dark',
         callback: (nextToken: string) => {
           onTokenRef.current(nextToken);
           pendingRef.current?.(nextToken);
@@ -749,28 +757,68 @@ export const TurnstileSlot = forwardRef<
     return () => {
       canceled = true;
       window.clearTimeout(timer);
+      pendingRef.current?.('');
+      pendingRef.current = null;
+
+      const turnstile = (
+        window as Window & {
+          turnstile?: {
+            remove?: (widgetId: string | number) => void;
+          };
+        }
+      ).turnstile;
+
+      if (widgetIdRef.current !== null) {
+        try {
+          turnstile?.remove?.(widgetIdRef.current);
+        } catch {
+          // Cloudflare can already have removed the widget during a fast route/mode change.
+        }
+        widgetIdRef.current = null;
+      }
     };
-  }, [siteKey]);
+  }, [siteKey, widgetVersion]);
 
   useImperativeHandle(
     handleRef,
     () => ({
+      reset: () => {
+        pendingRef.current?.('');
+        pendingRef.current = null;
+        onTokenRef.current('');
+        const turnstile = (
+          window as Window & {
+            turnstile?: {
+              remove?: (widgetId: string | number) => void;
+            };
+          }
+        ).turnstile;
+
+        if (widgetIdRef.current !== null) {
+          try {
+            turnstile?.remove?.(widgetIdRef.current);
+          } catch {
+            // Cloudflare may already have removed the widget.
+          }
+          widgetIdRef.current = null;
+        }
+        setWidgetVersion((current) => current + 1);
+      },
       verify: () =>
         new Promise((resolve) => {
           if (!siteKey) {
             resolve('');
             return;
           }
-          if (token) {
-            resolve(token);
-            return;
-          }
+          onTokenRef.current('');
 
           const execute = (attempt = 0) => {
             const turnstile = (
               window as Window & {
                 turnstile?: {
                   execute: (widgetId: string | number) => void;
+                  remove?: (widgetId: string | number) => void;
+                  reset?: (widgetId: string | number) => void;
                 };
               }
             ).turnstile;
@@ -785,7 +833,27 @@ export const TurnstileSlot = forwardRef<
             }
 
             pendingRef.current = resolve;
-            turnstile.execute(widgetIdRef.current);
+            try {
+              turnstile.reset?.(widgetIdRef.current);
+              window.setTimeout(() => {
+                if (!pendingRef.current || widgetIdRef.current === null) return;
+                try {
+                  turnstile.execute(widgetIdRef.current);
+                } catch {
+                  widgetIdRef.current = null;
+                  pendingRef.current = null;
+                  onTokenRef.current('');
+                  setWidgetVersion((current) => current + 1);
+                  resolve('');
+                }
+              }, 0);
+            } catch {
+              widgetIdRef.current = null;
+              pendingRef.current = null;
+              onTokenRef.current('');
+              setWidgetVersion((current) => current + 1);
+              resolve('');
+            }
           };
 
           execute();
@@ -796,7 +864,7 @@ export const TurnstileSlot = forwardRef<
           }, 30_000);
         }),
     }),
-    [siteKey, token],
+    [siteKey],
   );
 
   if (!siteKey) {
@@ -805,7 +873,7 @@ export const TurnstileSlot = forwardRef<
 
   return (
     <div className="turnstile-shell">
-      <div ref={ref} />
+      <div key={widgetVersion} ref={ref} />
     </div>
   );
 });
