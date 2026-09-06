@@ -3,8 +3,7 @@ import 'server-only';
 import { db } from '@/lib/db/client';
 import { rateLimits } from '@/lib/db/schema';
 import { getClientIp } from '@/lib/http/client-ip';
-import { sql } from 'drizzle-orm';
-import { eq, lt } from 'drizzle-orm';
+import { eq, lt, sql } from 'drizzle-orm';
 
 type RateLimitOptions = {
   action: string;
@@ -28,11 +27,15 @@ export type RateLimitResult = {
   resetAt: string;
 };
 
-const fallbackAttempts = new Map<string, number[]>();
-
 export const oneHourMs = 60 * 60 * 1000;
 export const fifteenMinutesMs = 15 * 60 * 1000;
 export const twoSecondsMs = 2 * 1000;
+
+const fallbackAttempts = new Map<string, number[]>();
+const fallbackCleanupIntervalMs = 60 * 1000;
+const fallbackRetentionMs = oneHourMs;
+const fallbackMaxSubjects = Number(process.env.RATE_LIMIT_FALLBACK_MAX_SUBJECTS || 5000);
+let fallbackLastCleanupAt = 0;
 
 export async function consumeRateLimit({
   action,
@@ -96,7 +99,6 @@ export async function consumeRateLimit({
       expiresAt: readDate(row?.expiresAt) || expiresAt,
     });
 
-    void cleanupExpiredRateLimits();
     return result;
   } catch (error) {
     console.error('[rate-limit] Database limiter failed; using in-memory fallback.', error);
@@ -194,6 +196,7 @@ function consumeFallbackRateLimit({
 }: RateLimitOptions): RateLimitResult {
   const key = `${normalizeKeyPart(action)}:${normalizeKeyPart(subject || 'unknown')}`;
   const now = Date.now();
+  cleanupFallbackAttempts(now);
   const active = (fallbackAttempts.get(key) || []).filter(
     (timestamp) => now - timestamp < windowMs,
   );
@@ -231,10 +234,39 @@ function readDate(value: Date | string | undefined) {
   return Number.isFinite(timestamp) ? new Date(timestamp) : null;
 }
 
-async function cleanupExpiredRateLimits() {
+export async function cleanupExpiredRateLimits() {
   try {
     await db.delete(rateLimits).where(lt(rateLimits.expiresAt, new Date()));
-  } catch {
-    // Best-effort cleanup only.
+    return { ok: true };
+  } catch (error) {
+    console.warn('[rate-limit] Failed to cleanup expired limiter rows.', error);
+    return { ok: false };
   }
+}
+
+function cleanupFallbackAttempts(now: number) {
+  if (
+    now - fallbackLastCleanupAt < fallbackCleanupIntervalMs &&
+    fallbackAttempts.size <= fallbackMaxSubjects
+  ) {
+    return;
+  }
+
+  fallbackLastCleanupAt = now;
+  for (const [key, attempts] of fallbackAttempts) {
+    const active = attempts.filter((timestamp) => now - timestamp < fallbackRetentionMs);
+    if (active.length) {
+      fallbackAttempts.set(key, active);
+    } else {
+      fallbackAttempts.delete(key);
+    }
+  }
+
+  if (fallbackAttempts.size <= fallbackMaxSubjects) return;
+
+  const keysByOldestAttempt = Array.from(fallbackAttempts.entries())
+    .map(([key, attempts]) => ({ key, oldest: attempts[0] || 0 }))
+    .sort((a, b) => a.oldest - b.oldest);
+  const overflow = fallbackAttempts.size - fallbackMaxSubjects;
+  keysByOldestAttempt.slice(0, overflow).forEach(({ key }) => fallbackAttempts.delete(key));
 }
