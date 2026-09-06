@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { NETWORKS } from '@/features/coins/networks';
+import { getDefaultCommunityRankForCoin } from '@/features/coins/server/community-rank';
 import { getCoinInteractionSummaries } from '@/features/coins/server/interactions';
 import type {
   BoostMultiplier,
@@ -86,14 +87,14 @@ export async function getPublicCoinById(id: number, userId?: string | null): Pro
     'server.operation',
     { operation: 'coins.public_detail', authenticated: Boolean(userId) },
     async () => {
-      const coinRecords = await getPublicCoinRecords(undefined, undefined, id);
-      const rankedRecords = rankCoinsByBoostedVotes(coinRecords);
-      const activeCoin = rankedRecords.find((coin) => coin.id === id);
-      if (activeCoin)
-        return userId ? attachSingleUserInteractionState(activeCoin, userId) : activeCoin;
+      const coinRecords = await getPublicCoinRecords(id, undefined, id);
+      const coin = coinRecords.find((record) => record.id === id);
+      if (!coin) return null;
 
-      const suspendedRecords = await getPublicCoinRecords(id, undefined, id);
-      return suspendedRecords.find((coin) => coin.id === id) || null;
+      const rankedCoin =
+        coin.listingStatus === 'active' ? await withDefaultCommunityRank(coin) : coin;
+
+      return userId ? attachSingleUserInteractionState(rankedCoin, userId) : rankedCoin;
     },
   );
 }
@@ -225,6 +226,19 @@ async function selectPublicCoinRecords(
       interactions: interactionsByCoin.get(coin.id) || null,
     }),
   );
+}
+
+async function withDefaultCommunityRank(coin: Coin) {
+  const rank = await getDefaultCommunityRankForCoin(coin.id);
+  if (!rank) return coin;
+
+  return {
+    ...coin,
+    community: {
+      ...coin.community,
+      rank,
+    },
+  };
 }
 
 async function attachUserInteractionState(coinRecords: Coin[], userId: string) {
@@ -767,33 +781,4 @@ function toNumber(value: string | number | null | undefined) {
   if (value === null || value === undefined) return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
-}
-
-function rankCoinsByBoostedVotes(coinRecords: Coin[]) {
-  return [...coinRecords]
-    .sort(
-      (a, b) =>
-        boostedWeeklyVotes(b) - boostedWeeklyVotes(a) ||
-        a.name.localeCompare(b.name) ||
-        a.id - b.id,
-    )
-    .map((coin, index) => ({
-      ...coin,
-      community: {
-        ...coin.community,
-        rank: index + 1,
-      },
-    }));
-}
-
-function boostedWeeklyVotes(coin: Coin) {
-  const boostPackage = coin.boost.active ? coin.boost.multiplier : null;
-  return coin.community.weeklyVotes * getBoostVoteFactor(boostPackage);
-}
-
-function getBoostVoteFactor(boostPackage: number | null | undefined) {
-  if (boostPackage === 10 || boostPackage === 30) return 2;
-  if (boostPackage === 50 || boostPackage === 100) return 3;
-  if (boostPackage === 500) return 5;
-  return 1;
 }
