@@ -14,6 +14,7 @@ import {
   getLeaderboardPage,
   getLeaderboardSelection,
   hydrateLeaderboardSelectionFromItems,
+  normalizeLeaderboardQuery,
 } from './leaderboard';
 import { getCurrentVoteWeekStart } from './interactions';
 
@@ -30,6 +31,7 @@ export async function getDiscoveryData(query: LeaderboardQuery = {}): Promise<Di
 }
 
 async function getCachedDiscoveryData(query: LeaderboardQuery): Promise<DiscoveryData> {
+  const normalized = normalizeLeaderboardQuery(query);
   const [publicCoinsVersion, leaderboardVersion, promotedCoinsVersion] = await Promise.all([
     getCacheVersion('public-coins'),
     getCacheVersion('leaderboard'),
@@ -37,7 +39,12 @@ async function getCachedDiscoveryData(query: LeaderboardQuery): Promise<Discover
   ]);
 
   return rememberJson(
-    buildDiscoveryCacheKey(query, publicCoinsVersion, leaderboardVersion, promotedCoinsVersion),
+    buildDiscoveryCacheKey(
+      normalized,
+      publicCoinsVersion,
+      leaderboardVersion,
+      promotedCoinsVersion,
+    ),
     { ttlSeconds: discoveryCacheSeconds },
     () => readDiscoveryData(query),
   );
@@ -96,7 +103,7 @@ async function readDiscoveryData(query: LeaderboardQuery = {}): Promise<Discover
 }
 
 function buildDiscoveryCacheKey(
-  query: LeaderboardQuery,
+  query: ReturnType<typeof normalizeLeaderboardQuery>,
   publicCoinsVersion: number,
   leaderboardVersion: number,
   promotedCoinsVersion: number,
@@ -110,8 +117,8 @@ function buildDiscoveryCacheKey(
     query.category || '',
     query.chain || '',
     query.search || '',
-    query.sort || '',
-    query.direction || '',
+    query.sort.key,
+    query.sort.direction,
     query.page || '',
     query.pageSize || '',
     'v1',

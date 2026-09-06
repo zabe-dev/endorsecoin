@@ -401,7 +401,7 @@ function getNetworkIdFromShortName(shortName: string) {
   return network?.id || '';
 }
 
-function normalizeLeaderboardQuery(query: LeaderboardQuery) {
+export function normalizeLeaderboardQuery(query: LeaderboardQuery) {
   const view = normalizeView(query.view);
   const category = normalizeCategory(query.category);
   const chain = normalizeChain(query.chain);
