@@ -1353,7 +1353,7 @@
 }
 .site-footer-column > span:first-child {
   color: var(--copy);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 750;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -1362,6 +1362,7 @@
   cursor: default;
   width: fit-content;
   color: #8e98a0;
+  font-size: 11px;
   opacity: 0.52;
 }
 .site-footer-group-label {
@@ -1369,7 +1370,7 @@
 }
 .site-footer-column > .site-footer-group-label {
   color: var(--copy);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 750;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -1401,6 +1402,7 @@
   min-height: 20px;
   align-items: center;
   color: #99a3aa;
+  font-size: 11px;
   outline: none;
   transition:
     color 0.16s ease,

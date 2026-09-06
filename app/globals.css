@@ -1791,7 +1791,7 @@ tbody tr:hover td {
 }
 .site-footer-column > span:first-child {
   color: var(--copy);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 750;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -1800,6 +1800,7 @@ tbody tr:hover td {
   cursor: default;
   width: fit-content;
   color: #8e98a0;
+  font-size: 11px;
   opacity: 0.52;
 }
 .site-footer-group-label {
@@ -1807,7 +1808,7 @@ tbody tr:hover td {
 }
 .site-footer-column > .site-footer-group-label {
   color: var(--copy);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 750;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -1825,6 +1826,7 @@ tbody tr:hover td {
   min-height: 20px;
   align-items: center;
   color: #9aa4ab;
+  font-size: 11px;
   outline: none;
   transition:
     color 0.16s ease,
@@ -4693,6 +4695,13 @@ img.admin-project-logo {
   border-radius: 11px;
   padding: 28px;
   text-align: center;
+}
+.project-table-empty {
+  display: block;
+  color: var(--sub, #77818a);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.5;
 }
 .settings-empty p {
   margin: 5px 0 0;

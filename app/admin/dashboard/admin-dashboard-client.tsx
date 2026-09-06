@@ -1132,7 +1132,9 @@ function AdminPanel<T>({
         {visibleRows.length ? (
           renderTable(visibleRows)
         ) : (
-          <div className="admin-empty-state">{empty}</div>
+          <div className="admin-empty-state">
+            <span className="project-table-empty">{empty}</span>
+          </div>
         )}
       </div>
       <div className="admin-pagination">

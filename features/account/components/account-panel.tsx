@@ -96,7 +96,9 @@ export function WatchlistPanel({
           <PublicWatchlistTable coins={coins} isSignedIn={isSignedIn} />
         ) : (
           <div className="settings-empty">
-            <strong>There is currently no projects available to display.</strong>
+            <strong className="project-table-empty">
+              There is currently no projects available to display.
+            </strong>
           </div>
         )}
         {pagination && <AccountPagination pagination={pagination} />}
@@ -149,7 +151,9 @@ export function AccountPanel({
           <SubmissionTable submissions={listingRows} onRequestDelete={setDeleteModal} />
         ) : (
           <div className="settings-empty">
-            <strong>There is currently no projects available to display.</strong>
+            <strong className="project-table-empty">
+              There is currently no projects available to display.
+            </strong>
           </div>
         )}
         {pagination && <AccountPagination pagination={pagination} />}

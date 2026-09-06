@@ -1,6 +1,9 @@
 import { SiteFooter } from '@/components/layout/site-footer';
 import { SiteHeader } from '@/components/layout/site-header';
-import { AccountPagination, PublicWatchlistTable } from '@/features/account/components/account-panel';
+import {
+  AccountPagination,
+  PublicWatchlistTable,
+} from '@/features/account/components/account-panel';
 import { PremiumAdBanner } from '@/features/ads/components/ad-banners';
 import { getActiveBannerAds } from '@/features/ads/server/banner-ads';
 import { getWatchlistTablePage } from '@/features/account/server/watchlist';
@@ -58,7 +61,9 @@ export default async function PublicWatchlistPage({ params, searchParams }: Watc
             <PublicWatchlistTable coins={watchlistPage.rows} isSignedIn={Boolean(session?.user)} />
           ) : (
             <div className="settings-empty">
-              <strong>There is currently no projects available to display.</strong>
+              <strong className="project-table-empty">
+                There is currently no projects available to display.
+              </strong>
             </div>
           )}
           <AccountPagination pagination={watchlistPage} />
