@@ -305,7 +305,7 @@ function mapDbCoinToCoin({
       fdvUsd: toNumber(snapshot?.fdvUsd),
       totalSupply: toNumber(snapshot?.totalSupply),
       holdersCount: snapshot?.holdersCount ?? null,
-      marketRank: snapshot?.marketRank ?? index + 1,
+      marketRank: index + 1,
       lastUpdatedAt: snapshot?.recordedAt.toISOString() ?? null,
     },
     community: {

@@ -21,9 +21,18 @@ export function TablePagination({
   scrollTargetId?: string;
 }) {
   const router = useRouter();
-  if (!pagination || pagination.pages <= 1) return null;
+  const rawPage = pagination?.page;
+  const rawPageSize = pagination?.pageSize;
+  const rawTotal = pagination?.total;
+  const rawPages = pagination?.pages;
+  const page = isFiniteNumber(rawPage) ? rawPage : 1;
+  const pageSize = isFiniteNumber(rawPageSize) ? rawPageSize : 0;
+  const total = isFiniteNumber(rawTotal) ? rawTotal : 0;
+  const pages = isFiniteNumber(rawPages) ? rawPages : 0;
 
-  const items = getPaginationItems({ count: pagination.pages, page: pagination.page });
+  if (pages <= 1) return null;
+
+  const items = getPaginationItems({ count: pages, page });
 
   function goToPage(page: number) {
     const params = new URLSearchParams(window.location.search);
@@ -37,14 +46,14 @@ export function TablePagination({
   return (
     <div className={`table-pagination ${className}`.trim()}>
       <span>
-        Showing {pagination.total ? (pagination.page - 1) * pagination.pageSize + 1 : 0}–
-        {Math.min(pagination.page * pagination.pageSize, pagination.total)} of {pagination.total}
+        Showing {total ? (page - 1) * pageSize + 1 : 0}–
+        {Math.min(page * pageSize, total)} of {total}
       </span>
       <div>
         <button
           type="button"
-          disabled={pagination.page === 1}
-          onClick={() => goToPage(Math.max(1, pagination.page - 1))}
+          disabled={page === 1}
+          onClick={() => goToPage(Math.max(1, page - 1))}
         >
           <ChevronLeft aria-hidden="true" />
           <span className="sr-only">Previous</span>
@@ -53,7 +62,7 @@ export function TablePagination({
           typeof item === 'number' ? (
             <button
               type="button"
-              className={pagination.page === item ? 'active' : ''}
+              className={page === item ? 'active' : ''}
               key={item}
               onClick={() => goToPage(item)}
             >
@@ -67,8 +76,8 @@ export function TablePagination({
         )}
         <button
           type="button"
-          disabled={pagination.page === pagination.pages}
-          onClick={() => goToPage(Math.min(pagination.pages, pagination.page + 1))}
+          disabled={page === pages}
+          onClick={() => goToPage(Math.min(pages, page + 1))}
         >
           <ChevronRight aria-hidden="true" />
           <span className="sr-only">Next</span>
@@ -76,4 +85,8 @@ export function TablePagination({
       </div>
     </div>
   );
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
 }
