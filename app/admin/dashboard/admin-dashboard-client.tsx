@@ -24,6 +24,7 @@ import {
 import { AdminPanel } from './components/admin-panel';
 import { AdminOverview } from './components/admin-overview';
 import { ActionGroup, StatusPill } from './components/admin-primitives';
+import { formatAdStatus, labelize, todayUtcInputDate } from './utils';
 import type {
   AdminBannerRow,
   AdminDashboardClientProps,
@@ -1855,17 +1856,6 @@ function usePopoverPosition(open: boolean, buttonRef: RefObject<HTMLButtonElemen
   return position;
 }
 
-function labelize(value: string) {
-  return value
-    .split('-')
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
-}
-
-function formatAdStatus(value: string) {
-  if (value === 'inactive') return 'Expired';
-  return labelize(value);
-}
 
 function isBannerPlacement(value: string | undefined): value is BannerPlacement {
   return bannerPlacements.includes(value as BannerPlacement);
@@ -1873,10 +1863,4 @@ function isBannerPlacement(value: string | undefined): value is BannerPlacement 
 
 function isAdminTab(value: string | null): value is AdminTab {
   return adminTabs.some((tab) => tab.id === value);
-}
-
-function todayUtcInputDate() {
-  const date = new Date();
-  const pad = (value: number) => String(value).padStart(2, '0');
-  return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`;
 }
