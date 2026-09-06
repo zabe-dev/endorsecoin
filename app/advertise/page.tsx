@@ -64,7 +64,7 @@ const bannerPlacements = [
     size: 'Desktop: 1320×90px - 1400×120px',
     price: '$50/day',
     mobile: 'Mobile: 320×90px - 620×120px',
-    note: 'Located between promoted coins and the homepage leaderboard, under coin page headers, inside dashboard/watchlist pages, and between the airdrops table and promoted coins. Exclusive ad space, does not rotate.',
+    note: 'Located between promoted coins and the homepage leaderboard, under coin page headers, in dashboard/watchlist, and between airdrops and promoted coins. Exclusive ad space, does not rotate.',
   },
   {
     placement: 'Fixed footer banner',
