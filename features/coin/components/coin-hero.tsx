@@ -57,7 +57,11 @@ export function CoinHero({
       <div className="coin-heading-main">
         <div className="coin-identity">
           <div className={`detail-logo ${coin.color}`}>
-            {coin.image ? <img src={coin.image} alt="" /> : coin.logo}
+            {coin.image ? (
+              <img src={coin.image} alt="" width={52} height={52} decoding="async" />
+            ) : (
+              coin.logo
+            )}
           </div>
           <div className="coin-title-copy">
             <div className="coin-name-line">
@@ -199,7 +203,11 @@ function DateStat({ label, value }: { label: string; value: string }) {
 function ChainIcon({ coin }: { coin: CoinDetailView }) {
   return (
     <span className="contract-chain-icon" title={coin.networkName}>
-      {coin.chainIcon ? <img src={coin.chainIcon} alt="" /> : coin.chain[0]}
+      {coin.chainIcon ? (
+        <img src={coin.chainIcon} alt="" width={18} height={18} decoding="async" />
+      ) : (
+        coin.chain[0]
+      )}
     </span>
   );
 }

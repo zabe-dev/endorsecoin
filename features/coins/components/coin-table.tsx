@@ -46,9 +46,24 @@ export function CoinCells({ coin, linkEnabled = true }: { coin: Coin; linkEnable
       <td>
         <div className="coin-cell">
           <div className={`coin-logo ${coin.color}`}>
-            {coin.image ? <img src={coin.image} alt="" /> : coin.logo}
+            {coin.image ? (
+              <img src={coin.image} alt="" width={38} height={38} loading="lazy" decoding="async" />
+            ) : (
+              coin.logo
+            )}
             <span className="chain-badge" title={coin.networkName}>
-              {coin.chainIcon ? <img src={coin.chainIcon} alt="" /> : coin.chain[0]}
+              {coin.chainIcon ? (
+                <img
+                  src={coin.chainIcon}
+                  alt=""
+                  width={15}
+                  height={15}
+                  loading="lazy"
+                  decoding="async"
+                />
+              ) : (
+                coin.chain[0]
+              )}
             </span>
           </div>
           <div>

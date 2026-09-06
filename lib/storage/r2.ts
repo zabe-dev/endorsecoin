@@ -15,6 +15,7 @@ type R2Config = {
 
 const r2Region = 'auto';
 const r2Service = 's3';
+const r2ImageCacheControl = 'public, max-age=31536000, immutable';
 
 export async function uploadSubmissionLogo(logo: {
   name: string;
@@ -33,6 +34,7 @@ export async function uploadSubmissionLogo(logo: {
     method: 'PUT',
     headers: signedPutHeaders({
       body,
+      cacheControl: r2ImageCacheControl,
       contentType: logo.mimeType,
       requestUrl: url,
       storage,
@@ -83,11 +85,13 @@ function getR2Config(): R2Config {
 
 function signedPutHeaders({
   body,
+  cacheControl,
   contentType,
   requestUrl,
   storage,
 }: {
   body: Buffer;
+  cacheControl?: string;
   contentType: string;
   requestUrl: string;
   storage: R2Config;
@@ -96,12 +100,15 @@ function signedPutHeaders({
   const amzDate = new Date().toISOString().replace(/[:-]|\.\d{3}/g, '');
   const dateStamp = amzDate.slice(0, 8);
   const payloadHash = sha256Hex(body);
-  const signedHeaders = 'content-type;host;x-amz-content-sha256;x-amz-date';
+  const signedHeaders = cacheControl
+    ? 'cache-control;content-type;host;x-amz-content-sha256;x-amz-date'
+    : 'content-type;host;x-amz-content-sha256;x-amz-date';
   const credentialScope = `${dateStamp}/${r2Region}/${r2Service}/aws4_request`;
   const canonicalRequest = [
     'PUT',
     parsedUrl.pathname,
     parsedUrl.searchParams.toString(),
+    ...(cacheControl ? [`cache-control:${cacheControl}`] : []),
     `content-type:${contentType}`,
     `host:${parsedUrl.host}`,
     `x-amz-content-sha256:${payloadHash}`,
@@ -120,6 +127,7 @@ function signedPutHeaders({
   const signature = hmacHex(signingKey, stringToSign);
 
   return {
+    ...(cacheControl ? { 'Cache-Control': cacheControl } : {}),
     Authorization: [
       `AWS4-HMAC-SHA256 Credential=${storage.accessKeyId}/${credentialScope}`,
       `SignedHeaders=${signedHeaders}`,

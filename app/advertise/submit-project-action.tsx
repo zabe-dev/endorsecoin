@@ -4,13 +4,22 @@ import { AuthModal } from '@/features/auth/components/auth-modal';
 import { authClient } from '@/lib/auth/client';
 import { Send } from 'lucide-react';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
+
+const subscribeToHydration = () => () => undefined;
+const getHydratedSnapshot = () => true;
+const getServerSnapshot = () => false;
 
 export function SubmitProjectAction() {
   const [authOpen, setAuthOpen] = useState(false);
+  const hydrated = useSyncExternalStore(
+    subscribeToHydration,
+    getHydratedSnapshot,
+    getServerSnapshot,
+  );
   const { data: session } = authClient.useSession();
 
-  if (session?.user) {
+  if (hydrated && session?.user) {
     return (
       <Link className="advertise-secondary" href="/submit">
         <Send aria-hidden="true" />

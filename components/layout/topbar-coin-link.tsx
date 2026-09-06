@@ -29,7 +29,15 @@ export function TopbarCoinLink({ coin, kind }: TopbarCoinLinkProps) {
       />
       <span className="topbar-coin-label">{labels[kind]}</span>
       {coin.logoUrl ? (
-        <img className="topbar-coin-logo" src={coin.logoUrl} alt="" />
+        <img
+          className="topbar-coin-logo"
+          src={coin.logoUrl}
+          alt=""
+          width={24}
+          height={24}
+          decoding="async"
+          fetchPriority="low"
+        />
       ) : (
         <span className="topbar-coin-logo topbar-coin-logo-fallback">
           {coin.symbol.slice(0, 1)}

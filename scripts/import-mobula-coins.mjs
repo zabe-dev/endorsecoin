@@ -63,6 +63,7 @@ const EXCLUDE_TOP_RANK = readPositiveInteger(
   150,
 );
 const SKIP_R2_LOGO_UPLOAD = args.includes('--skip-r2-logo-upload');
+const R2_IMAGE_CACHE_CONTROL = 'public, max-age=31536000, immutable';
 
 if (!DATABASE_URL && !DRY_RUN) {
   throw new Error('DATABASE_URL is required for a real import. Use --dry-run to preview only.');
@@ -1453,6 +1454,7 @@ async function mirrorRemoteImageToR2(sourceUrl, { chain }) {
     method: 'PUT',
     headers: signedPutHeaders({
       body: image.body,
+      cacheControl: R2_IMAGE_CACHE_CONTROL,
       contentType: image.mimeType,
       requestUrl,
       storage,
@@ -1511,17 +1513,20 @@ function getR2Config() {
   };
 }
 
-function signedPutHeaders({ body, contentType, requestUrl, storage }) {
+function signedPutHeaders({ body, cacheControl, contentType, requestUrl, storage }) {
   const parsedUrl = new URL(requestUrl);
   const amzDate = new Date().toISOString().replace(/[:-]|\.\d{3}/g, '');
   const dateStamp = amzDate.slice(0, 8);
   const payloadHash = sha256Hex(body);
-  const signedHeaders = 'content-type;host;x-amz-content-sha256;x-amz-date';
+  const signedHeaders = cacheControl
+    ? 'cache-control;content-type;host;x-amz-content-sha256;x-amz-date'
+    : 'content-type;host;x-amz-content-sha256;x-amz-date';
   const credentialScope = `${dateStamp}/auto/s3/aws4_request`;
   const canonicalRequest = [
     'PUT',
     parsedUrl.pathname,
     parsedUrl.searchParams.toString(),
+    ...(cacheControl ? [`cache-control:${cacheControl}`] : []),
     `content-type:${contentType}`,
     `host:${parsedUrl.host}`,
     `x-amz-content-sha256:${payloadHash}`,
@@ -1539,6 +1544,7 @@ function signedPutHeaders({ body, contentType, requestUrl, storage }) {
   const signature = hmacHex(getSigningKey(storage.secretAccessKey, dateStamp), stringToSign);
 
   return {
+    ...(cacheControl ? { 'Cache-Control': cacheControl } : {}),
     Authorization: [
       `AWS4-HMAC-SHA256 Credential=${storage.accessKeyId}/${credentialScope}`,
       `SignedHeaders=${signedHeaders}`,

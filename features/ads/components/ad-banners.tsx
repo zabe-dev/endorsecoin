@@ -125,6 +125,8 @@ function AdImageContent({
         src={src}
         alt={decorative ? '' : ad.title || 'Advertisement'}
         aria-hidden={decorative ? true : undefined}
+        decoding="async"
+        loading="lazy"
         onError={() => {
           if (src !== fallbackSrc) {
             setSrc(fallbackSrc);

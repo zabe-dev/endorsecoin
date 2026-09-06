@@ -39,7 +39,18 @@ export function DiscoveryCard({
           <Link className="mini-coin" href={`/coin/${coin.coinId}`} key={coin.coinId}>
             <b>{index + 1}</b>
             <div className={`coin-logo ${coin.color}`}>
-              {coin.image ? <img src={coin.image} alt="" /> : coin.logo}
+              {coin.image ? (
+                <img
+                  src={coin.image}
+                  alt=""
+                  width={38}
+                  height={38}
+                  loading="lazy"
+                  decoding="async"
+                />
+              ) : (
+                coin.logo
+              )}
             </div>
             <span>
               <strong

@@ -532,6 +532,8 @@ export function HomeClient({
                   alt=""
                   aria-hidden="true"
                   height={17}
+                  loading="lazy"
+                  decoding="async"
                   src={selectedChainChoice.iconUrl}
                   width={17}
                 />
@@ -554,7 +556,15 @@ export function HomeClient({
                     }}
                   >
                     {choice.iconUrl ? (
-                      <img alt="" aria-hidden="true" height={17} src={choice.iconUrl} width={17} />
+                      <img
+                        alt=""
+                        aria-hidden="true"
+                        height={17}
+                        loading="lazy"
+                        decoding="async"
+                        src={choice.iconUrl}
+                        width={17}
+                      />
                     ) : (
                       <span>◎</span>
                     )}
