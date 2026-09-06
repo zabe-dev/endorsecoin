@@ -1664,8 +1664,17 @@
 
   .submission-logo-actions,
   .submission-actions,
-  .submission-step-actions {
+  .submission-step-actions,
+  .submission-success-actions {
+    width: 100%;
     flex-direction: column;
+    align-items: stretch;
+  }
+
+  .submission-success-actions .submission-primary,
+  .submission-success-actions .submission-secondary {
+    width: 100%;
+    min-width: 0;
   }
 
   .submission-primary,

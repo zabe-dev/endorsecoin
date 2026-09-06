@@ -28,29 +28,33 @@
 }
 
 .airdrops-table-frame .airdrops-table {
-  min-width: 960px;
+  min-width: 860px;
   table-layout: fixed;
 }
 
 .airdrop-col-rank {
-  width: 46px;
+  width: 42px;
 }
 
 .airdrop-col-name {
-  width: 25%;
+  width: 23%;
 }
 
 .airdrop-col-rewards {
-  width: 27%;
+  width: 26%;
+}
+
+.airdrop-col-timeline {
+  width: 128px;
 }
 
 .airdrop-col-start-date,
 .airdrop-col-end-date {
-  width: 132px;
+  width: 104px;
 }
 
-.airdrop-col-links {
-  width: 230px;
+.airdrop-col-website {
+  width: 78px;
 }
 
 .airdrops-table th,
@@ -66,17 +70,23 @@
 }
 
 .airdrops-table th:nth-child(4),
-.airdrops-table td:nth-child(4),
-.airdrops-table th:nth-child(5),
-.airdrops-table td:nth-child(5) {
-  padding-left: 18px;
-  padding-right: 16px;
+.airdrops-table td:nth-child(4) {
+  padding-left: 16px;
+  padding-right: 14px;
 }
 
+.airdrops-table th:nth-child(5),
+.airdrops-table td:nth-child(5),
 .airdrops-table th:nth-child(6),
 .airdrops-table td:nth-child(6) {
-  padding-left: 18px;
-  padding-right: 22px;
+  padding-left: 16px;
+  padding-right: 14px;
+}
+
+.airdrops-table th:nth-child(7),
+.airdrops-table td:nth-child(7) {
+  padding-left: 16px;
+  padding-right: 20px;
 }
 
 .airdrop-name-cell {
@@ -131,6 +141,12 @@
   font-weight: 650;
 }
 
+.airdrop-reward-cell {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
 .airdrop-reward-copy {
   max-width: 100%;
   color: #cfd4d7;
@@ -169,13 +185,90 @@
   white-space: nowrap;
 }
 
+.airdrop-timeline-cell {
+  display: grid;
+  width: min(100%, 104px);
+  gap: 5px;
+}
+
+.airdrop-timeline-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-width: 0;
+}
+
+.airdrop-status-text,
+.airdrop-timeline-head small {
+  display: block;
+  overflow: hidden;
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.airdrop-status-text {
+  color: #9fa9af;
+  font-weight: 600;
+}
+
+.airdrop-status-text.ongoing {
+  color: var(--lime);
+}
+
+.airdrop-status-text.ended {
+  color: #68737b;
+}
+
+.airdrop-timeline-head small {
+  color: #69737b;
+  font-weight: 500;
+}
+
+.airdrop-timeline-track {
+  position: relative;
+  display: block;
+  height: 2px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #202529;
+}
+
+.airdrop-timeline-track > span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  min-width: 0;
+  border-radius: inherit;
+  background: var(--lime);
+}
+
+.airdrop-timeline-track.scheduled > span {
+  background: #78838b;
+}
+
+.airdrop-timeline-track.ended > span {
+  background: #4b555d;
+}
+
+.airdrop-timeline-track.ongoing > span::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: -2px;
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--lime);
+  box-shadow: 0 0 8px rgba(203, 255, 74, 0.68);
+  transform: translateY(-50%);
+}
+
 .airdrop-action-group {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  flex-wrap: wrap;
-  max-width: 134px;
-  gap: 5px;
+  gap: 6px;
 }
 
 .airdrop-action-btn {
@@ -247,7 +340,7 @@
   }
 
   .airdrops-table-frame .airdrops-table {
-    min-width: 860px;
+    min-width: 760px;
   }
 
   .airdrop-col-rank {
@@ -255,20 +348,24 @@
   }
 
   .airdrop-col-name {
-    width: 196px;
+    width: 160px;
   }
 
   .airdrop-col-rewards {
-    width: 196px;
+    width: 172px;
+  }
+
+  .airdrop-col-timeline {
+    width: 118px;
   }
 
   .airdrop-col-start-date,
   .airdrop-col-end-date {
-    width: 114px;
+    width: 96px;
   }
 
-  .airdrop-col-links {
-    width: 182px;
+  .airdrop-col-website {
+    width: 68px;
   }
 
   .airdrops-table th:first-child,
@@ -280,15 +377,17 @@
   .airdrops-table th:nth-child(4),
   .airdrops-table td:nth-child(4),
   .airdrops-table th:nth-child(5),
-  .airdrops-table td:nth-child(5) {
-    padding-left: 12px;
-    padding-right: 12px;
-  }
-
+  .airdrops-table td:nth-child(5),
   .airdrops-table th:nth-child(6),
   .airdrops-table td:nth-child(6) {
-    padding-left: 14px;
-    padding-right: 16px;
+    padding-left: 12px;
+    padding-right: 10px;
+  }
+
+  .airdrops-table th:nth-child(7),
+  .airdrops-table td:nth-child(7) {
+    padding-left: 12px;
+    padding-right: 14px;
   }
 
   .airdrop-name-cell {
@@ -301,8 +400,11 @@
     border-radius: 7px;
   }
 
+  .airdrop-timeline-cell {
+    width: min(100%, 92px);
+  }
+
   .airdrop-action-group {
-    max-width: 128px;
     gap: 4px;
   }
 

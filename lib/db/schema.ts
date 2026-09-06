@@ -47,6 +47,7 @@ export const coins = pgTable(
     index('coins_status_presale_idx').on(table.listingStatus, table.isPresale),
     index('coins_status_category_idx').on(table.listingStatus, table.category),
     index('coins_status_chain_idx').on(table.listingStatus, table.chain),
+    index('coins_status_name_idx').on(table.listingStatus, table.name),
   ],
 );
 
@@ -330,6 +331,12 @@ export const airdropSubmissions = pgTable(
   },
   (table) => [
     index('airdrop_submissions_status_created_idx').on(table.status, table.createdAt),
+    index('airdrop_submissions_status_start_created_idx').on(
+      table.status,
+      table.startsAt,
+      table.createdAt,
+    ),
+    index('airdrop_submissions_created_idx').on(table.createdAt),
     index('airdrop_submissions_coin_status_idx').on(table.coinId, table.status),
     index('airdrop_submissions_schedule_idx').on(table.startsAt, table.endsAt),
     index('airdrop_submissions_user_idx').on(table.submittedByUserId),

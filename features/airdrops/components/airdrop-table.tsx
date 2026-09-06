@@ -2,7 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element -- Airdrop rows reuse approved project logos from stored coin records. */
 import { TablePagination, type TablePaginationState } from '@/components/ui/table-pagination';
-import type { AirdropSocialLinks, PublicAirdropRow } from '@/features/airdrops/types';
+import type { PublicAirdropRow } from '@/features/airdrops/types';
 import { TableScroller } from '@/features/coins/components';
 import { Icon as IconifyIcon } from '@iconify/react';
 import { useRouter } from 'next/navigation';
@@ -13,15 +13,6 @@ type AirdropLink = {
   label: string;
   url: string;
   icon: string;
-};
-
-const socialLinkMeta: Record<keyof AirdropSocialLinks, { label: string; icon: string }> = {
-  telegram: { label: 'Telegram', icon: 'akar-icons:telegram-fill' },
-  x: { label: 'X', icon: 'akar-icons:x-fill' },
-  reddit: { label: 'Reddit', icon: 'akar-icons:reddit-fill' },
-  discord: { label: 'Discord', icon: 'akar-icons:discord-fill' },
-  youtube: { label: 'YouTube', icon: 'akar-icons:youtube-fill' },
-  facebook: { label: 'Facebook', icon: 'akar-icons:facebook-fill' },
 };
 
 export function AirdropTable({
@@ -56,84 +47,113 @@ export function AirdropTable({
           <colgroup>
             <col className="airdrop-col-rank" />
             <col className="airdrop-col-name" />
+            <col className="airdrop-col-timeline" />
             <col className="airdrop-col-rewards" />
             <col className="airdrop-col-start-date" />
             <col className="airdrop-col-end-date" />
-            <col className="airdrop-col-links" />
+            <col className="airdrop-col-website" />
           </colgroup>
           <thead>
             <tr>
               <th>#</th>
               <th>Airdrop</th>
+              <th>Timeline</th>
               <th>Rewards</th>
               <th>START DATE</th>
               <th>END DATE</th>
-              <th>Links</th>
+              <th>Website</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((airdrop, index) => (
-              <tr
-                className="airdrop-clickable-row"
-                key={airdrop.id}
-                tabIndex={0}
-                aria-label={`Open ${airdrop.projectName} coin page`}
-                onClick={() => openCoin(airdrop.coinId)}
-                onKeyDown={(event) => openCoinFromKeyboard(event, airdrop.coinId)}
-              >
-                <td>
-                  <span className="airdrop-row-number">{pageStart + index + 1}</span>
-                </td>
-                <td>
-                  <div className="airdrop-name-cell">
-                    <span>
-                      {airdrop.projectLogoUrl ? (
-                        <img src={airdrop.projectLogoUrl} alt="" loading="lazy" decoding="async" />
-                      ) : (
-                        airdrop.projectName.slice(0, 1)
-                      )}
-                    </span>
-                    <div>
-                      <span className="airdrop-title">{airdrop.name}</span>
-                      <small>
-                        {airdrop.projectName}
-                        {airdrop.projectSymbol ? ` · ${airdrop.projectSymbol}` : ''}
-                      </small>
+            {rows.map((airdrop, index) => {
+              const timeline = getAirdropTimeline(airdrop.startsAt, airdrop.endsAt);
+
+              return (
+                <tr
+                  className="airdrop-clickable-row"
+                  key={airdrop.id}
+                  tabIndex={0}
+                  aria-label={`Open ${airdrop.projectName} coin page`}
+                  onClick={() => openCoin(airdrop.coinId)}
+                  onKeyDown={(event) => openCoinFromKeyboard(event, airdrop.coinId)}
+                >
+                  <td>
+                    <span className="airdrop-row-number">{pageStart + index + 1}</span>
+                  </td>
+                  <td>
+                    <div className="airdrop-name-cell">
+                      <span>
+                        {airdrop.projectLogoUrl ? (
+                          <img
+                            src={airdrop.projectLogoUrl}
+                            alt=""
+                            loading="lazy"
+                            decoding="async"
+                          />
+                        ) : (
+                          airdrop.projectName.slice(0, 1)
+                        )}
+                      </span>
+                      <div>
+                        <span className="airdrop-title">{airdrop.name}</span>
+                        <small>
+                          {airdrop.projectName}
+                          {airdrop.projectSymbol ? ` · ${airdrop.projectSymbol}` : ''}
+                        </small>
+                      </div>
                     </div>
-                  </div>
-                </td>
-                <td>
-                  <span className="airdrop-reward-copy">{airdrop.rewards}</span>
-                  <small className="airdrop-winner-copy">
-                    {airdrop.winnersCount.toLocaleString()} winners
-                  </small>
-                </td>
-                <td>
-                  <span className="airdrop-date">{formatAirdropDate(airdrop.startsAt)}</span>
-                </td>
-                <td>
-                  <span className="airdrop-date">{formatAirdropDate(airdrop.endsAt)}</span>
-                </td>
-                <td>
-                  <div className="airdrop-action-group">
-                    {getAirdropLinks(airdrop).map((link) => (
-                      <a
-                        className="airdrop-action-btn"
-                        href={link.url}
-                        key={link.key}
-                        target="_blank"
-                        rel="noreferrer"
-                        title={link.label}
-                        aria-label={`${link.label} for ${airdrop.name}`}
-                        onClick={keepActionClick}
+                  </td>
+                  <td>
+                    <span className="airdrop-timeline-cell">
+                      <span className="airdrop-timeline-head">
+                        <span className={`airdrop-status-text ${timeline.state}`}>
+                          {timeline.label}
+                        </span>
+                        {timeline.caption && <small>{timeline.caption}</small>}
+                      </span>
+                      <span
+                        className={`airdrop-timeline-track ${timeline.state}`}
+                        aria-label={`${timeline.label}${timeline.caption ? `, ${timeline.caption}` : ''}`}
                       >
-                        <IconifyIcon icon={link.icon} aria-hidden="true" />
-                      </a>
-                    ))}
-                  </div>
-                </td>
-              </tr>
-            ))}
+                        <span style={{ width: `${timeline.progress}%` }} />
+                      </span>
+                    </span>
+                  </td>
+                  <td>
+                    <span className="airdrop-reward-cell">
+                      <span className="airdrop-reward-copy">{airdrop.rewards}</span>
+                      <small className="airdrop-winner-copy">
+                        {airdrop.winnersCount.toLocaleString()} winners
+                      </small>
+                    </span>
+                  </td>
+                  <td>
+                    <span className="airdrop-date">{formatAirdropDate(airdrop.startsAt)}</span>
+                  </td>
+                  <td>
+                    <span className="airdrop-date">{formatAirdropDate(airdrop.endsAt)}</span>
+                  </td>
+                  <td>
+                    <div className="airdrop-action-group">
+                      {getAirdropLinks(airdrop).map((link) => (
+                        <a
+                          className="airdrop-action-btn"
+                          href={link.url}
+                          key={link.key}
+                          target="_blank"
+                          rel="noreferrer"
+                          title={link.label}
+                          aria-label={`${link.label} for ${airdrop.name}`}
+                          onClick={keepActionClick}
+                        >
+                          <IconifyIcon icon={link.icon} aria-hidden="true" />
+                        </a>
+                      ))}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </TableScroller>
@@ -158,14 +178,6 @@ function getAirdropLinks(airdrop: PublicAirdropRow): AirdropLink[] {
     icon: 'akar-icons:link-chain',
   });
 
-  for (const key of Object.keys(socialLinkMeta) as Array<keyof AirdropSocialLinks>) {
-    addAirdropLink(links, {
-      key,
-      url: airdrop.socialLinks[key] || '',
-      ...socialLinkMeta[key],
-    });
-  }
-
   return links;
 }
 
@@ -173,6 +185,48 @@ function addAirdropLink(links: AirdropLink[], link: AirdropLink) {
   const url = link.url.trim();
   if (!url) return;
   links.push({ ...link, url });
+}
+
+function getAirdropTimeline(startsAt: string, endsAt: string) {
+  const now = Date.now();
+  const start = new Date(startsAt).getTime();
+  const end = new Date(endsAt).getTime();
+  const duration = Math.max(end - start, 1);
+
+  if (now < start) {
+    return {
+      state: 'scheduled',
+      label: 'Scheduled',
+      caption: `in ${formatRelativeDuration(start - now)}`,
+      progress: 0,
+    };
+  }
+
+  if (now >= end) {
+    return {
+      state: 'ended',
+      label: 'Ended',
+      caption: '',
+      progress: 100,
+    };
+  }
+
+  return {
+    state: 'ongoing',
+    label: 'Ongoing',
+    caption: `${formatRelativeDuration(end - now)} left`,
+    progress: Math.min(100, Math.max(5, Math.round(((now - start) / duration) * 100))),
+  };
+}
+
+function formatRelativeDuration(milliseconds: number) {
+  const minutes = Math.max(1, Math.round(milliseconds / 60_000));
+  if (minutes < 60) return `${minutes}m`;
+
+  const hours = Math.round(minutes / 60);
+  if (hours < 48) return `${hours}h`;
+
+  return `${Math.round(hours / 24)}d`;
 }
 
 function formatAirdropDate(value: string) {
