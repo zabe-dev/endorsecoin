@@ -479,6 +479,20 @@ nav a:hover,
 .submit-coin-btn svg {
   width: 15px;
   height: 15px;
+  flex: 0 0 auto;
+}
+.submit-coin-btn-text {
+  display: inline-block;
+  animation: submit-cta-text-in 0.22s ease-out;
+  white-space: nowrap;
+}
+@keyframes submit-cta-text-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 .mobile-menu-btn {
   display: none;
@@ -2048,9 +2062,24 @@ tbody tr:hover td {
   .mobile-menu-btn {
     display: flex;
   }
-  .nav-actions .submit-coin-btn,
   .user-menu-wrap {
     display: none;
+  }
+  .nav-actions .submit-coin-btn {
+    display: inline-flex;
+    max-width: min(44vw, 154px);
+    min-width: 0;
+    padding: 0 10px;
+  }
+  .nav-actions .submit-coin-btn svg {
+    width: 16px;
+    height: 16px;
+  }
+  .nav-actions .submit-coin-btn-text {
+    overflow: hidden;
+    min-width: 0;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .brand-mark {
     width: 27px;

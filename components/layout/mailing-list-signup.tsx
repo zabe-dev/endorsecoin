@@ -40,7 +40,7 @@ export function MailingListSignup() {
     }
 
     setStatus('success');
-    setMessage('You’re on the list.');
+    setMessage('Thank you for subscribing!');
     setEmail('');
   }
 

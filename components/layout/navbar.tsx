@@ -22,6 +22,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
 type InitialSession = Parameters<typeof authClient.hydrateSession>[0];
+const submitCtaLabels = ['Submit your project', 'Submit your airdrop'] as const;
 
 export function Navbar({
   active = 'discover',
@@ -34,6 +35,7 @@ export function Navbar({
   const [menuOpen, setMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [submitCtaIndex, setSubmitCtaIndex] = useState(0);
   const [seededSession] = useState(() => {
     authClient.hydrateSession(initialSession);
     return initialSession;
@@ -46,6 +48,7 @@ export function Navbar({
   const userInitials = getEmailInitials(email);
   const accountLabel = getAccountLabel(session?.user.name, email);
   const canOpenAdmin = hasAdminAccess(session?.user.role);
+  const submitCtaLabel = submitCtaLabels[submitCtaIndex];
 
   useEffect(() => {
     const closeForAuthModal = () => {
@@ -56,6 +59,15 @@ export function Navbar({
     window.addEventListener('spooky-auth-modal-open', closeForAuthModal);
     return () => window.removeEventListener('spooky-auth-modal-open', closeForAuthModal);
   }, []);
+
+  useEffect(() => {
+    if (!isSignedIn) return;
+    const timer = window.setInterval(() => {
+      setSubmitCtaIndex((index) => (index + 1) % submitCtaLabels.length);
+    }, 3600);
+
+    return () => window.clearInterval(timer);
+  }, [isSignedIn]);
 
   function openAuth() {
     closeMenu();
@@ -145,7 +157,10 @@ export function Navbar({
             {isSignedIn ? (
               <>
                 <Link className="submit-coin-btn" href="/submit">
-                  <Plus aria-hidden="true" /> Submit coin
+                  <Plus aria-hidden="true" />
+                  <span className="submit-coin-btn-text" key={submitCtaLabel}>
+                    {submitCtaLabel}
+                  </span>
                 </Link>
                 <div
                   className="user-menu-wrap"

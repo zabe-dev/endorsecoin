@@ -1245,7 +1245,7 @@
 }
 
 .submission-step-button:hover:not(:disabled) {
-  transform: translateY(-1px);
+  transform: none;
 }
 
 .submission-step-button--primary:hover:not(:disabled) {
