@@ -2,8 +2,7 @@ import { SiteFooter } from '@/components/layout/site-footer';
 import { SiteHeader } from '@/components/layout/site-header';
 import { BasicAdBannerPair, PremiumAdBanner } from '@/features/ads/components/ad-banners';
 import { AirdropTable } from '@/features/airdrops/components/airdrop-table';
-import { getPublicAirdrops } from '@/features/airdrops/server/airdrop-list';
-import type { PublicAirdropRow } from '@/features/airdrops/types';
+import { getPublicAirdropPage } from '@/features/airdrops/server/airdrop-list';
 import { PromotedCoinsTable } from '@/features/coins/components';
 import { getPromotedCoinItems } from '@/features/coins/server/discovery';
 import { getActiveBannerAds } from '@/features/ads/server/banner-ads';
@@ -32,16 +31,12 @@ export default async function AirdropsPage({ searchParams }: AirdropsPageProps) 
   const resolvedSearchParams = await searchParams;
   const requestedPage = readPositiveInt(readSearchParam(resolvedSearchParams?.page), 1);
   const session = await getCurrentSession();
-  const [airdrops, promotedCoins, bannerAds] = await Promise.all([
-    getPublicAirdrops(),
+  const [airdropPageData, promotedCoins, bannerAds] = await Promise.all([
+    getPublicAirdropPage({ page: requestedPage, pageSize: airdropsPageSize }),
     getPromotedCoinItems(session?.user.id),
     getActiveBannerAds(),
   ]);
-  const visibleAirdrops = sortAirdropsByStatus(airdrops);
-  const airdropPages = Math.max(1, Math.ceil(visibleAirdrops.length / airdropsPageSize));
-  const airdropPage = Math.min(requestedPage, airdropPages);
-  const pageStart = (airdropPage - 1) * airdropsPageSize;
-  const pagedAirdrops = visibleAirdrops.slice(pageStart, pageStart + airdropsPageSize);
+  const pageStart = (airdropPageData.page - 1) * airdropPageData.pageSize;
 
   return (
     <main className="market-page airdrops-page">
@@ -60,15 +55,15 @@ export default async function AirdropsPage({ searchParams }: AirdropsPageProps) 
             </div>
           </div>
 
-          {visibleAirdrops.length ? (
+          {airdropPageData.total ? (
             <AirdropTable
-              rows={pagedAirdrops}
+              rows={airdropPageData.rows}
               pageStart={pageStart}
               pagination={{
-                page: airdropPage,
-                pageSize: airdropsPageSize,
-                total: visibleAirdrops.length,
-                pages: airdropPages,
+                page: airdropPageData.page,
+                pageSize: airdropPageData.pageSize,
+                total: airdropPageData.total,
+                pages: airdropPageData.pages,
               }}
             />
           ) : (
@@ -99,39 +94,4 @@ function readSearchParam(value: string | string[] | undefined) {
 function readPositiveInt(value: string | undefined, fallback: number) {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
-}
-
-function sortAirdropsByStatus(airdrops: PublicAirdropRow[]) {
-  return [...airdrops].sort((a, b) => {
-    const aState = getAirdropTimelineState(a.startsAt, a.endsAt);
-    const bState = getAirdropTimelineState(b.startsAt, b.endsAt);
-    const statusDelta = getTimelineRank(aState) - getTimelineRank(bState);
-    if (statusDelta !== 0) return statusDelta;
-
-    if (aState === 'live') {
-      return new Date(a.endsAt).getTime() - new Date(b.endsAt).getTime();
-    }
-
-    if (aState === 'upcoming') {
-      return new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime();
-    }
-
-    return new Date(b.endsAt).getTime() - new Date(a.endsAt).getTime();
-  });
-}
-
-function getAirdropTimelineState(startsAt: string, endsAt: string) {
-  const now = Date.now();
-  const start = new Date(startsAt).getTime();
-  const end = new Date(endsAt).getTime();
-
-  if (now < start) return 'upcoming';
-  if (now >= end) return 'ended';
-  return 'live';
-}
-
-function getTimelineRank(state: string) {
-  if (state === 'live') return 0;
-  if (state === 'upcoming') return 1;
-  return 2;
 }
