@@ -90,6 +90,7 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
   const [resetCode, setResetCode] = useState('');
   const [codeDigits, setCodeDigits] = useState(emptyCode);
   const [loading, setLoading] = useState(false);
+  const [googleAuthAvailable, setGoogleAuthAvailable] = useState(true);
   const codeRefs = useRef<Array<HTMLInputElement | null>>([]);
 
   const isCodeStep = step === 'reset-code';
@@ -111,6 +112,27 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
     resetFlow('login');
     onClose();
   }, [onClose, resetFlow]);
+
+
+  useEffect(() => {
+    if (!open) return;
+    let active = true;
+
+    fetch('/api/auth-providers', { cache: 'no-store' })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload) => {
+        if (!active) return;
+        setGoogleAuthAvailable(payload?.data?.google !== false);
+      })
+      .catch(() => {
+        if (!active) return;
+        setGoogleAuthAvailable(true);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -358,6 +380,15 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
 
   async function continueWithGoogle() {
     setFeedback(null);
+    if (!googleAuthAvailable) {
+      setFeedback({
+        tone: 'error',
+        title: 'Google login is not ready',
+        message: 'Google sign-in is temporarily unavailable. Continue with email for now.',
+      });
+      return;
+    }
+
     setLoading(true);
     try {
       const { error } = await authClient.signIn.social({
@@ -445,7 +476,11 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
               </button>
             </div>
 
-            <AuthProviderButtons disabled={loading} onGoogle={continueWithGoogle} />
+            <AuthProviderButtons
+              disabled={loading}
+              googleAvailable={googleAuthAvailable}
+              onGoogle={continueWithGoogle}
+            />
             <div className="auth-divider">
               <span>or continue with email</span>
             </div>

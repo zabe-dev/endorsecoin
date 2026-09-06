@@ -1,15 +1,20 @@
 export function AuthProviderButtons({
   onGoogle,
   disabled = false,
+  googleAvailable = true,
 }: {
   onGoogle: () => void;
   disabled?: boolean;
+  googleAvailable?: boolean;
 }) {
   return (
     <div className="auth-providers">
-      <button type="button" onClick={onGoogle} disabled={disabled}>
+      <button type="button" onClick={onGoogle} disabled={disabled || !googleAvailable}>
         <GoogleIcon /> Continue with Google
       </button>
+      {!googleAvailable && (
+        <p className="auth-provider-note">Google sign-in is temporarily unavailable. Continue with email for now.</p>
+      )}
     </div>
   );
 }
