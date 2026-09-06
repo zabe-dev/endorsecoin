@@ -34,6 +34,11 @@ export function TablePagination({
 
   const items = getPaginationItems({ count: pages, page });
 
+  function hrefForPage(page: number) {
+    const hash = scrollTargetId ? `#${scrollTargetId}` : '';
+    return page <= 1 ? hash || '?' : `?page=${page}${hash}`;
+  }
+
   function goToPage(page: number) {
     const params = new URLSearchParams(window.location.search);
     if (page <= 1) params.delete('page');
@@ -46,42 +51,56 @@ export function TablePagination({
   return (
     <div className={`table-pagination ${className}`.trim()}>
       <span>
-        Showing {total ? (page - 1) * pageSize + 1 : 0}–
-        {Math.min(page * pageSize, total)} of {total}
+        Showing {total ? (page - 1) * pageSize + 1 : 0}–{Math.min(page * pageSize, total)} of{' '}
+        {total}
       </span>
       <div>
-        <button
-          type="button"
-          disabled={page === 1}
-          onClick={() => goToPage(Math.max(1, page - 1))}
+        <a
+          aria-disabled={page === 1}
+          className={page === 1 ? 'disabled' : ''}
+          href={hrefForPage(Math.max(1, page - 1))}
+          onClick={(event) => {
+            event.preventDefault();
+            if (page === 1) return;
+            goToPage(Math.max(1, page - 1));
+          }}
         >
           <ChevronLeft aria-hidden="true" />
           <span className="sr-only">Previous</span>
-        </button>
+        </a>
         {items.map((item) =>
           typeof item === 'number' ? (
-            <button
-              type="button"
+            <a
               className={page === item ? 'active' : ''}
+              href={hrefForPage(item)}
               key={item}
-              onClick={() => goToPage(item)}
+              onClick={(event) => {
+                event.preventDefault();
+                if (page === item) return;
+                goToPage(item);
+              }}
             >
               {item}
-            </button>
+            </a>
           ) : (
             <span className="table-pagination-ellipsis" key={item} aria-hidden="true">
               ...
             </span>
           ),
         )}
-        <button
-          type="button"
-          disabled={page === pages}
-          onClick={() => goToPage(Math.min(pages, page + 1))}
+        <a
+          aria-disabled={page === pages}
+          className={page === pages ? 'disabled' : ''}
+          href={hrefForPage(Math.min(pages, page + 1))}
+          onClick={(event) => {
+            event.preventDefault();
+            if (page === pages) return;
+            goToPage(Math.min(pages, page + 1));
+          }}
         >
           <ChevronRight aria-hidden="true" />
           <span className="sr-only">Next</span>
-        </button>
+        </a>
       </div>
     </div>
   );

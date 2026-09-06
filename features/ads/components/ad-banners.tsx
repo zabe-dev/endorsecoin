@@ -154,6 +154,7 @@ function BasicBannerSlot({
         className={`basic-ad-banner basic-ad-banner--${slot} ad-banner-image`}
         href={ad.targetUrl}
         target="_blank"
+        rel="sponsored noopener noreferrer"
       >
         <AdBadge />
         <BasicAdPicture ad={ad} mode={imageMode} />
@@ -165,7 +166,7 @@ function BasicBannerSlot({
     <div className={`basic-ad-banner basic-ad-banner--${slot}`}>
       <small>AD SPACE</small>
       <div className="ad-placeholder-copy">
-        <b>Reach crypto&apos;s earliest investors.</b>
+        <b>Reach early project investors.</b>
         <span>Premium inventory · Measured impressions and clicks</span>
       </div>
       <Link href="/advertise">View ad packages ↗</Link>
@@ -198,6 +199,7 @@ export function PremiumAdBanner({ ads = [], offset = 0 }: BannerProps) {
         className="container premium-ad-banner ad-banner-image"
         href={ad.targetUrl}
         target="_blank"
+        rel="sponsored noopener noreferrer"
       >
         <AdBadge />
         <AdPicture ad={ad} />
@@ -209,7 +211,7 @@ export function PremiumAdBanner({ ads = [], offset = 0 }: BannerProps) {
     <div className="container premium-ad-banner">
       <small>PREMIUM ADVERTISEMENT</small>
       <div>
-        <b>Reach crypto&apos;s earliest investors.</b>
+        <b>Reach early project investors.</b>
         <span>Premium inventory · Measured impressions and clicks</span>
       </div>
       <Link href="/advertise">View ad packages ↗</Link>
@@ -233,7 +235,12 @@ export function FixedFooterBanner({ ads = [], offset = 0 }: BannerProps) {
     <aside className="fixed-footer-ad-banner">
       <div className="fixed-footer-ad-banner-inner">
         {ad ? (
-          <Link className="fixed-footer-ad-banner-creative" href={ad.targetUrl} target="_blank">
+          <Link
+            className="fixed-footer-ad-banner-creative"
+            href={ad.targetUrl}
+            target="_blank"
+            rel="sponsored noopener noreferrer"
+          >
             <AdBadge />
             <AdPicture ad={ad} />
           </Link>
@@ -242,7 +249,7 @@ export function FixedFooterBanner({ ads = [], offset = 0 }: BannerProps) {
             <div className="fixed-footer-ad-banner-placeholder-inner">
               <small>AD SPACE</small>
               <b>SPOOKY</b>
-              <span>Reach crypto&apos;s earliest investors.</span>
+              <span>Reach early project investors.</span>
               <Link href="/advertise">View ad packages ↗</Link>
             </div>
           </div>

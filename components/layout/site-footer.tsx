@@ -29,7 +29,7 @@ export function SiteFooter({ id, variant = 'default' }: SiteFooterProps) {
         <div className="site-footer-branding">
           <Brand />
           <p className="site-footer-tagline">
-            Community-powered crypto discovery for launches, presales, and early signals.
+            Community-powered coin discovery for launches, presales, and early signals.
           </p>
           <p className="site-footer-meta">
             <Link href="https://endorsecoin.com">www.endorsecoin.com</Link> © {getCurrentYear()}

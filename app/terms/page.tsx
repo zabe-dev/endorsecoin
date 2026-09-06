@@ -1,15 +1,15 @@
 import { SiteFooter } from '@/components/layout/site-footer';
 import { SiteHeader } from '@/components/layout/site-header';
+import { createPublicPageMetadata } from '@/lib/seo/metadata';
 import type { Metadata } from 'next';
 import '../market.css';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = createPublicPageMetadata({
   title: 'Terms and Conditions',
-  description: 'Terms and Conditions for EndorseCoin.',
-  alternates: {
-    canonical: '/terms',
-  },
-};
+  description:
+    'Read the rules for using EndorseCoin, submitting projects, voting, managing an account, and purchasing advertising or promotions.',
+  path: '/terms',
+});
 
 const lastUpdated = 'September 4, 2026';
 

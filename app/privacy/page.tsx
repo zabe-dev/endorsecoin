@@ -1,15 +1,15 @@
 import { SiteFooter } from '@/components/layout/site-footer';
 import { SiteHeader } from '@/components/layout/site-header';
+import { createPublicPageMetadata } from '@/lib/seo/metadata';
 import type { Metadata } from 'next';
 import '../market.css';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = createPublicPageMetadata({
   title: 'Privacy Policy',
-  description: 'Privacy Policy for EndorseCoin.',
-  alternates: {
-    canonical: '/privacy',
-  },
-};
+  description:
+    'Learn how EndorseCoin collects, uses, and protects account information, submissions, and activity data, and how to contact us about privacy.',
+  path: '/privacy',
+});
 
 const lastUpdated = 'September 4, 2026';
 

@@ -8,25 +8,18 @@ import {
   ShieldCheck,
   UsersRound,
 } from 'lucide-react';
+import { createPublicPageMetadata } from '@/lib/seo/metadata';
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import '../market.css';
 import './partners.css';
 
-export const metadata: Metadata = {
-  title: 'Partners',
+export const metadata: Metadata = createPublicPageMetadata({
+  title: 'Ecosystem Partners',
   description:
-    'EndorseCoin is looking for crypto ecosystem partners, launchpads, communities, tools, and service providers.',
-  alternates: {
-    canonical: '/partners',
-  },
-  openGraph: {
-    title: 'Partner with EndorseCoin',
-    description:
-      'EndorseCoin is looking for crypto ecosystem partners. Contact @EndorseCoinSupport on Telegram if interested.',
-    url: '/partners',
-  },
-};
+    'Partner with EndorseCoin as a launchpad, community, tool, or service provider. Explore partnership opportunities and contact our team.',
+  path: '/partners',
+});
 
 export default function PartnersPage() {
   return (
@@ -42,7 +35,7 @@ export default function PartnersPage() {
             </h1>
             <p>
               EndorseCoin partners with teams that help projects launch, prove trust, and reach
-              crypto investors looking for an edge in early discovery.
+              investors looking for an edge in early discovery.
             </p>
             <div className="partners-actions">
               <a className="partners-primary" href="https://t.me/EndorseCoinSupport">
@@ -105,7 +98,7 @@ export default function PartnersPage() {
           </PartnerType>
           <PartnerType
             label="Audience partners"
-            text="Communities, media pages, and creator networks with real crypto attention."
+            text="Communities, media pages, and creator networks with real attention from early investors."
           >
             <UsersRound aria-hidden="true" />
           </PartnerType>

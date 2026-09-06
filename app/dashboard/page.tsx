@@ -6,6 +6,7 @@ import { PremiumAdBanner } from '@/features/ads/components/ad-banners';
 import { getActiveBannerAds } from '@/features/ads/server/banner-ads';
 import { getPublicCoinListItemsByIds } from '@/features/coins/server/coin-list';
 import { getCurrentSession } from '@/lib/auth/session';
+import { createPrivatePageMetadata } from '@/lib/seo/metadata';
 import { db } from '@/lib/db/client';
 import { coinSubmissions } from '@/lib/db/schema';
 import { and, desc, eq, sql } from 'drizzle-orm';
@@ -14,10 +15,7 @@ import { redirect } from 'next/navigation';
 import '../market.css';
 import '../scroll-fix.css';
 
-export const metadata: Metadata = {
-  title: 'Dashboard',
-  robots: { index: false, follow: false },
-};
+export const metadata: Metadata = createPrivatePageMetadata('Dashboard', '/dashboard');
 
 type DashboardPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;

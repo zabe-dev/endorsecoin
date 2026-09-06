@@ -170,7 +170,12 @@ function SecurityChip({
     <span className={`coin-security-chip ${url ? '' : 'muted'}`}>
       <span>{label}</span>
       {url ? (
-        <a className="coin-security-chip-box" href={url} target="_blank" rel="noreferrer">
+        <a
+          className="coin-security-chip-box"
+          href={url}
+          target="_blank"
+          rel="ugc noopener noreferrer"
+        >
           {boxContent}
         </a>
       ) : (

@@ -15,6 +15,7 @@ import { bannerPlacementLabels, normalizeBannerPlacement } from '@/features/ads/
 import { NETWORKS } from '@/features/coins/networks';
 import { hasAdminAccess } from '@/lib/auth/roles';
 import { getCurrentSession } from '@/lib/auth/session';
+import { createPrivatePageMetadata } from '@/lib/seo/metadata';
 import { db } from '@/lib/db/client';
 import { isMissingRelationError } from '@/lib/db/errors';
 import {
@@ -32,10 +33,7 @@ import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 
-export const metadata: Metadata = {
-  title: 'Admin Dashboard',
-  robots: { index: false, follow: false },
-};
+export const metadata: Metadata = createPrivatePageMetadata('Admin Dashboard', '/admin/dashboard');
 
 const adminTabs: AdminTab[] = [
   'overview',

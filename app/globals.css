@@ -4330,7 +4330,8 @@ img.admin-project-logo {
   min-width: 0;
   overflow: hidden;
 }
-.table-pagination button {
+.table-pagination button,
+.table-pagination a {
   min-height: 30px;
   min-width: 30px;
   border: 1px solid rgba(148, 163, 184, 0.2);
@@ -4341,26 +4342,31 @@ img.admin-project-logo {
   font-size: 9px;
   font-weight: 800;
   cursor: pointer;
+  text-decoration: none;
   transition:
     border-color 0.18s ease,
     color 0.18s ease,
     background 0.18s ease;
 }
-.table-pagination button:hover:not(:disabled):not(.active) {
+.table-pagination button:hover:not(:disabled):not(.active),
+.table-pagination a:hover:not(.disabled):not(.active) {
   border-color: rgba(203, 255, 74, 0.34);
   color: var(--lime);
 }
-.table-pagination button svg {
+.table-pagination button svg,
+.table-pagination a svg {
   width: 13px;
   height: 13px;
 }
 
-.table-pagination button.active {
+.table-pagination button.active,
+.table-pagination a.active {
   border-color: rgba(203, 255, 74, 0.72);
   background: var(--lime);
   color: #0b0d0e;
 }
-.table-pagination button:disabled {
+.table-pagination button:disabled,
+.table-pagination a.disabled {
   cursor: not-allowed;
   opacity: 0.35;
 }

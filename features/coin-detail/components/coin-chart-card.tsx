@@ -16,11 +16,14 @@ export function CoinChartCard({
       <div className="chart-head">
         <div>
           <strong>
-            {coin.symbol} / {coin.chain} / {coin.category.toUpperCase()}
+            {coin.symbol} price and chart
+            <small>
+              {coin.chain} / {coin.category.toUpperCase()}
+            </small>
           </strong>
         </div>
         {canonicalCoin.dex.available ? (
-          <a href={canonicalCoin.dex.url} target="_blank" rel="noreferrer">
+          <a href={canonicalCoin.dex.url} target="_blank" rel="ugc noopener noreferrer">
             Buy on {dexProviderName(canonicalCoin.dex.provider, canonicalCoin.network)} ↗
           </a>
         ) : (
@@ -48,12 +51,12 @@ export function CoinChartCard({
       <div className="chart-foot">
         <span>{chartLabel}</span>
         {canonicalCoin.chart.source === 'external' && (
-          <a href={canonicalCoin.chart.url} target="_blank" rel="noreferrer">
+          <a href={canonicalCoin.chart.url} target="_blank" rel="ugc noopener noreferrer">
             Open Chart ↗
           </a>
         )}
         {canonicalCoin.dex.available && (
-          <a href={canonicalCoin.dex.url} target="_blank" rel="noreferrer">
+          <a href={canonicalCoin.dex.url} target="_blank" rel="ugc noopener noreferrer">
             Open DEX ↗
           </a>
         )}

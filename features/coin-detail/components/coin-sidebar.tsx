@@ -153,7 +153,7 @@ function InfoLink({ label, url }: { label: string; url: string | null }) {
     <div className="quick-info-link">
       <span>{label}</span>
       {url ? (
-        <a href={url} target="_blank" rel="noreferrer">
+        <a href={url} target="_blank" rel="ugc noopener noreferrer">
           Open <ExternalLink aria-hidden="true" />
         </a>
       ) : (

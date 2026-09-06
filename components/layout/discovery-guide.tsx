@@ -1,7 +1,7 @@
 const guideItems = [
   {
     title: 'What is EndorseCoin?',
-    body: 'EndorseCoin is built for people who like finding crypto projects early. We bring new launches, presales, and active community picks into one place that is easier to scan.',
+    body: 'EndorseCoin is built for people who like finding projects early. We bring new launches, presales, and active community picks into one place that is easier to scan.',
   },
   {
     title: 'How are rankings calculated?',
@@ -9,7 +9,7 @@ const guideItems = [
   },
   {
     title: 'How is trending determined?',
-    body: 'A coin can trend when crypto investors start paying attention to it quickly. Recent votes and watchlist activity help us spot projects getting fresh attention, without replacing the main vote-based leaderboard.',
+    body: 'A coin can trend when investors start paying attention to it quickly. Recent votes and watchlist activity help us spot projects getting fresh attention, without replacing the main vote-based leaderboard.',
   },
   {
     title: 'What are boosted coins?',
@@ -17,7 +17,7 @@ const guideItems = [
   },
   {
     title: 'How do I submit a coin?',
-    body: 'Submit your project with the required details, links, logo, and market information. We review submissions first so the listings stay clean, useful, and easier for crypto investors to compare.',
+    body: 'Submit your project with the required details, links, logo, and market information. We review submissions first so the listings stay clean, useful, and easier for investors to compare.',
   },
   {
     title: 'Why is market or chart data missing?',
@@ -32,8 +32,8 @@ const guideItems = [
 const summaryItems = [
   {
     kicker: 'Who we are',
-    title: 'A community-powered crypto discovery platform.',
-    body: 'EndorseCoin spotlights early-stage tokens, presales, and airdrops in one place. We help crypto investors discover promising projects early, follow the ones they like, and influence visibility through real community votes.',
+    title: 'A community-powered coin discovery platform.',
+    body: 'EndorseCoin spotlights early-stage tokens, presales, and airdrops in one place. We help investors discover promising projects early, follow the ones they like, and influence visibility through real community votes.',
     points: [
       'Early-stage tokens, presales, and airdrops',
       'Community-led voting visibility',
@@ -42,8 +42,8 @@ const summaryItems = [
   },
   {
     kicker: 'What we do',
-    title: 'Find early crypto projects before most investors do.',
-    body: 'EndorseCoin gives crypto investors a cleaner way to discover fresh launches, live presales, and promoted projects competing for attention each week.',
+    title: 'Find early projects before most investors do.',
+    body: 'EndorseCoin gives investors a cleaner way to discover fresh launches, live presales, and promoted projects competing for attention each week.',
     points: [
       'Browse new launches and presales',
       'Vote for projects you believe in',

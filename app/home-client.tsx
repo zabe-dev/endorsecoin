@@ -136,6 +136,35 @@ export function HomeClient({
   const totalRows = leaderboardPage.total;
   const page = leaderboardPage.page;
   const visiblePageItems = getPaginationItems({ count: pages, page });
+  const leaderboardHref = ({
+    nextView = view,
+    nextCategory = category,
+    nextChain = chain,
+    nextSearch = search,
+    nextSort = sort,
+    nextPage = page,
+  }: {
+    nextView?: LeaderboardLabel;
+    nextCategory?: string;
+    nextChain?: string;
+    nextSearch?: string;
+    nextSort?: { key: CoinSortKey; dir: 1 | -1 };
+    nextPage?: number;
+  }) => {
+    const params = new URLSearchParams();
+    if (nextView !== 'Top coins') params.set('coins', viewParams[nextView]);
+    if (nextSort.key !== 'votes' || nextSort.dir !== -1) {
+      params.set('sort', nextSort.key);
+      params.set('dir', nextSort.dir === -1 ? 'desc' : 'asc');
+    }
+    if (nextCategory !== 'All') params.set('category', nextCategory);
+    if (nextChain !== 'All chains') params.set('chain', nextChain);
+    if (nextSearch) params.set('q', nextSearch);
+    if (nextPage > 1) params.set('page', String(nextPage));
+
+    const query = params.toString();
+    return `${query ? `?${query}` : '/'}#leaderboard`;
+  };
   const goToLeaderboard = ({
     nextView = view,
     nextCategory = category,
@@ -156,21 +185,16 @@ export function HomeClient({
     setChain(nextChain);
     setSearch(nextSearch);
     setSort(nextSort);
-
-    const params = new URLSearchParams();
-    if (nextView !== 'Top coins') params.set('coins', viewParams[nextView]);
-    if (nextSort.key !== 'votes' || nextSort.dir !== -1) {
-      params.set('sort', nextSort.key);
-      params.set('dir', nextSort.dir === -1 ? 'desc' : 'asc');
-    }
-    if (nextCategory !== 'All') params.set('category', nextCategory);
-    if (nextChain !== 'All chains') params.set('chain', nextChain);
-    if (nextSearch) params.set('q', nextSearch);
-    if (nextPage > 1) params.set('page', String(nextPage));
-
-    const query = params.toString();
+    const href = leaderboardHref({
+      nextView,
+      nextCategory,
+      nextChain,
+      nextSearch,
+      nextSort,
+      nextPage,
+    });
     startLeaderboardTransition(() => {
-      router.push(`${window.location.pathname}${query ? `?${query}` : ''}#leaderboard`, {
+      router.push(href, {
         scroll: false,
       });
     });
@@ -678,34 +702,48 @@ export function HomeClient({
             {Math.min(page * leaderboardPage.pageSize, totalRows)} of {totalRows}
           </span>
           <div>
-            <button
-              disabled={isLeaderboardPending || page === 1}
-              onClick={() => goToLeaderboard({ nextPage: Math.max(1, page - 1) })}
+            <a
+              aria-disabled={isLeaderboardPending || page === 1}
+              className={isLeaderboardPending || page === 1 ? 'disabled' : ''}
+              href={leaderboardHref({ nextPage: Math.max(1, page - 1) })}
+              onClick={(event) => {
+                event.preventDefault();
+                goToLeaderboard({ nextPage: Math.max(1, page - 1) });
+              }}
             >
               <ChevronLeft aria-hidden="true" />
-            </button>
+            </a>
             {visiblePageItems.map((item) =>
               typeof item === 'number' ? (
-                <button
+                <a
                   key={item}
                   className={page === item ? 'active' : ''}
-                  disabled={isLeaderboardPending}
-                  onClick={() => goToLeaderboard({ nextPage: item })}
+                  aria-disabled={isLeaderboardPending}
+                  href={leaderboardHref({ nextPage: item })}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    goToLeaderboard({ nextPage: item });
+                  }}
                 >
                   {item}
-                </button>
+                </a>
               ) : (
                 <span className="pagination-ellipsis" key={item} aria-hidden="true">
                   ...
                 </span>
               ),
             )}
-            <button
-              disabled={isLeaderboardPending || page === pages}
-              onClick={() => goToLeaderboard({ nextPage: Math.min(pages, page + 1) })}
+            <a
+              aria-disabled={isLeaderboardPending || page === pages}
+              className={isLeaderboardPending || page === pages ? 'disabled' : ''}
+              href={leaderboardHref({ nextPage: Math.min(pages, page + 1) })}
+              onClick={(event) => {
+                event.preventDefault();
+                goToLeaderboard({ nextPage: Math.min(pages, page + 1) });
+              }}
             >
               <ChevronRight aria-hidden="true" />
-            </button>
+            </a>
           </div>
         </div>
       </section>

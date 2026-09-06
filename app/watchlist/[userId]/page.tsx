@@ -10,6 +10,7 @@ import { getWatchlistTablePage } from '@/features/account/server/watchlist';
 import { db } from '@/lib/db/client';
 import { users } from '@/lib/db/schema';
 import { getCurrentSession } from '@/lib/auth/session';
+import { createPrivatePageMetadata } from '@/lib/seo/metadata';
 import { eq } from 'drizzle-orm';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
@@ -21,10 +22,7 @@ type WatchlistPageParams = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
-export const metadata: Metadata = {
-  title: 'Public watchlist',
-  robots: { index: false, follow: false },
-};
+export const metadata: Metadata = createPrivatePageMetadata('Public Watchlist', '/watchlist');
 
 export default async function PublicWatchlistPage({ params, searchParams }: WatchlistPageParams) {
   const { userId } = await params;

@@ -6,6 +6,7 @@ import { getPaginationItems } from '@/lib/ui/pagination';
 import type { PublicAirdropRow } from '@/features/airdrops/types';
 import { Icon as IconifyIcon } from '@iconify/react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTransition, type KeyboardEvent, type MouseEvent } from 'react';
 
@@ -46,22 +47,22 @@ export function AirdropTable({
 
   function goToPage(page: number) {
     if (isPending || page === pagination.page) return;
-
-    const params = new URLSearchParams(window.location.search);
-    if (page <= 1) params.delete('page');
-    else params.set('page', String(page));
-
-    const query = params.toString();
     startTransition(() => {
-      router.push(`${window.location.pathname}${query ? `?${query}` : ''}#airdrops`, {
+      router.push(hrefForPage(page), {
         scroll: false,
       });
     });
   }
 
+  function hrefForPage(page: number) {
+    return page <= 1 ? '#airdrops' : `?page=${page}#airdrops`;
+  }
+
   return (
     <>
-      <div className={`airdrops-card-grid ${isPending ? 'airdrops-card-grid--pending' : ''}`.trim()}>
+      <div
+        className={`airdrops-card-grid ${isPending ? 'airdrops-card-grid--pending' : ''}`.trim()}
+      >
         {rows.map((airdrop, index) => {
           const status = getAirdropStatus(airdrop.startsAt, airdrop.endsAt);
           const progress = getAirdropProgress(airdrop.startsAt, airdrop.endsAt);
@@ -95,7 +96,13 @@ export function AirdropTable({
                   )}
                 </span>
                 <div>
-                  <span className="airdrop-project-name">{airdrop.projectName}</span>
+                  <Link
+                    className="airdrop-project-name"
+                    href={`/coin/${airdrop.coinId}`}
+                    onClick={keepActionClick}
+                  >
+                    {airdrop.projectName}
+                  </Link>
                   <small>{airdrop.projectSymbol || 'Project'}</small>
                 </div>
               </div>
@@ -131,7 +138,7 @@ export function AirdropTable({
                     className="airdrop-claim-link"
                     href={claimLink.url}
                     target="_blank"
-                    rel="noreferrer"
+                    rel="ugc noopener noreferrer"
                     onClick={keepActionClick}
                   >
                     Claim
@@ -146,7 +153,7 @@ export function AirdropTable({
                       className="airdrop-action-btn"
                       href={websiteLink.url}
                       target="_blank"
-                      rel="noreferrer"
+                      rel="ugc noopener noreferrer"
                       title={websiteLink.label}
                       aria-label={`${websiteLink.label} for ${airdrop.name}`}
                       onClick={keepActionClick}
@@ -165,7 +172,7 @@ export function AirdropTable({
                             href={link.url}
                             key={link.key}
                             target="_blank"
-                            rel="noreferrer"
+                            rel="ugc noopener noreferrer"
                             title={link.label}
                             aria-label={`${link.label} for ${airdrop.name}`}
                           >
@@ -186,42 +193,54 @@ export function AirdropTable({
         <div className="airdrops-pagination table-pagination">
           <span>
             Showing {pagination.total ? (pagination.page - 1) * pagination.pageSize + 1 : 0}–
-            {Math.min(pagination.page * pagination.pageSize, pagination.total)} of {pagination.total}
+            {Math.min(pagination.page * pagination.pageSize, pagination.total)} of{' '}
+            {pagination.total}
           </span>
           <div>
-            <button
-              type="button"
-              disabled={isPending || pagination.page === 1}
-              onClick={() => goToPage(Math.max(1, pagination.page - 1))}
+            <a
+              aria-disabled={isPending || pagination.page === 1}
+              className={isPending || pagination.page === 1 ? 'disabled' : ''}
+              href={hrefForPage(Math.max(1, pagination.page - 1))}
+              onClick={(event) => {
+                event.preventDefault();
+                goToPage(Math.max(1, pagination.page - 1));
+              }}
             >
               <ChevronLeft aria-hidden="true" />
               <span className="sr-only">Previous</span>
-            </button>
+            </a>
             {paginationItems.map((item) =>
               typeof item === 'number' ? (
-                <button
-                  type="button"
+                <a
                   className={pagination.page === item ? 'active' : ''}
-                  disabled={isPending}
+                  aria-disabled={isPending}
+                  href={hrefForPage(item)}
                   key={item}
-                  onClick={() => goToPage(item)}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    goToPage(item);
+                  }}
                 >
                   {item}
-                </button>
+                </a>
               ) : (
                 <span className="table-pagination-ellipsis" key={item} aria-hidden="true">
                   ...
                 </span>
               ),
             )}
-            <button
-              type="button"
-              disabled={isPending || pagination.page === pagination.pages}
-              onClick={() => goToPage(Math.min(pagination.pages, pagination.page + 1))}
+            <a
+              aria-disabled={isPending || pagination.page === pagination.pages}
+              className={isPending || pagination.page === pagination.pages ? 'disabled' : ''}
+              href={hrefForPage(Math.min(pagination.pages, pagination.page + 1))}
+              onClick={(event) => {
+                event.preventDefault();
+                goToPage(Math.min(pagination.pages, pagination.page + 1));
+              }}
             >
               <ChevronRight aria-hidden="true" />
               <span className="sr-only">Next</span>
-            </button>
+            </a>
           </div>
         </div>
       ) : null}

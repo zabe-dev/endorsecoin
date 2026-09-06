@@ -1,7 +1,9 @@
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
+import { JsonLd } from '@/components/seo/json-ld';
 import { RateLimitToaster } from '@/components/ui/rate-limit-toaster';
 import { FixedFooterBannerLoader } from '@/features/ads/components/fixed-footer-banner-loader';
+import { homeDescription, homeTitle, siteName, siteUrl, socialImage } from '@/lib/seo/metadata';
 import { Fira_Mono, JetBrains_Mono, Poppins, Space_Grotesk } from 'next/font/google';
 import './globals.css';
 
@@ -30,13 +32,12 @@ const jetBrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://endorsecoin.com'),
+  metadataBase: new URL(siteUrl),
   title: {
-    default: 'EndorseCoin — New Crypto Projects, Presales & Community Voting',
+    default: homeTitle,
     template: '%s | EndorseCoin',
   },
-  description:
-    'Discover new crypto projects, token presales, trending coins, and weekly community-voted rankings across ETH, BSC, Solana, Base, Polygon, and more.',
+  description: homeDescription,
   keywords: [
     'new crypto projects',
     'crypto voting',
@@ -61,18 +62,18 @@ export const metadata: Metadata = {
     ],
   },
   openGraph: {
-    title: 'EndorseCoin — New Crypto Projects, Presales & Community Voting',
-    description:
-      'Track early crypto projects, vote every 12 hours, follow watchlists, and discover weekly community signals before they get crowded.',
+    title: homeTitle,
+    description: homeDescription,
     url: '/',
-    siteName: 'EndorseCoin',
+    siteName,
     type: 'website',
+    images: [{ url: socialImage }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'EndorseCoin — New Crypto Projects, Presales & Community Voting',
-    description:
-      'Discover new crypto projects, presales, trending coins, and weekly community-voted rankings.',
+    title: homeTitle,
+    description: homeDescription,
+    images: [socialImage],
   },
   robots: {
     index: true,
@@ -90,6 +91,29 @@ export default function RootLayout({
       <body
         className={`${poppins.variable} ${spaceGrotesk.variable} ${firaMono.variable} ${jetBrainsMono.variable} antialiased`}
       >
+        <JsonLd
+          data={{
+            '@context': 'https://schema.org',
+            '@graph': [
+              {
+                '@type': 'Organization',
+                '@id': `${siteUrl}/#organization`,
+                name: siteName,
+                url: siteUrl,
+                logo: `${siteUrl}/android-chrome-512x512.png`,
+              },
+              {
+                '@type': 'WebSite',
+                '@id': `${siteUrl}/#website`,
+                name: siteName,
+                url: siteUrl,
+                publisher: {
+                  '@id': `${siteUrl}/#organization`,
+                },
+              },
+            ],
+          }}
+        />
         {children}
         <Suspense fallback={null}>
           <FixedFooterBannerLoader />

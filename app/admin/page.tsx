@@ -1,13 +1,8 @@
 import type { Metadata } from 'next';
+import { createPrivatePageMetadata } from '@/lib/seo/metadata';
 import { redirect } from 'next/navigation';
 
-export const metadata: Metadata = {
-  title: 'Admin',
-  robots: {
-    index: false,
-    follow: false,
-  },
-};
+export const metadata: Metadata = createPrivatePageMetadata('Admin', '/admin');
 
 export default async function AdminPage() {
   redirect('/admin/dashboard');

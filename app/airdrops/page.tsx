@@ -1,5 +1,6 @@
 import { SiteFooter } from '@/components/layout/site-footer';
 import { SiteHeader } from '@/components/layout/site-header';
+import { JsonLd } from '@/components/seo/json-ld';
 import { BasicAdBannerPair, PremiumAdBanner } from '@/features/ads/components/ad-banners';
 import { AirdropTable } from '@/features/airdrops/components/airdrop-table';
 import { getPublicAirdropPage } from '@/features/airdrops/server/airdrop-list';
@@ -7,25 +8,29 @@ import { PromotedCoinsTable } from '@/features/coins/components';
 import { getPromotedCoinItems } from '@/features/coins/server/discovery';
 import { getActiveBannerAds } from '@/features/ads/server/banner-ads';
 import { getCurrentSession } from '@/lib/auth/session';
+import { createPublicPageMetadata, siteUrl } from '@/lib/seo/metadata';
 import { CalendarClock } from 'lucide-react';
 import type { Metadata } from 'next';
 import '../market.css';
 import './airdrops.css';
-
-export const metadata: Metadata = {
-  title: 'Crypto Airdrops',
-  description:
-    'Discover crypto airdrops from approved EndorseCoin projects and submit reward campaigns for review.',
-  alternates: {
-    canonical: '/airdrops',
-  },
-};
 
 type AirdropsPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
 const airdropsPageSize = 8;
+
+export async function generateMetadata({ searchParams }: AirdropsPageProps): Promise<Metadata> {
+  const params = await searchParams;
+  const page = readPositiveInt(readSearchParam(params?.page), 1);
+
+  return createPublicPageMetadata({
+    title: 'Live & Upcoming Airdrops',
+    description:
+      'Explore airdrops, check rewards and claim dates, and find official links for live and upcoming campaigns.',
+    path: page > 1 ? `/airdrops?page=${page}` : '/airdrops',
+  });
+}
 
 export default async function AirdropsPage({ searchParams }: AirdropsPageProps) {
   const resolvedSearchParams = await searchParams;
@@ -41,6 +46,23 @@ export default async function AirdropsPage({ searchParams }: AirdropsPageProps) 
   return (
     <main className="market-page airdrops-page">
       <SiteHeader active="airdrops" initialSession={session} />
+      <JsonLd
+        data={{
+          '@context': 'https://schema.org',
+          '@type': 'CollectionPage',
+          name: 'Community airdrops',
+          url: `${siteUrl}${airdropPageData.page > 1 ? `/airdrops?page=${airdropPageData.page}` : '/airdrops'}`,
+          mainEntity: {
+            '@type': 'ItemList',
+            itemListElement: airdropPageData.rows.map((airdrop, index) => ({
+              '@type': 'ListItem',
+              position: pageStart + index + 1,
+              name: airdrop.name,
+              url: `${siteUrl}/coin/${airdrop.coinId}`,
+            })),
+          },
+        }}
+      />
       <BasicAdBannerPair ads={bannerAds.basic} />
 
       <section className="container airdrops-shell">
@@ -84,8 +106,6 @@ export default async function AirdropsPage({ searchParams }: AirdropsPageProps) 
     </main>
   );
 }
-
-
 
 function readSearchParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;

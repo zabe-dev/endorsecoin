@@ -59,7 +59,7 @@ export function CoinSocialActions({
               href={link.url}
               key={`${link.type}-${link.url}`}
               target="_blank"
-              rel="noreferrer"
+              rel="ugc noopener noreferrer"
             >
               <ProjectLinkIcon kind={link.type} />
               <span>{projectLinkLabels[link.type]}</span>
@@ -70,7 +70,7 @@ export function CoinSocialActions({
               className="project-link-action explorer-action"
               href={explorerUrl}
               target="_blank"
-              rel="noreferrer"
+              rel="noopener noreferrer"
             >
               <Icon kind="explorer" />
               <span>Explorer</span>

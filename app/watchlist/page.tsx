@@ -5,15 +5,13 @@ import { PremiumAdBanner } from '@/features/ads/components/ad-banners';
 import { getActiveBannerAds } from '@/features/ads/server/banner-ads';
 import { getWatchlistTablePage } from '@/features/account/server/watchlist';
 import { getCurrentSession } from '@/lib/auth/session';
+import { createPrivatePageMetadata } from '@/lib/seo/metadata';
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import '../market.css';
 import '../scroll-fix.css';
 
-export const metadata: Metadata = {
-  title: 'Watchlist',
-  robots: { index: false, follow: false },
-};
+export const metadata: Metadata = createPrivatePageMetadata('Watchlist', '/watchlist');
 
 type WatchlistPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;

@@ -1,15 +1,15 @@
 import { SiteFooter } from '@/components/layout/site-footer';
 import { SiteHeader } from '@/components/layout/site-header';
+import { createPublicPageMetadata } from '@/lib/seo/metadata';
 import type { Metadata } from 'next';
 import '../market.css';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = createPublicPageMetadata({
   title: 'Disclaimer',
-  description: 'Disclaimer for EndorseCoin.',
-  alternates: {
-    canonical: '/disclaimer',
-  },
-};
+  description:
+    'Understand the limits of EndorseCoin listings, community rankings, market data, and sponsored placements before using project information.',
+  path: '/disclaimer',
+});
 
 const lastUpdated = 'September 6, 2026';
 
@@ -112,9 +112,8 @@ export default function DisclaimerPage() {
 
           <LegalSection title="Changes to this disclaimer">
             <p>
-              We may update this disclaimer as EndorseCoin grows, features change, or new risks
-              need to be explained. The latest version posted on this page applies when you use the
-              site.
+              We may update this disclaimer as EndorseCoin grows, features change, or new risks need
+              to be explained. The latest version posted on this page applies when you use the site.
             </p>
           </LegalSection>
         </div>

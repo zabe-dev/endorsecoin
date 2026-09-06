@@ -901,7 +901,8 @@
   min-width: 0;
   overflow: hidden;
 }
-.pagination button {
+.pagination button,
+.pagination a {
   display: inline-grid;
   min-width: 29px;
   height: 30px;
@@ -913,16 +914,19 @@
   font-size: 10px;
   font-weight: 800;
   cursor: pointer;
+  text-decoration: none;
   transition:
     border-color 0.18s ease,
     color 0.18s ease,
     background 0.18s ease;
 }
-.pagination button:hover:not(:disabled):not(.active) {
+.pagination button:hover:not(:disabled):not(.active),
+.pagination a:hover:not(.disabled):not(.active) {
   border-color: rgba(203, 255, 74, 0.34);
   color: var(--lime);
 }
-.pagination button svg {
+.pagination button svg,
+.pagination a svg {
   width: 14px;
   height: 14px;
 }
@@ -936,12 +940,14 @@
   font-weight: 800;
   user-select: none;
 }
-.pagination button.active {
+.pagination button.active,
+.pagination a.active {
   border-color: rgba(203, 255, 74, 0.72);
   background: var(--lime);
   color: #0b0d0e;
 }
-.pagination button:disabled {
+.pagination button:disabled,
+.pagination a.disabled {
   cursor: not-allowed;
   opacity: 0.35;
 }
@@ -1787,7 +1793,8 @@
   .pagination > span {
     max-width: 38%;
   }
-  .pagination button {
+  .pagination button,
+  .pagination a {
     min-width: 23px;
     height: 26px;
     border-radius: 7px;

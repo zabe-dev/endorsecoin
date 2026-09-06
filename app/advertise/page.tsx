@@ -10,25 +10,18 @@ import {
   ShieldCheck,
   Sparkles,
 } from 'lucide-react';
+import { createPublicPageMetadata } from '@/lib/seo/metadata';
 import type { Metadata } from 'next';
 import '../market.css';
 import './advertise.css';
 import { SubmitProjectAction } from './submit-project-action';
 
-export const metadata: Metadata = {
-  title: 'Advertise Crypto Projects',
+export const metadata: Metadata = createPublicPageMetadata({
+  title: 'Project Advertising & Banner Placements',
   description:
-    'Advertise on EndorseCoin with banner ads, promoted coin slots, and boost packages for listed crypto projects.',
-  alternates: {
-    canonical: '/advertise',
-  },
-  openGraph: {
-    title: 'Advertise Crypto Projects on EndorseCoin',
-    description:
-      'Promote listed crypto projects with promoted coin placements, boost packages, and golden ticker visibility.',
-    url: '/advertise',
-  },
-};
+    'Promote your project with EndorseCoin banner ads, promoted placements, and boosts. Compare prices, ad sizes, and available locations.',
+  path: '/advertise',
+});
 
 const promotedRates = [
   { duration: '1–2 days', discount: 'No discount', price: '$30/day' },
@@ -93,11 +86,11 @@ export default function AdvertisePage() {
           <p className="eyebrow">
             <span>●</span> Advertise on EndorseCoin
           </p>
-          <h1>Reach crypto’s earliest project investors.</h1>
+          <h1>Reach early project investors.</h1>
           <p>
-            Put your project in front of crypto investors scanning for new launches, presales, and
-            coins gaining community attention. Choose banner placements, promoted coin visibility,
-            or boosts depending on how loud you want the campaign to be.
+            Put your project in front of users scanning for new launches, presales, and coins
+            gaining community attention. Choose banner placements, promoted coin visibility, or
+            boosts depending on how much reach you want.
           </p>
           <div className="advertise-actions">
             <a className="advertise-primary" href="https://t.me/EndorseCoinSupport">
