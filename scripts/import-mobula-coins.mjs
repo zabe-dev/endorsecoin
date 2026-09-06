@@ -15,10 +15,10 @@
  *   - market_snapshots
  *   - coin_links
  *
- * It intentionally does not write market_sources because the current app pulls
- * market data from coins.chain + coins.contract_address. Chart and DEX links
- * are generated only when market data confirms a usable route. Project
- * links are imported only when Mobula provides usable URLs.
+ * It also writes market_sources so future imports and market syncs can recognize
+ * the same Mobula asset by its chain/address source key. Chart and DEX links are
+ * generated only when market data confirms a usable route. Project links are
+ * imported only when Mobula provides usable URLs.
  */
 
 import { createHash, createHmac, randomUUID } from 'crypto';
@@ -116,6 +116,15 @@ const mobulaMarketBlockchains = {
   arbitrum: 'arbitrum',
   base: 'base',
   solana: 'solana',
+};
+
+const mobulaMarketSourceIds = {
+  ethereum: 'evm:1',
+  bsc: 'evm:56',
+  polygon: 'evm:137',
+  arbitrum: 'evm:42161',
+  base: 'evm:8453',
+  solana: 'solana:solana',
 };
 
 const dexSwapUrlBuilders = {
@@ -1010,6 +1019,8 @@ async function upsertToken(token, slug) {
       )
     `;
 
+    await upsertMarketSource(tx, coinId, token, now);
+
     await upsertCoinLink(tx, coinId, 'dex', token.dexUrl, now);
     if (token.chartUrl) await upsertCoinLink(tx, coinId, 'chart', token.chartUrl, now);
     await upsertProjectLinks(tx, coinId, token.projectLinks, now);
@@ -1040,6 +1051,33 @@ async function readNextCoinId(tx) {
   return rows[0].nextId;
 }
 
+async function upsertMarketSource(tx, coinId, token, now) {
+  const externalId = marketSourceExternalId(token);
+  if (!externalId) return;
+
+  await tx`
+    insert into market_sources (
+      coin_id, provider, external_id, source_image_url, last_market_sync_at,
+      last_error_code, last_error_message, last_error_at, failure_count, next_attempt_at,
+      created_at, updated_at
+    )
+    values (
+      ${coinId}, 'mobula', ${externalId}, ${token.logo || null}, ${now},
+      null, null, null, 0, null, ${now}, ${now}
+    )
+    on conflict (coin_id, provider) do update set
+      external_id = excluded.external_id,
+      source_image_url = excluded.source_image_url,
+      last_market_sync_at = excluded.last_market_sync_at,
+      last_error_code = null,
+      last_error_message = null,
+      last_error_at = null,
+      failure_count = 0,
+      next_attempt_at = null,
+      updated_at = excluded.updated_at
+  `;
+}
+
 async function upsertCoinLink(tx, coinId, type, url, now) {
   const safeUrl = normalizeUrl(url);
   if (!safeUrl) return;
@@ -1059,10 +1097,82 @@ async function upsertProjectLinks(tx, coinId, links, now) {
   }
 }
 
-async function loadExistingSlugs() {
-  if (!db) return new Set();
-  const rows = await db`select slug from coins`;
-  return new Set(rows.map((row) => row.slug));
+async function loadExistingImportState() {
+  const empty = { slugs: new Set(), contracts: new Set(), marketSourceIds: new Set() };
+  if (!db) return empty;
+
+  const [coinRows, sourceRows] = await Promise.all([
+    db`
+      select slug, chain, contract_address
+      from coins
+    `,
+    db`
+      select external_id
+      from market_sources
+      where provider = 'mobula'
+    `,
+  ]);
+
+  return {
+    slugs: new Set(coinRows.map((row) => row.slug).filter(Boolean)),
+    contracts: new Set(
+      coinRows.map((row) => contractKey(row.chain, row.contractAddress)).filter(Boolean),
+    ),
+    marketSourceIds: new Set(sourceRows.map((row) => row.externalId).filter(Boolean)),
+  };
+}
+
+function filterNewTokens(tokens, existingState) {
+  const seenContracts = new Set();
+  const seenSources = new Set();
+  let skippedExisting = 0;
+  let skippedBatchDuplicate = 0;
+
+  const freshTokens = tokens.filter((token) => {
+    const key = contractKey(token.contract.chain, token.contract.address);
+    const sourceId = marketSourceExternalId(token);
+
+    if (key && existingState.contracts.has(key)) {
+      skippedExisting += 1;
+      return false;
+    }
+
+    if (sourceId && existingState.marketSourceIds.has(sourceId)) {
+      skippedExisting += 1;
+      return false;
+    }
+
+    if ((key && seenContracts.has(key)) || (sourceId && seenSources.has(sourceId))) {
+      skippedBatchDuplicate += 1;
+      return false;
+    }
+
+    if (key) seenContracts.add(key);
+    if (sourceId) seenSources.add(sourceId);
+    return true;
+  });
+
+  return { freshTokens, skippedExisting, skippedBatchDuplicate };
+}
+
+function contractKey(chain, address) {
+  const safeChain = String(chain || '')
+    .trim()
+    .toLowerCase();
+  const safeAddress = normalizeContractAddress(address);
+  return safeChain && safeAddress ? `${safeChain}:${safeAddress}` : '';
+}
+
+function marketSourceExternalId(token) {
+  const chainId = mobulaMarketSourceIds[token.contract.chain];
+  const address = token.contract.address?.trim();
+  return chainId && address ? `${chainId}:${address}` : '';
+}
+
+function normalizeContractAddress(address) {
+  return String(address || '')
+    .trim()
+    .toLowerCase();
 }
 
 function uniqueSlug(base, taken) {
@@ -1627,11 +1737,25 @@ async function main() {
     }, exclude rank <= ${EXCLUDE_TOP_RANK}`,
   );
 
+  const existingState = await loadExistingImportState();
+  if (db) {
+    log(
+      `Loaded ${existingState.slugs.size} slug(s), ${existingState.contracts.size} contract(s), and ${existingState.marketSourceIds.size} Mobula source key(s) from the database.`,
+    );
+  } else {
+    log('No database configured for this dry run, so existing imported coins cannot be filtered.');
+  }
+
   const raw = await fetchMobulaAssets();
   const matchedAll = raw.map(buildToken).filter(Boolean);
+  const {
+    freshTokens: matchedFresh,
+    skippedExisting,
+    skippedBatchDuplicate,
+  } = filterNewTokens(matchedAll, existingState);
 
   const byChain = Object.fromEntries(chainKeys.map((chain) => [chain, []]));
-  for (const token of matchedAll) byChain[token.contract.chain].push(token);
+  for (const token of matchedFresh) byChain[token.contract.chain].push(token);
 
   const available = Object.fromEntries(chainKeys.map((chain) => [chain, byChain[chain].length]));
   const emptyChains = chainKeys.filter((chain) => available[chain] === 0);
@@ -1642,7 +1766,7 @@ async function main() {
   }
 
   log(
-    `Matched ${matchedAll.length}/${raw.length} raw assets as eligible: ${chainKeys
+    `Matched ${matchedAll.length}/${raw.length} raw assets as eligible; ${matchedFresh.length} are new after skipping ${skippedExisting} existing and ${skippedBatchDuplicate} duplicate-in-batch token(s): ${chainKeys
       .map((chain) => `${chain}=${available[chain]}`)
       .join(', ')}.`,
   );
@@ -1711,8 +1835,7 @@ async function main() {
   }
 
   logSection(`Writing ${tokens.length} token(s) to the database`);
-  const existingSlugs = await loadExistingSlugs();
-  log(`Loaded ${existingSlugs.size} existing slug(s) for de-duplication.`);
+  const existingSlugs = existingState.slugs;
 
   let success = 0;
   let failed = 0;
