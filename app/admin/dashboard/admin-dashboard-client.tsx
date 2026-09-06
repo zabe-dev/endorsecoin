@@ -3,17 +3,17 @@
 import {
   addPromotedCoin,
   createBannerAd,
-  deleteBannerAd,
   deleteAdminCoin,
   deleteAdminUser,
+  deleteBannerAd,
   grantCoinBoost,
   removeCoinBoost,
   removePromotedCoin,
-  updateBannerAd,
-  updateChangeRequestStatus,
   updateAdminCoin,
   updateAdminSubmission,
   updateAdminUser,
+  updateBannerAd,
+  updateChangeRequestStatus,
 } from '@/app/admin/dashboard/actions';
 import {
   bannerPlacementLabels,
@@ -24,16 +24,16 @@ import { getPaginationItems } from '@/lib/ui/pagination';
 import { Icon as IconifyIcon } from '@iconify/react';
 import {
   Check,
-  Eye,
   ExternalLink,
+  Eye,
   Image as ImageIcon,
   LayoutDashboard,
   Megaphone,
   Pause,
   Pencil,
   Play,
-  ShieldAlert,
   Search,
+  ShieldAlert,
   Square,
   Trash2,
   Users,
@@ -41,7 +41,6 @@ import {
   Zap,
 } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
-import { createPortal } from 'react-dom';
 import {
   useEffect,
   useLayoutEffect,
@@ -53,6 +52,7 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react';
+import { createPortal } from 'react-dom';
 
 export type AdminSummary = {
   users: number;
@@ -178,7 +178,7 @@ type PopoverController = {
 };
 
 const pageSize = 10;
-const emptyTableMessage = 'There is currently no projects available to display.';
+const emptyTableMessage = 'There is currently no items available to display.';
 const boostPackages = [
   { value: 10, label: '10x', detail: 'votes ×2 · 24h' },
   { value: 30, label: '30x', detail: 'votes ×2 · 72h' },
