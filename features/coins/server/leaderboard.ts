@@ -62,12 +62,13 @@ export async function getLeaderboardSelection(
   const total = Number(rows[0]?.totalCount || 0);
   const pages = Math.max(1, Math.ceil(total / normalized.pageSize));
   const page = Math.min(normalized.page, pages);
+  const ids = rows.flatMap((row) => (row.id === null ? [] : [Number(row.id)]));
 
-  if (!rows.length && normalized.page > 1) {
-    return getLeaderboardSelection({ ...query, page: 1 });
+  if (!ids.length && total > 0 && normalized.page > page) {
+    return getLeaderboardSelection({ ...query, page });
   }
 
-  if (!rows.length && total === 0) {
+  if (!ids.length && total === 0) {
     return {
       ids: [],
       total,
@@ -83,7 +84,7 @@ export async function getLeaderboardSelection(
   }
 
   return {
-    ids: rows.map((row) => Number(row.id)),
+    ids,
     total,
     page,
     pageSize: normalized.pageSize,
@@ -158,7 +159,7 @@ export function getLeaderboardPageFromCoins(
 
 type NormalizedLeaderboardQuery = ReturnType<typeof normalizeLeaderboardQuery>;
 type LeaderboardIdRow = {
-  id: number;
+  id: number | null;
   totalCount: number | string;
 };
 
@@ -271,13 +272,29 @@ async function selectLeaderboardCoinIds(
       left join recent_watch_counts on recent_watch_counts.coin_id = ${coins.id}
       left join active_boosts on active_boosts.coin_id = ${coins.id}
       where ${sql.join(where, sql` and `)}
+    ),
+    filtered as (
+      select *
+      from scored
+      where ${sql.join(scoredWhere, sql` and `)}
+    ),
+    totals as (
+      select count(*)::int as total_count
+      from filtered
+    ),
+    paged as (
+      select
+        id,
+        row_number() over (order by ${orderBy}) as row_order
+      from filtered
+      order by ${orderBy}
+      limit ${query.pageSize}
+      offset ${offset}
     )
-    select id, count(*) over()::int as "totalCount"
-    from scored
-    where ${sql.join(scoredWhere, sql` and `)}
-    order by ${orderBy}
-    limit ${query.pageSize}
-    offset ${offset}
+    select paged.id, totals.total_count as "totalCount"
+    from totals
+    left join paged on true
+    order by paged.row_order asc nulls last
   `);
 
   return Array.from(result);
