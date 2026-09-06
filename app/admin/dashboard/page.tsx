@@ -1,6 +1,7 @@
 import { AdminDashboardClient } from '@/app/admin/dashboard/admin-dashboard-client';
 import type {
   AdminBannerRow,
+  AdminChangeRequestRow,
   AdminCoinRow,
   AdminSubmissionRow,
   AdminSummary,
@@ -8,24 +9,24 @@ import type {
 } from '@/app/admin/dashboard/admin-dashboard-client';
 import { SiteFooter } from '@/components/layout/site-footer';
 import { SiteHeader } from '@/components/layout/site-header';
-import { NETWORKS } from '@/features/coins/networks';
 import { bannerPlacementLabels, normalizeBannerPlacement } from '@/features/ads/types';
+import { NETWORKS } from '@/features/coins/networks';
 import { hasAdminAccess } from '@/lib/auth/roles';
 import { getCurrentSession } from '@/lib/auth/session';
 import { db } from '@/lib/db/client';
 import { isMissingRelationError } from '@/lib/db/errors';
 import {
   airdropSubmissions,
+  bannerAds,
+  changeRequests,
   coinBoosts,
   coinPromotions,
   coins,
   coinSubmissions,
-  changeRequests,
-  bannerAds,
   sessions,
   users,
 } from '@/lib/db/schema';
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 
@@ -33,6 +34,37 @@ export const metadata: Metadata = {
   title: 'Admin Dashboard',
   robots: { index: false, follow: false },
 };
+
+const adminTabs = [
+  'overview',
+  'submissions',
+  'airdrops',
+  'coins',
+  'promotions',
+  'banners',
+  'users',
+  'reports',
+] as const;
+
+type AdminTab = (typeof adminTabs)[number];
+
+type AdminTabData = {
+  pendingSubmissions: AdminSubmissionRow[];
+  pendingAirdropSubmissions: AdminSubmissionRow[];
+  changeRequests: AdminChangeRequestRow[];
+  listedCoins: AdminCoinRow[];
+  bannerAds: AdminBannerRow[];
+  users: AdminUserRow[];
+};
+
+const emptyAdminTabData = (): AdminTabData => ({
+  pendingSubmissions: [],
+  pendingAirdropSubmissions: [],
+  changeRequests: [],
+  listedCoins: [],
+  bannerAds: [],
+  users: [],
+});
 
 export default async function AdminDashboardPage({
   searchParams,
@@ -44,67 +76,55 @@ export default async function AdminDashboardPage({
   if (!session) redirect('/');
   if (!hasAdminAccess(session.user.role)) notFound();
 
+  const activeTab = resolveAdminTab(resolvedSearchParams?.tab);
   const now = new Date();
   const nowIso = now.toISOString();
+  const [summary, data] = await Promise.all([
+    getAdminSummary(nowIso),
+    getAdminTabData(activeTab, now, nowIso),
+  ]);
+
+  return (
+    <main className="market-page">
+      <SiteHeader active="none" initialSession={session} />
+      <section className="container admin-dashboard" aria-label="Admin dashboard">
+        <header className="admin-dashboard-head">
+          <h1>Admin dashboard</h1>
+          <p>Review submissions, manage listed coins, and control boosts or promotions.</p>
+        </header>
+
+        <AdminDashboardClient
+          summary={summary}
+          pendingSubmissions={data.pendingSubmissions}
+          pendingAirdropSubmissions={data.pendingAirdropSubmissions}
+          changeRequests={data.changeRequests}
+          listedCoins={data.listedCoins}
+          bannerAds={data.bannerAds}
+          users={data.users}
+          initialTab={activeTab}
+        />
+      </section>
+      <SiteFooter />
+    </main>
+  );
+}
+
+function resolveAdminTab(value?: string | null): AdminTab {
+  return adminTabs.includes(value as AdminTab) ? (value as AdminTab) : 'overview';
+}
+
+async function getAdminSummary(nowIso: string): Promise<AdminSummary> {
   const [
-    userRows,
-    coinRows,
-    submissionRows,
-    airdropSubmissionRows,
-    sessionRows,
-    activeBoostRows,
-    activePromotionRows,
     userCountRows,
     coinCountRows,
     activeBoostCoinCountRows,
     activePromotionCoinCountRows,
     pendingSubmissionCount,
     pendingAirdropSubmissionCount,
-    changeRequestRows,
     pendingChangeRequestCount,
-    bannerAdRows,
     activeBannerCountRows,
+    scheduledBannerCountRows,
   ] = await Promise.all([
-    db.select().from(users).orderBy(desc(users.createdAt)).limit(200),
-    db.select().from(coins).orderBy(desc(coins.submittedAt)).limit(200),
-    db.select().from(coinSubmissions).orderBy(desc(coinSubmissions.createdAt)).limit(500),
-    db
-      .select({ submission: airdropSubmissions, coin: coins })
-      .from(airdropSubmissions)
-      .innerJoin(coins, eq(airdropSubmissions.coinId, coins.id))
-      .orderBy(desc(airdropSubmissions.createdAt))
-      .limit(500)
-      .catch((error) => {
-        if (isMissingRelationError(error, 'airdrop_submissions')) {
-          console.warn(
-            '[admin] airdrop_submissions table is unavailable. Run migrations to enable airdrops.',
-          );
-          return [];
-        }
-
-        throw error;
-      }),
-    db.select().from(sessions).orderBy(desc(sessions.updatedAt)).limit(1000),
-    db
-      .select()
-      .from(coinBoosts)
-      .where(
-        and(
-          sql`${coinBoosts.status} in ('active', 'scheduled')`,
-          sql`${coinBoosts.expiresAt} > ${nowIso}::timestamptz`,
-        ),
-      )
-      .orderBy(desc(coinBoosts.expiresAt)),
-    db
-      .select()
-      .from(coinPromotions)
-      .where(
-        and(
-          sql`${coinPromotions.status} in ('active', 'scheduled')`,
-          sql`${coinPromotions.expiresAt} > ${nowIso}::timestamptz`,
-        ),
-      )
-      .orderBy(desc(coinPromotions.expiresAt)),
     db.select({ count: sql<number>`count(*)::int` }).from(users),
     db.select({ count: sql<number>`count(*)::int` }).from(coins),
     db
@@ -141,23 +161,10 @@ export default async function AdminDashboardPage({
         if (isMissingRelationError(error, 'airdrop_submissions')) return [{ count: 0 }];
         throw error;
       }),
-    db.select().from(changeRequests).orderBy(desc(changeRequests.createdAt)).limit(200),
     db
       .select({ count: sql<number>`count(*)::int` })
       .from(changeRequests)
       .where(eq(changeRequests.status, 'pending')),
-    db
-      .select()
-      .from(bannerAds)
-      .orderBy(desc(bannerAds.updatedAt))
-      .limit(200)
-      .catch((error) => {
-        console.warn(
-          '[admin] Banner ad rows unavailable:',
-          error instanceof Error ? error.message : error,
-        );
-        return [];
-      }),
     db
       .select({ count: sql<number>`count(*)::int` })
       .from(bannerAds)
@@ -175,90 +182,204 @@ export default async function AdminDashboardPage({
         );
         return [{ count: 0 }];
       }),
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(bannerAds)
+      .where(
+        and(eq(bannerAds.status, 'scheduled'), sql`${bannerAds.startsAt} > ${nowIso}::timestamptz`),
+      )
+      .catch(() => [{ count: 0 }]),
   ]);
 
-  const userById = new Map(userRows.map((user) => [user.id, user]));
-  const coinById = new Map(coinRows.map((coin) => [coin.id, coin]));
-  const latestSessionByUser = new Map<string, (typeof sessionRows)[number]>();
-  sessionRows.forEach((row) => {
-    if (!latestSessionByUser.has(row.userId)) latestSessionByUser.set(row.userId, row);
-  });
+  return {
+    users: readCount(userCountRows),
+    coins: readCount(coinCountRows),
+    activeBoosts: readCount(activeBoostCoinCountRows),
+    promotedCoins: readCount(activePromotionCoinCountRows),
+    activeBanners: readCount(activeBannerCountRows),
+    scheduledBanners: readCount(scheduledBannerCountRows),
+    pendingSubmissions: readCount(pendingSubmissionCount),
+    pendingAirdrops: readCount(pendingAirdropSubmissionCount),
+    changeRequests: readCount(pendingChangeRequestCount),
+  };
+}
 
+async function getAdminTabData(tab: AdminTab, now: Date, nowIso: string): Promise<AdminTabData> {
+  const data = emptyAdminTabData();
+
+  switch (tab) {
+    case 'submissions':
+      data.pendingSubmissions = await getPendingCoinSubmissions();
+      break;
+    case 'airdrops':
+      data.pendingAirdropSubmissions = await getPendingAirdropSubmissions();
+      break;
+    case 'coins':
+      data.listedCoins = await getListedCoins(now, nowIso);
+      break;
+    case 'promotions':
+      data.listedCoins = await getPromotedAdminCoins(now, nowIso);
+      break;
+    case 'banners':
+      data.bannerAds = await getAdminBannerRows(now);
+      break;
+    case 'users':
+      data.users = await getAdminUsers();
+      break;
+    case 'reports':
+      data.changeRequests = await getAdminChangeRequests();
+      break;
+    case 'overview':
+      break;
+  }
+
+  return data;
+}
+
+async function getPendingCoinSubmissions(): Promise<AdminSubmissionRow[]> {
+  const submissionRows = await db
+    .select()
+    .from(coinSubmissions)
+    .where(
+      and(eq(coinSubmissions.submissionType, 'new-coin'), eq(coinSubmissions.status, 'pending')),
+    )
+    .orderBy(desc(coinSubmissions.createdAt))
+    .limit(500);
+  const userById = await getUsersByIds(
+    submissionRows.map((submission) => submission.submittedByUserId).filter(isString),
+  );
+
+  return submissionRows.map((submission) => {
+    const data = readSubmissionData(submission.coinData);
+    const submitter = submission.submittedByUserId
+      ? userById.get(submission.submittedByUserId)
+      : null;
+
+    return {
+      id: submission.id,
+      submissionKind: 'coin',
+      logoUrl: data.logoUrl,
+      name: data.name,
+      symbol: data.symbol,
+      chain: formatChain(data.chain),
+      submittedBy: submitter?.name || submitter?.email || submission.requesterEmail,
+      contactEmail: submission.requesterEmail,
+      contactTelegram: submission.requesterTelegram || data.contactTelegram,
+      submittedAt: formatDateTime(submission.createdAt),
+      status: submission.status,
+      flag: buildSubmissionFlag(data),
+      details: buildSubmissionDetails(submission.coinData),
+      rawData: JSON.stringify(submission.coinData, null, 2),
+    };
+  });
+}
+
+async function getPendingAirdropSubmissions(): Promise<AdminSubmissionRow[]> {
+  const rows = await db
+    .select({ submission: airdropSubmissions, coin: coins })
+    .from(airdropSubmissions)
+    .innerJoin(coins, eq(airdropSubmissions.coinId, coins.id))
+    .where(eq(airdropSubmissions.status, 'pending'))
+    .orderBy(desc(airdropSubmissions.createdAt))
+    .limit(500)
+    .catch((error) => {
+      if (isMissingRelationError(error, 'airdrop_submissions')) {
+        console.warn(
+          '[admin] airdrop_submissions table is unavailable. Run migrations to enable airdrops.',
+        );
+        return [];
+      }
+
+      throw error;
+    });
+  const userById = await getUsersByIds(
+    rows.map(({ submission }) => submission.submittedByUserId).filter(isString),
+  );
+
+  return rows.map(({ submission, coin }) => {
+    const submitter = submission.submittedByUserId
+      ? userById.get(submission.submittedByUserId)
+      : null;
+
+    return {
+      id: submission.id,
+      submissionKind: 'airdrop',
+      logoUrl: coin.logoUrl || null,
+      name: submission.name,
+      symbol: coin.symbol,
+      chain: coin.name,
+      submittedBy: submitter?.name || submitter?.email || submission.requesterEmail,
+      contactEmail: submission.requesterEmail,
+      contactTelegram: readAirdropSocialLink(submission.socialLinks, 'telegram'),
+      submittedAt: formatDateTime(submission.createdAt),
+      status: submission.status,
+      flag: 'Airdrop',
+      details: buildAirdropSubmissionDetails(submission, coin),
+      rawData: JSON.stringify(submission, null, 2),
+    };
+  });
+}
+
+async function getListedCoins(now: Date, nowIso: string): Promise<AdminCoinRow[]> {
+  const coinRows = await db.select().from(coins).orderBy(desc(coins.submittedAt)).limit(200);
+  return hydrateAdminCoins(coinRows, now, nowIso);
+}
+
+async function getPromotedAdminCoins(now: Date, nowIso: string): Promise<AdminCoinRow[]> {
+  const [activeBoostRows, activePromotionRows] = await Promise.all([
+    readActiveBoosts(nowIso),
+    readActivePromotions(nowIso),
+  ]);
+  const coinIds = uniqueNumbers([
+    ...activeBoostRows.map((boost) => boost.coinId),
+    ...activePromotionRows.map((promotion) => promotion.coinId),
+  ]);
+  const coinRows = await getCoinsByIds(coinIds);
+  const promotedRows = await hydrateAdminCoins(
+    coinRows,
+    now,
+    nowIso,
+    activeBoostRows,
+    activePromotionRows,
+  );
+
+  return promotedRows.sort((a, b) => {
+    const aDate = a.promotion?.expiresAt || a.boost?.expiresAt || '';
+    const bDate = b.promotion?.expiresAt || b.boost?.expiresAt || '';
+    return aDate.localeCompare(bDate);
+  });
+}
+
+async function hydrateAdminCoins(
+  coinRows: Array<typeof coins.$inferSelect>,
+  now: Date,
+  nowIso: string,
+  providedBoostRows?: Array<typeof coinBoosts.$inferSelect>,
+  providedPromotionRows?: Array<typeof coinPromotions.$inferSelect>,
+): Promise<AdminCoinRow[]> {
+  const coinIds = coinRows.map((coin) => coin.id);
+  const [submissionRows, activeBoostRows, activePromotionRows] = await Promise.all([
+    getCoinSubmissionsByCoinIds(coinIds),
+    providedBoostRows ? Promise.resolve(providedBoostRows) : readActiveBoosts(nowIso, coinIds),
+    providedPromotionRows
+      ? Promise.resolve(providedPromotionRows)
+      : readActivePromotions(nowIso, coinIds),
+  ]);
+  const userById = await getUsersByIds(
+    submissionRows.map((submission) => submission.submittedByUserId).filter(isString),
+  );
   const submissionsByCoinId = new Map<number, (typeof submissionRows)[number]>();
   submissionRows.forEach((submission) => {
     if (submission.coinId && !submissionsByCoinId.has(submission.coinId)) {
       submissionsByCoinId.set(submission.coinId, submission);
     }
   });
-
-  const submittedCountsByUser = new Map<string, number>();
-  submissionRows.forEach((submission) => {
-    if (!submission.submittedByUserId) return;
-    submittedCountsByUser.set(
-      submission.submittedByUserId,
-      (submittedCountsByUser.get(submission.submittedByUserId) || 0) + 1,
-    );
-  });
-
   const activeBoostByCoin = new Map(activeBoostRows.map((boost) => [boost.coinId, boost]));
   const activePromotionByCoin = new Map(
     activePromotionRows.map((promotion) => [promotion.coinId, promotion]),
   );
 
-  const pendingCoinSubmissions: AdminSubmissionRow[] = submissionRows
-    .filter(
-      (submission) => submission.submissionType === 'new-coin' && submission.status === 'pending',
-    )
-    .map((submission) => {
-      const data = readSubmissionData(submission.coinData);
-      const submitter = submission.submittedByUserId
-        ? userById.get(submission.submittedByUserId)
-        : null;
-
-      return {
-        id: submission.id,
-        submissionKind: 'coin',
-        logoUrl: data.logoUrl,
-        name: data.name,
-        symbol: data.symbol,
-        chain: formatChain(data.chain),
-        submittedBy: submitter?.name || submitter?.email || submission.requesterEmail,
-        contactEmail: submission.requesterEmail,
-        contactTelegram: submission.requesterTelegram || data.contactTelegram,
-        submittedAt: formatDateTime(submission.createdAt),
-        status: submission.status,
-        flag: buildSubmissionFlag(data),
-        details: buildSubmissionDetails(submission.coinData),
-        rawData: JSON.stringify(submission.coinData, null, 2),
-      };
-    });
-
-  const pendingAirdropSubmissions: AdminSubmissionRow[] = airdropSubmissionRows
-    .filter(({ submission }) => submission.status === 'pending')
-    .map(({ submission, coin }) => {
-      const submitter = submission.submittedByUserId
-        ? userById.get(submission.submittedByUserId)
-        : null;
-
-      return {
-        id: submission.id,
-        submissionKind: 'airdrop',
-        logoUrl: coin.logoUrl || null,
-        name: submission.name,
-        symbol: coin.symbol,
-        chain: coin.name,
-        submittedBy: submitter?.name || submitter?.email || submission.requesterEmail,
-        contactEmail: submission.requesterEmail,
-        contactTelegram: readAirdropSocialLink(submission.socialLinks, 'telegram'),
-        submittedAt: formatDateTime(submission.createdAt),
-        status: submission.status,
-        flag: 'Airdrop',
-        details: buildAirdropSubmissionDetails(submission, coin),
-        rawData: JSON.stringify(submission, null, 2),
-      };
-    });
-
-  const listedCoins: AdminCoinRow[] = coinRows.map((coin) => {
+  return coinRows.map((coin) => {
     const submission = submissionsByCoinId.get(coin.id);
     const submissionData = submission ? readSubmissionData(submission.coinData) : null;
     const submitter = submission?.submittedByUserId
@@ -302,53 +423,23 @@ export default async function AdminDashboardPage({
         : null,
     };
   });
+}
 
-  const adminUsers: AdminUserRow[] = userRows.map((user) => {
-    const latestSession = latestSessionByUser.get(user.id);
+async function getAdminBannerRows(now: Date): Promise<AdminBannerRow[]> {
+  const bannerRows = await db
+    .select()
+    .from(bannerAds)
+    .orderBy(desc(bannerAds.updatedAt))
+    .limit(200)
+    .catch((error) => {
+      console.warn(
+        '[admin] Banner ad rows unavailable:',
+        error instanceof Error ? error.message : error,
+      );
+      return [];
+    });
 
-    return {
-      id: user.id,
-      avatar: emailInitials(user.email),
-      avatarTone: emailTone(user.email),
-      name: user.name,
-      email: user.email,
-      role: user.role || 'user',
-      status: user.banned ? 'suspended' : 'active',
-      projectsSubmitted: submittedCountsByUser.get(user.id) || 0,
-      joinedAt: formatDateTime(user.createdAt),
-      lastActive: latestSession ? formatDateTime(latestSession.updatedAt) : '—',
-      lastIp: latestSession?.ipAddress || '—',
-    };
-  });
-
-  const summary: AdminSummary = {
-    users: readCount(userCountRows),
-    coins: readCount(coinCountRows),
-    activeBoosts: readCount(activeBoostCoinCountRows),
-    promotedCoins: readCount(activePromotionCoinCountRows),
-    activeBanners: readCount(activeBannerCountRows),
-    pendingSubmissions: readCount(pendingSubmissionCount),
-    pendingAirdrops: readCount(pendingAirdropSubmissionCount),
-    changeRequests: readCount(pendingChangeRequestCount),
-  };
-
-  const adminChangeRequests = changeRequestRows.map((request) => {
-    const coin = coinById.get(request.coinId);
-    return {
-      id: request.id,
-      coinId: request.coinId,
-      coinName: coin?.name || `Coin #${request.coinId}`,
-      coinSymbol: coin?.symbol || '',
-      requesterEmail: request.requesterEmail,
-      requesterTelegram: request.requesterTelegram || '',
-      requestedChanges: request.requestedChanges,
-      evidenceUrl: request.evidenceUrl || '',
-      status: request.status,
-      submittedAt: formatDateTime(request.createdAt),
-    };
-  });
-
-  const adminBannerAds: AdminBannerRow[] = bannerAdRows.map((banner) => ({
+  return bannerRows.map((banner) => ({
     ...(() => {
       const placement = normalizeBannerPlacement(banner.placement) || 'premium';
       const status = getBannerStatus(banner.startsAt, banner.expiresAt, now);
@@ -372,30 +463,149 @@ export default async function AdminDashboardPage({
     schedule: formatBannerSchedule(banner.startsAt, banner.expiresAt, now),
     notes: banner.notes || '',
   }));
+}
 
-  return (
-    <main className="market-page">
-      <SiteHeader active="none" initialSession={session} />
-      <section className="container admin-dashboard" aria-label="Admin dashboard">
-        <header className="admin-dashboard-head">
-          <h1>Admin dashboard</h1>
-          <p>Review submissions, manage listed coins, and control boosts or promotions.</p>
-        </header>
+async function getAdminUsers(): Promise<AdminUserRow[]> {
+  const userRows = await db.select().from(users).orderBy(desc(users.createdAt)).limit(200);
+  const userIds = userRows.map((user) => user.id);
+  const [sessionRows, submittedCountRows] = await Promise.all([
+    userIds.length
+      ? db
+          .select()
+          .from(sessions)
+          .where(inArray(sessions.userId, userIds))
+          .orderBy(desc(sessions.updatedAt))
+          .limit(1000)
+      : Promise.resolve([]),
+    userIds.length
+      ? db
+          .select({ userId: coinSubmissions.submittedByUserId, count: sql<number>`count(*)::int` })
+          .from(coinSubmissions)
+          .where(inArray(coinSubmissions.submittedByUserId, userIds))
+          .groupBy(coinSubmissions.submittedByUserId)
+      : Promise.resolve([]),
+  ]);
+  const latestSessionByUser = new Map<string, (typeof sessionRows)[number]>();
+  sessionRows.forEach((row) => {
+    if (!latestSessionByUser.has(row.userId)) latestSessionByUser.set(row.userId, row);
+  });
+  const submittedCountsByUser = new Map<string, number>();
+  submittedCountRows.forEach((row) => {
+    if (!row.userId) return;
+    submittedCountsByUser.set(row.userId, Number(row.count || 0));
+  });
 
-        <AdminDashboardClient
-          summary={summary}
-          pendingSubmissions={pendingCoinSubmissions}
-          pendingAirdropSubmissions={pendingAirdropSubmissions}
-          changeRequests={adminChangeRequests}
-          listedCoins={listedCoins}
-          bannerAds={adminBannerAds}
-          users={adminUsers}
-          initialTab={resolvedSearchParams?.tab}
-        />
-      </section>
-      <SiteFooter />
-    </main>
-  );
+  return userRows.map((user) => {
+    const latestSession = latestSessionByUser.get(user.id);
+
+    return {
+      id: user.id,
+      avatar: emailInitials(user.email),
+      avatarTone: emailTone(user.email),
+      name: user.name,
+      email: user.email,
+      role: user.role || 'user',
+      status: user.banned ? 'suspended' : 'active',
+      projectsSubmitted: submittedCountsByUser.get(user.id) || 0,
+      joinedAt: formatDateTime(user.createdAt),
+      lastActive: latestSession ? formatDateTime(latestSession.updatedAt) : '—',
+      lastIp: latestSession?.ipAddress || '—',
+    };
+  });
+}
+
+async function getAdminChangeRequests(): Promise<AdminChangeRequestRow[]> {
+  const changeRequestRows = await db
+    .select()
+    .from(changeRequests)
+    .orderBy(desc(changeRequests.createdAt))
+    .limit(200);
+  const coinById = await getCoinMapByIds(changeRequestRows.map((request) => request.coinId));
+
+  return changeRequestRows.map((request) => {
+    const coin = coinById.get(request.coinId);
+    return {
+      id: request.id,
+      coinId: request.coinId,
+      coinName: coin?.name || `Coin #${request.coinId}`,
+      coinSymbol: coin?.symbol || '',
+      requesterEmail: request.requesterEmail,
+      requesterTelegram: request.requesterTelegram || '',
+      requestedChanges: request.requestedChanges,
+      evidenceUrl: request.evidenceUrl || '',
+      status: request.status,
+      submittedAt: formatDateTime(request.createdAt),
+    };
+  });
+}
+
+async function readActiveBoosts(nowIso: string, coinIds?: number[]) {
+  if (coinIds && !coinIds.length) return [];
+  return db
+    .select()
+    .from(coinBoosts)
+    .where(
+      and(
+        sql`${coinBoosts.status} in ('active', 'scheduled')`,
+        sql`${coinBoosts.expiresAt} > ${nowIso}::timestamptz`,
+        coinIds?.length ? inArray(coinBoosts.coinId, coinIds) : undefined,
+      ),
+    )
+    .orderBy(desc(coinBoosts.expiresAt));
+}
+
+async function readActivePromotions(nowIso: string, coinIds?: number[]) {
+  if (coinIds && !coinIds.length) return [];
+  return db
+    .select()
+    .from(coinPromotions)
+    .where(
+      and(
+        sql`${coinPromotions.status} in ('active', 'scheduled')`,
+        sql`${coinPromotions.expiresAt} > ${nowIso}::timestamptz`,
+        coinIds?.length ? inArray(coinPromotions.coinId, coinIds) : undefined,
+      ),
+    )
+    .orderBy(desc(coinPromotions.expiresAt));
+}
+
+async function getCoinSubmissionsByCoinIds(coinIds: number[]) {
+  if (!coinIds.length) return [];
+  return db
+    .select()
+    .from(coinSubmissions)
+    .where(inArray(coinSubmissions.coinId, coinIds))
+    .orderBy(desc(coinSubmissions.createdAt));
+}
+
+async function getUsersByIds(userIds: string[]) {
+  const uniqueIds = uniqueStrings(userIds);
+  if (!uniqueIds.length) return new Map<string, typeof users.$inferSelect>();
+  const rows = await db.select().from(users).where(inArray(users.id, uniqueIds));
+  return new Map(rows.map((user) => [user.id, user]));
+}
+
+async function getCoinsByIds(coinIds: number[]) {
+  const uniqueIds = uniqueNumbers(coinIds);
+  if (!uniqueIds.length) return [];
+  return db.select().from(coins).where(inArray(coins.id, uniqueIds));
+}
+
+async function getCoinMapByIds(coinIds: number[]) {
+  const rows = await getCoinsByIds(coinIds);
+  return new Map(rows.map((coin) => [coin.id, coin]));
+}
+
+function uniqueStrings(values: string[]) {
+  return Array.from(new Set(values.filter(Boolean)));
+}
+
+function uniqueNumbers(values: number[]) {
+  return Array.from(new Set(values.filter((value) => Number.isSafeInteger(value))));
+}
+
+function isString(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0;
 }
 
 function buildAirdropSubmissionDetails(

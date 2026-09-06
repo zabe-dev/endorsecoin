@@ -62,6 +62,7 @@ export type AdminSummary = {
   activeBoosts: number;
   promotedCoins: number;
   activeBanners: number;
+  scheduledBanners: number;
   pendingSubmissions: number;
   pendingAirdrops: number;
   changeRequests: number;
@@ -231,17 +232,14 @@ export function AdminDashboardClient({
   const safeInitialTab: AdminTab = isAdminTab(initialTab || null)
     ? (initialTab as AdminTab)
     : 'overview';
-  const [activeTab, setActiveTab] = useState<AdminTab>(safeInitialTab);
+  const activeTab = safeInitialTab;
+  const [isTabPending, startTabTransition] = useTransition();
+  const router = useRouter();
   const popover = { activePopoverId, setActivePopoverId };
   const counts = tabCounts(summary);
-  const promotedRows = useMemo(
-    () => listedCoins.filter((coin) => coin.boost || coin.promotion),
-    [listedCoins],
-  );
 
   function switchTab(nextTab: AdminTab) {
     setActivePopoverId(null);
-    setActiveTab(nextTab);
     const params = new URLSearchParams(window.location.search);
     if (nextTab === 'overview') {
       params.delete('tab');
@@ -249,11 +247,8 @@ export function AdminDashboardClient({
       params.set('tab', nextTab);
     }
     const query = params.toString();
-    window.history.replaceState(
-      null,
-      '',
-      query ? `${window.location.pathname}?${query}` : window.location.pathname,
-    );
+    const href = query ? `${window.location.pathname}?${query}` : window.location.pathname;
+    startTabTransition(() => router.replace(href, { scroll: false }));
   }
 
   return (
@@ -269,6 +264,7 @@ export function AdminDashboardClient({
               role="tab"
               aria-selected={activeTab === tab.id}
               className={activeTab === tab.id ? 'active' : ''}
+              disabled={isTabPending}
               onClick={() => switchTab(tab.id)}
             >
               <Icon aria-hidden="true" />
@@ -280,17 +276,7 @@ export function AdminDashboardClient({
       </div>
 
       <div className="admin-tab-panel" role="tabpanel">
-        {activeTab === 'overview' && (
-          <AdminOverview
-            summary={summary}
-            pendingSubmissions={pendingSubmissions}
-            pendingAirdropSubmissions={pendingAirdropSubmissions}
-            changeRequests={changeRequests}
-            promotedRows={promotedRows}
-            bannerAds={bannerAds}
-            onSelectTab={switchTab}
-          />
-        )}
+        {activeTab === 'overview' && <AdminOverview summary={summary} onSelectTab={switchTab} />}
         {activeTab === 'submissions' && (
           <PendingSubmissionsTable
             rows={pendingSubmissions}
@@ -315,53 +301,39 @@ export function AdminDashboardClient({
 
 function AdminOverview({
   summary,
-  pendingSubmissions,
-  pendingAirdropSubmissions,
-  changeRequests,
-  promotedRows,
-  bannerAds,
   onSelectTab,
 }: {
   summary: AdminSummary;
-  pendingSubmissions: AdminSubmissionRow[];
-  pendingAirdropSubmissions: AdminSubmissionRow[];
-  changeRequests: AdminChangeRequestRow[];
-  promotedRows: AdminCoinRow[];
-  bannerAds: AdminBannerRow[];
   onSelectTab: (tab: AdminTab) => void;
 }) {
-  const scheduledBanners = bannerAds.filter((banner) => banner.status === 'scheduled').length;
-
   return (
     <section className="admin-overview">
       <div className="admin-overview-focus">
         <div>
           <span>Needs review</span>
           <strong>
-            {pendingSubmissions.length +
-              pendingAirdropSubmissions.length +
-              changeRequests.filter((request) => request.status === 'pending').length}
+            {summary.pendingSubmissions + summary.pendingAirdrops + summary.changeRequests}
           </strong>
           <small>Items waiting for an admin decision.</small>
         </div>
         <div className="admin-attention-grid">
           <OverviewQueueCard
             title="Projects"
-            value={pendingSubmissions.length}
+            value={summary.pendingSubmissions}
             label="submissions"
             action="Review"
             onClick={() => onSelectTab('submissions')}
           />
           <OverviewQueueCard
             title="Airdrops"
-            value={pendingAirdropSubmissions.length}
+            value={summary.pendingAirdrops}
             label="campaigns"
             action="Review"
             onClick={() => onSelectTab('airdrops')}
           />
           <OverviewQueueCard
             title="Reports"
-            value={changeRequests.filter((request) => request.status === 'pending').length}
+            value={summary.changeRequests}
             label="requests"
             action="Open"
             onClick={() => onSelectTab('reports')}
@@ -375,13 +347,13 @@ function AdminOverview({
         <SummaryCard label="Active boosts" value={summary.activeBoosts} />
         <SummaryCard label="Promoted coins" value={summary.promotedCoins} />
         <SummaryCard label="Active banners" value={summary.activeBanners} />
-        <SummaryCard label="Scheduled banners" value={scheduledBanners} />
+        <SummaryCard label="Scheduled banners" value={summary.scheduledBanners} />
       </div>
 
       <div className="admin-overview-shortcuts">
         <button type="button" onClick={() => onSelectTab('promotions')}>
           <span>Promotion desk</span>
-          <b>{promotedRows.length}</b>
+          <b>{summary.activeBoosts + summary.promotedCoins}</b>
           <small>coins with active visibility</small>
         </button>
         <button type="button" onClick={() => onSelectTab('banners')}>
