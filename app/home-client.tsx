@@ -250,7 +250,7 @@ export function HomeClient({
         if (summary) updateCoinInteractionSummary(coinId, summary);
         return;
       }
-      if (!showRateLimitToast(body, 'vote')) {
+      if (!showRateLimitToast(body)) {
         setInteractionNotice(body.message || 'Could not record your vote.');
       }
       return;
@@ -305,7 +305,7 @@ export function HomeClient({
             }
           : coin,
       );
-      if (!showRateLimitToast(body, 'watchlist')) {
+      if (!showRateLimitToast(body)) {
         setInteractionNotice(body.message || 'Could not update your watchlist.');
       }
       return;

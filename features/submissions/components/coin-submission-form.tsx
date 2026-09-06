@@ -348,7 +348,7 @@ export function CoinSubmissionForm({
       turnstileRef.current?.reset();
       setValues((current) => ({ ...current, turnstileToken: '' }));
 
-      if (!showRateLimitToast(body, 'submit')) {
+      if (!showRateLimitToast(body)) {
         setErrors({ form: body.message || 'Could not submit your project right now.' });
       }
       return;

@@ -281,7 +281,7 @@ export function PublicWatchlistTable({
         updateCoinInteractionSummary(coinId, body.data?.summary);
         return;
       }
-      if (!showRateLimitToast(body, 'vote')) {
+      if (!showRateLimitToast(body)) {
         setInteractionNotice({
           tone: 'error',
           message: body.message || body.errorMessage || 'Could not record your vote.',
@@ -343,7 +343,7 @@ export function PublicWatchlistTable({
             : coin,
         ),
       );
-      if (!showRateLimitToast(body, 'watchlist')) {
+      if (!showRateLimitToast(body)) {
         setInteractionNotice({
           tone: 'error',
           message: body.message || body.errorMessage || 'Could not update your watchlist.',

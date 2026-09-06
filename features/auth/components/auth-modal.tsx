@@ -239,7 +239,7 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
       throw error;
     } catch (caught) {
       setLoading(false);
-      if (showRateLimitToast(caught, 'auth')) return;
+      if (showRateLimitToast(caught)) return;
       setFeedback({
         tone: 'error',
         title: mode === 'login' ? 'Could not log in' : 'Could not create account',
@@ -270,7 +270,7 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
         message: authFeedbackCopy.resetCodeSent,
       });
     } catch (caught) {
-      if (showRateLimitToast(caught, 'auth')) return;
+      if (showRateLimitToast(caught)) return;
       setFeedback({
         tone: 'error',
         title: 'Could not send reset code',
@@ -318,7 +318,7 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
       });
       resetFlow('login');
     } catch (caught) {
-      if (showRateLimitToast(caught, 'auth')) return;
+      if (showRateLimitToast(caught)) return;
       setFeedback({
         tone: 'error',
         title: 'Could not update password',

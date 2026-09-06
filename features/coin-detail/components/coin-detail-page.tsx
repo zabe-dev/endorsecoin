@@ -104,7 +104,7 @@ export function CoinDetailPage({
         trendingScore: Math.max(0, current.trendingScore - 3),
         trend: Math.max(0, current.trend - 3),
       }));
-      if (!showRateLimitToast(body, 'vote')) {
+      if (!showRateLimitToast(body)) {
         setNotice(body.message || 'Could not record your vote.');
       }
       return;
@@ -146,7 +146,7 @@ export function CoinDetailPage({
         trendingScore: Math.max(0, current.trendingScore + (adding ? -2 : 2)),
         trend: Math.max(0, current.trend + (adding ? -2 : 2)),
       }));
-      if (!showRateLimitToast(body, 'watchlist')) {
+      if (!showRateLimitToast(body)) {
         setNotice(body.message || 'Could not update your watchlist.');
       }
       return;
@@ -206,7 +206,7 @@ export function CoinDetailPage({
         updatePromotedInteractionSummary(coinId, body.data?.summary);
         return;
       }
-      if (!showRateLimitToast(body, 'vote')) {
+      if (!showRateLimitToast(body)) {
         setNotice(body.message || body.errorMessage || 'Could not record your vote.');
       }
       return;
@@ -265,7 +265,7 @@ export function CoinDetailPage({
             : row,
         ),
       );
-      if (!showRateLimitToast(body, 'watchlist')) {
+      if (!showRateLimitToast(body)) {
         setNotice(body.message || body.errorMessage || 'Could not update your watchlist.');
       }
       return;

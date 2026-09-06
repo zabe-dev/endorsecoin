@@ -80,7 +80,7 @@ export function PromotedCoinsTable({
         updateInteractionSummary(coinId, body.data?.summary);
         return;
       }
-      if (!showRateLimitToast(body, 'vote')) {
+      if (!showRateLimitToast(body)) {
         setNotice(body.message || body.errorMessage || 'Could not record your vote.');
       }
       return;
@@ -141,7 +141,7 @@ export function PromotedCoinsTable({
             : row,
         ),
       );
-      if (!showRateLimitToast(body, 'watchlist')) {
+      if (!showRateLimitToast(body)) {
         setNotice(body.message || body.errorMessage || 'Could not update your watchlist.');
       }
       return;

@@ -63,7 +63,7 @@ export function ChangeRequestModal({
     setSaving(false);
 
     if (!response.ok) {
-      if (!showRateLimitToast(body, 'request')) {
+      if (!showRateLimitToast(body)) {
         setFeedback(body.message || 'Could not submit the request. Please try again.');
       }
       return;

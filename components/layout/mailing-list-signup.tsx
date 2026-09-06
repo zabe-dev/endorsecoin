@@ -30,7 +30,7 @@ export function MailingListSignup() {
     } | null;
 
     if (!response?.ok || !body?.success) {
-      if (showRateLimitToast(body, 'subscribe')) {
+      if (showRateLimitToast(body)) {
         setStatus('idle');
         return;
       }

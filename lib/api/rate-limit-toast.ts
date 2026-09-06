@@ -17,7 +17,7 @@ type RateLimitBody = {
   };
 };
 
-export function showRateLimitToast(value: unknown, _fallback = 'request') {
+export function showRateLimitToast(value: unknown) {
   const body = readRateLimitBody(value);
   const code = body?.code || body?.body?.code || '';
   const status = body?.status || body?.statusCode;

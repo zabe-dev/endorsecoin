@@ -276,7 +276,7 @@ export function AirdropSubmissionForm({
       turnstileRef.current?.reset();
       setValues((current) => ({ ...current, turnstileToken: '' }));
 
-      if (!showRateLimitToast(body, 'submit')) {
+      if (!showRateLimitToast(body)) {
         setErrors({ form: body.message || 'Could not submit your airdrop right now.' });
       }
       return;
