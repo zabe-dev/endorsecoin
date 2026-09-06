@@ -16,6 +16,7 @@ import {
   type TurnstileSlotHandle,
 } from '@/features/submissions/components/submission-fields';
 import { showRateLimitToast } from '@/lib/api/rate-limit-toast';
+import { captureEvent } from '@/lib/analytics/posthog';
 import { Check, Home, Loader2, PartyPopper, Search, Send } from 'lucide-react';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
@@ -283,6 +284,10 @@ export function AirdropSubmissionForm({
     }
 
     setErrors({});
+    captureEvent('airdrop_submission_created', {
+      coin_id: result.data.coinId,
+      winners_count: result.data.winnersCount,
+    });
     setSubmitted(true);
     onSubmittedChange?.(true);
   }

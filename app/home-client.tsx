@@ -30,6 +30,7 @@ import {
 } from '@/features/coins/view';
 import { WeeklyResetChip } from '@/features/leaderboard/components/weekly-reset-chip';
 import { showRateLimitToast } from '@/lib/api/rate-limit-toast';
+import { captureEvent } from '@/lib/analytics/posthog';
 import { getPaginationItems } from '@/lib/ui/pagination';
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -282,6 +283,7 @@ export function HomeClient({
 
     const summary = body.data?.summary;
     if (summary) updateCoinInteractionSummary(coinId, summary);
+    captureEvent('coin_voted', { coin_id: coinId, placement: 'discovery' });
   };
   const watch = async (coinId: number) => {
     if (!isSignedIn) {
@@ -337,6 +339,11 @@ export function HomeClient({
 
     const summary = body.data?.summary;
     if (summary) updateCoinInteractionSummary(coinId, summary);
+    captureEvent('watchlist_updated', {
+      coin_id: coinId,
+      action: removing ? 'removed' : 'added',
+      placement: 'discovery',
+    });
   };
 
   function updateCoinInteractionSummary(

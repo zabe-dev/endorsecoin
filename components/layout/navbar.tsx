@@ -2,7 +2,7 @@
 
 import { Brand } from '@/components/ui/brand';
 import { AuthModal } from '@/features/auth/components/lazy-auth-modal';
-import { authClient } from '@/lib/auth/client';
+import { authClient, identifyPostHogUser, resetPostHogUser } from '@/lib/auth/client';
 import { hasAdminAccess } from '@/lib/auth/roles';
 import {
   ChevronDown,
@@ -61,6 +61,12 @@ export function Navbar({
   }, []);
 
   useEffect(() => {
+    if (!session?.user) return;
+
+    identifyPostHogUser(session.user);
+  }, [session?.user]);
+
+  useEffect(() => {
     if (!isSignedIn) return;
     const timer = window.setInterval(() => {
       setSubmitCtaIndex((index) => (index + 1) % submitCtaLabels.length);
@@ -80,6 +86,7 @@ export function Navbar({
     closeMenu();
     setLoggingOut(true);
     await authClient.signOut();
+    resetPostHogUser();
     window.location.replace('/');
   }
 

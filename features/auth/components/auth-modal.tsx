@@ -3,7 +3,7 @@
 import { Brand } from '@/components/ui/brand';
 import { PasswordField } from '@/components/ui/password-field';
 import { showRateLimitToast } from '@/lib/api/rate-limit-toast';
-import { authClient } from '@/lib/auth/client';
+import { authClient, identifyPostHogUser } from '@/lib/auth/client';
 import { Check, Info, TriangleAlert, X } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -209,6 +209,9 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
       if (mode === 'login') {
         const { error } = await authClient.signIn.email({ email, password });
         if (!error) {
+          const { data: session } = await authClient.getSession();
+          if (session?.user) identifyPostHogUser(session.user);
+
           router.push('/dashboard');
           return; // don't closeModal(), don't reset loading — let dots stay up until nav takes over
         }

@@ -1,6 +1,7 @@
 'use client';
 
 import { showRateLimitToast } from '@/lib/api/rate-limit-toast';
+import { captureEvent } from '@/lib/analytics/posthog';
 import { Check, Loader2, Mail } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 
@@ -39,6 +40,7 @@ export function MailingListSignup() {
       return;
     }
 
+    captureEvent('mailing_list_subscribed', { source: 'homepage-bottom' });
     setStatus('success');
     setMessage('Thank you for subscribing!');
     setEmail('');

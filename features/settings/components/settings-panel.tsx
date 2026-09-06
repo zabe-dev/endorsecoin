@@ -1,7 +1,8 @@
 'use client';
 
 import { PasswordField } from '@/components/ui/password-field';
-import { authClient } from '@/lib/auth/client';
+import { authClient, resetPostHogUser } from '@/lib/auth/client';
+import { captureEvent } from '@/lib/analytics/posthog';
 import { CheckCircle2, LoaderCircle, X, XCircle } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 
@@ -39,9 +40,7 @@ export function SettingsPanel({ user }: { user: { name: string; email: string } 
     if (profileInvalid) {
       setProfileNotice({
         type: 'error',
-        message: profileUnchanged
-          ? 'Name is unchanged.'
-          : 'Name needs at least 4 characters.',
+        message: profileUnchanged ? 'Name is unchanged.' : 'Name needs at least 4 characters.',
       });
       return;
     }
@@ -118,11 +117,14 @@ export function SettingsPanel({ user }: { user: { name: string; email: string } 
       return;
     }
 
+    captureEvent('account_deleted');
+
     try {
       await authClient.signOut();
     } catch {
       // The account deletion request may already remove the active session.
     }
+    resetPostHogUser();
 
     window.location.replace('/');
   }
