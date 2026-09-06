@@ -13,6 +13,7 @@ import {
   coinSubmissions,
 } from '@/lib/db/schema';
 import { getClientIp } from '@/lib/http/client-ip';
+import { recordMetric } from '@/lib/observability/metrics';
 import { buildRequestSubject, consumeRateLimit, oneHourMs } from '@/lib/security/rate-limit';
 import { uploadSubmissionLogo } from '@/lib/storage/r2';
 import { headers } from 'next/headers';
@@ -20,12 +21,17 @@ import { headers } from 'next/headers';
 const maxSubmissionBodyBytes = 3_200_000;
 
 export async function POST(request: Request) {
+  recordSubmissionMetric('attempt');
   const requestHeaders = await headers();
   const session = await auth.api.getSession({ headers: requestHeaders });
-  if (!session) return apiError('AUTH_REQUIRED', 'Sign in required.', 401);
+  if (!session) {
+    recordSubmissionMetric('rejected', { code: 'AUTH_REQUIRED' });
+    return apiError('AUTH_REQUIRED', 'Sign in required.', 401);
+  }
 
   const contentLength = Number(requestHeaders.get('content-length') || 0);
   if (contentLength > maxSubmissionBodyBytes) {
+    recordSubmissionMetric('rejected', { code: 'SUBMISSION_TOO_LARGE' });
     return apiError('SUBMISSION_TOO_LARGE', 'Submission is too large.', 413);
   }
 
@@ -37,17 +43,20 @@ export async function POST(request: Request) {
   });
 
   if (!limiter.allowed) {
+    recordSubmissionMetric('rejected', { code: 'RATE_LIMITED' });
     return rateLimitError('', limiter);
   }
 
   const rawBody = await request.text().catch(() => '');
   if (byteLength(rawBody) > maxSubmissionBodyBytes) {
+    recordSubmissionMetric('rejected', { code: 'SUBMISSION_TOO_LARGE' });
     return apiError('SUBMISSION_TOO_LARGE', 'Submission is too large.', 413);
   }
 
   const body = parseJson(rawBody);
   const normalizedBody = normalizeSubmissionRequestBody(body, session.user.email);
   if (!normalizedBody) {
+    recordSubmissionMetric('rejected', { code: 'INVALID_SUBMISSION_SHAPE' });
     return apiError(
       'INVALID_SUBMISSION_SHAPE',
       'Submission data is not in the expected format.',
@@ -57,6 +66,7 @@ export async function POST(request: Request) {
 
   const parsed = coinSubmissionPayloadSchema.safeParse(normalizedBody);
   if (!parsed.success) {
+    recordSubmissionMetric('rejected', { code: 'INVALID_SUBMISSION' });
     return apiError(
       'INVALID_SUBMISSION',
       parsed.error.issues[0]?.message || 'Invalid submission.',
@@ -69,6 +79,7 @@ export async function POST(request: Request) {
 
   const turnstile = await verifyTurnstile(payload.turnstileToken || '', requestHeaders);
   if (!turnstile.ok) {
+    recordSubmissionMetric('turnstile_failed', { code: turnstile.code || 'unknown' });
     return apiError(
       'TURNSTILE_FAILED',
       turnstile.error || 'Could not verify this submission. Please try again.',
@@ -81,6 +92,7 @@ export async function POST(request: Request) {
     chain: payload.contracts[0]?.chain || 'unknown',
   }).catch(() => null);
   if (!uploadedLogo) {
+    recordSubmissionMetric('rejected', { code: 'LOGO_UPLOAD_FAILED' });
     return apiError('LOGO_UPLOAD_FAILED', 'Could not upload the logo. Please try again.', 502);
   }
 
@@ -133,6 +145,7 @@ export async function POST(request: Request) {
     return submission.id;
   });
 
+  recordSubmissionMetric('created');
   return apiSuccess({ id: createdId }, 'Project submitted for review.');
 }
 
@@ -263,7 +276,12 @@ function byteLength(value: string) {
 async function verifyTurnstile(token: string, requestHeaders: Headers) {
   const secret = process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY;
   if (!secret) return { ok: true };
-  if (!token) return { ok: false, error: 'Please complete the verification before submitting.' };
+  if (!token)
+    return {
+      ok: false,
+      code: 'missing_token',
+      error: 'Please complete the verification before submitting.',
+    };
 
   const remoteip = getClientIp(requestHeaders);
   const formData = new FormData();
@@ -276,13 +294,29 @@ async function verifyTurnstile(token: string, requestHeaders: Headers) {
       method: 'POST',
       body: formData,
     });
-    const result = (await response.json().catch(() => null)) as { success?: boolean } | null;
+    const result = (await response.json().catch(() => null)) as {
+      success?: boolean;
+      'error-codes'?: string[];
+    } | null;
+    const errorCodes = result?.['error-codes']?.join(', ');
     return result?.success
       ? { ok: true }
-      : { ok: false, error: 'Could not verify this submission. Please try again.' };
+      : {
+          ok: false,
+          code: errorCodes || 'verification_failed',
+          error: 'Could not verify this submission. Please try again.',
+        };
   } catch {
-    return { ok: false, error: 'Could not verify this submission. Please try again.' };
+    return {
+      ok: false,
+      code: 'network_error',
+      error: 'Could not verify this submission. Please try again.',
+    };
   }
+}
+
+function recordSubmissionMetric(event: string, fields: Record<string, string> = {}) {
+  recordMetric('submission.coin', { event, ...fields });
 }
 
 function buildSubmissionData(

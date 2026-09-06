@@ -4,6 +4,7 @@ import type { NetworkId } from '@/features/coins/types';
 import { db } from '@/lib/db/client';
 import { coins, marketSnapshots, marketSources } from '@/lib/db/schema';
 import { withRedisLock } from '@/lib/cache/redis-lock';
+import { recordMetric, timeAsync } from '@/lib/observability/metrics';
 import { desc, inArray, sql } from 'drizzle-orm';
 
 type MarketSyncCoin = Pick<
@@ -99,61 +100,82 @@ export async function refreshStaleMarketSnapshots(
   latestSnapshots: Map<number, MarketSnapshotRow>,
   priorityCoinId?: number,
 ) {
-  try {
-    const staleCoins = coinRows
-      .filter((coin) => shouldRefreshCoin(coin, latestSnapshots.get(coin.id)))
-      .sort((a, b) => {
-        if (!priorityCoinId) return 0;
-        if (a.id === priorityCoinId) return -1;
-        if (b.id === priorityCoinId) return 1;
-        return 0;
-      })
-      .slice(0, defaultSyncLimit);
+  return timeAsync(
+    'server.operation',
+    { operation: 'market.refresh_stale', checked: coinRows.length },
+    async () => {
+      try {
+        const staleCoins = coinRows
+          .filter((coin) => shouldRefreshCoin(coin, latestSnapshots.get(coin.id)))
+          .sort((a, b) => {
+            if (!priorityCoinId) return 0;
+            if (a.id === priorityCoinId) return -1;
+            if (b.id === priorityCoinId) return 1;
+            return 0;
+          })
+          .slice(0, defaultSyncLimit);
 
-    if (!staleCoins.length) {
-      console.log(
-        `${LOG_TAG} nothing stale to refresh (checked ${coinRows.length} coins, all within ${cacheSeconds}s cache window or not eligible)`,
-      );
-      return new Map<number, MarketSnapshotRow>();
-    }
+        if (!staleCoins.length) {
+          recordMetric('market.sync', { event: 'nothing_stale', checked: coinRows.length });
+          console.log(
+            `${LOG_TAG} nothing stale to refresh (checked ${coinRows.length} coins, all within ${cacheSeconds}s cache window or not eligible)`,
+          );
+          return new Map<number, MarketSnapshotRow>();
+        }
 
-    console.log(
-      `${LOG_TAG} refreshing ${staleCoins.length} stale coin(s): ${staleCoins.map((c) => c.id).join(', ')}`,
-    );
+        console.log(
+          `${LOG_TAG} refreshing ${staleCoins.length} stale coin(s): ${staleCoins.map((c) => c.id).join(', ')}`,
+        );
 
-    return await runDedupeSync(() => syncCoinMarketData(staleCoins));
-  } catch (error) {
-    if (isMissingMarketSnapshotColumnError(error)) {
-      console.warn(`${LOG_TAG} market_snapshots column missing, skipping sync`, error);
-      return new Map<number, MarketSnapshotRow>();
-    }
-    console.error(`${LOG_TAG} refreshStaleMarketSnapshots failed`, error);
-    throw error;
-  }
+        recordMetric('market.sync', {
+          event: 'stale_selected',
+          checked: coinRows.length,
+          stale: staleCoins.length,
+        });
+        return await runDedupeSync(() => syncCoinMarketData(staleCoins));
+      } catch (error) {
+        if (isMissingMarketSnapshotColumnError(error)) {
+          recordMetric('market.sync', { event: 'missing_snapshot_column' });
+          console.warn(`${LOG_TAG} market_snapshots column missing, skipping sync`, error);
+          return new Map<number, MarketSnapshotRow>();
+        }
+        console.error(`${LOG_TAG} refreshStaleMarketSnapshots failed`, error);
+        throw error;
+      }
+    },
+  );
 }
 
 export async function syncMobulaMarketData(limit = defaultSyncLimit) {
-  const requestedLimit = Number.isFinite(limit) ? limit : defaultSyncLimit;
-  const safeLimit = Math.max(1, Math.min(maxSyncLimit, requestedLimit));
-  const coinRows = await selectStaleSyncCoins(safeLimit);
+  return timeAsync('server.operation', { operation: 'market.sync', limit }, async () => {
+    const requestedLimit = Number.isFinite(limit) ? limit : defaultSyncLimit;
+    const safeLimit = Math.max(1, Math.min(maxSyncLimit, requestedLimit));
+    const coinRows = await selectStaleSyncCoins(safeLimit);
 
-  const coinIds = coinRows.map((coin) => coin.id);
-  if (!coinIds.length) {
-    console.log(`${LOG_TAG} no stale active coins with supported chain/address found`);
-    return { checked: 0, updated: 0 };
-  }
+    const coinIds = coinRows.map((coin) => coin.id);
+    if (!coinIds.length) {
+      recordMetric('market.sync', { event: 'no_stale_candidates' });
+      console.log(`${LOG_TAG} no stale active coins with supported chain/address found`);
+      return { checked: 0, updated: 0 };
+    }
 
-  const snapshotRows = await db
-    .select()
-    .from(marketSnapshots)
-    .where(inArray(marketSnapshots.coinId, coinIds))
-    .orderBy(desc(marketSnapshots.recordedAt));
-  const latestByCoin = firstByCoinId(snapshotRows);
-  const refreshed = await refreshStaleMarketSnapshots(coinRows, latestByCoin);
+    const snapshotRows = await db
+      .select()
+      .from(marketSnapshots)
+      .where(inArray(marketSnapshots.coinId, coinIds))
+      .orderBy(desc(marketSnapshots.recordedAt));
+    const latestByCoin = firstByCoinId(snapshotRows);
+    const refreshed = await refreshStaleMarketSnapshots(coinRows, latestByCoin);
 
-  console.log(`${LOG_TAG} sync complete: checked ${coinRows.length}, updated ${refreshed.size}`);
+    recordMetric('market.sync', {
+      event: 'complete',
+      checked: coinRows.length,
+      updated: refreshed.size,
+    });
+    console.log(`${LOG_TAG} sync complete: checked ${coinRows.length}, updated ${refreshed.size}`);
 
-  return { checked: coinRows.length, updated: refreshed.size };
+    return { checked: coinRows.length, updated: refreshed.size };
+  });
 }
 
 async function runDedupeSync(fetcher: () => Promise<Map<number, MarketSnapshotRow>>) {
@@ -187,6 +209,7 @@ async function syncCoinMarketData(coinRows: MarketSyncCoin[]) {
   const refreshed = new Map<number, MarketSnapshotRow>();
 
   if (!getMobulaApiKeys().length) {
+    recordMetric('market.sync', { event: 'missing_api_key', skipped: coinRows.length });
     console.warn(
       `${LOG_TAG} MOBULA_API_KEY or MOBULA_API_KEYS is not set, skipping all ${coinRows.length} coin(s)`,
     );
@@ -198,24 +221,28 @@ async function syncCoinMarketData(coinRows: MarketSyncCoin[]) {
     const address = coin.contractAddress?.trim();
 
     if (!chainId) {
+      recordMetric('market.sync', { event: 'coin_skipped', reason: 'unsupported_chain' });
       console.warn(
         `${LOG_TAG} coin ${coin.id}: no Mobula chain mapping for chain "${coin.chain}", skipping`,
       );
       continue;
     }
     if (!address) {
+      recordMetric('market.sync', { event: 'coin_skipped', reason: 'missing_address' });
       console.warn(`${LOG_TAG} coin ${coin.id}: missing contract address, skipping`);
       continue;
     }
 
     const externalId = marketSourceExternalId(chainId, address);
     if (hasKnownInvalidAddressError(coin, externalId)) {
+      recordMetric('market.sync', { event: 'coin_skipped', reason: 'known_invalid_address' });
       console.warn(
         `${LOG_TAG} coin ${coin.id}: skipping known invalid Mobula address ${chainId}/${address}`,
       );
       continue;
     }
     if (!isValidAddressForChain(coin.chain, address)) {
+      recordMetric('market.sync', { event: 'coin_skipped', reason: 'invalid_address_format' });
       await recordMarketSourceError(
         coin.id,
         externalId,
@@ -230,6 +257,7 @@ async function syncCoinMarketData(coinRows: MarketSyncCoin[]) {
 
     const result = await fetchMobulaTokenDetails(chainId, address);
     if (!result.ok) {
+      recordMetric('market.sync', { event: 'coin_fetch_failed', reason: result.code });
       if (result.code === invalidAddressErrorCode) {
         await recordMarketSourceError(coin.id, externalId, result.code, result.message);
       }
@@ -257,6 +285,7 @@ async function syncCoinMarketData(coinRows: MarketSyncCoin[]) {
       .returning();
 
     if (snapshot) {
+      recordMetric('market.sync', { event: 'coin_updated' });
       await recordMarketSourceSuccess(coin.id, externalId);
       refreshed.set(coin.id, snapshot);
       console.log(

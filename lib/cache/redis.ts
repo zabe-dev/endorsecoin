@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { recordMetric } from '@/lib/observability/metrics';
 import Redis from 'ioredis';
 
 let redisClient: Redis | null | undefined;
@@ -41,7 +42,10 @@ export async function getReadyRedisClient() {
   try {
     if (client.status === 'wait' || client.status === 'connecting' || client.status === 'connect') {
       redisConnectPromise ||= client.connect().then(
-        () => client,
+        () => {
+          recordMetric('redis.connection', { event: 'ready' });
+          return client;
+        },
         (error) => {
           markRedisUnavailable(error instanceof Error ? error.message : String(error));
           return null;
@@ -63,6 +67,7 @@ export async function getReadyRedisClient() {
 
 function markRedisUnavailable(message: string) {
   redisUnavailableUntil = Date.now() + redisRetryPauseMs;
+  recordMetric('redis.connection', { event: 'unavailable' });
 
   if (redisClient) {
     redisClient.disconnect();

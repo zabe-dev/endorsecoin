@@ -16,6 +16,7 @@ import { toCoinListItem, type CoinListItem } from '@/features/coins/view';
 import { getCacheVersion } from '@/lib/cache/cache-version';
 import { rememberJson } from '@/lib/cache/json-cache';
 import { db } from '@/lib/db/client';
+import { timeAsync } from '@/lib/observability/metrics';
 import {
   coinBoosts,
   coinLinks,
@@ -47,38 +48,59 @@ type InteractionSummary = NonNullable<
 >;
 
 export async function getPublicCoinListItems(userId?: string | null): Promise<CoinListItem[]> {
-  const coinRecords = await getPublicCoinRecords();
-  const personalizedRecords = userId ? await attachUserInteractionState(coinRecords, userId) : coinRecords;
-  return personalizedRecords.map((coin, index) => toCoinListItem(coin, index));
+  return timeAsync(
+    'server.operation',
+    { operation: 'coins.public_list', authenticated: Boolean(userId) },
+    async () => {
+      const coinRecords = await getPublicCoinRecords();
+      const personalizedRecords = userId
+        ? await attachUserInteractionState(coinRecords, userId)
+        : coinRecords;
+      return personalizedRecords.map((coin, index) => toCoinListItem(coin, index));
+    },
+  );
 }
 
 export async function getPublicCoinListItemsByIds(
   coinIds: number[],
   userId?: string | null,
 ): Promise<CoinListItem[]> {
-  const uniqueIds = Array.from(new Set(coinIds));
-  if (!uniqueIds.length) return [];
+  return timeAsync(
+    'server.operation',
+    { operation: 'coins.public_ids', authenticated: Boolean(userId), count: coinIds.length },
+    async () => {
+      const uniqueIds = Array.from(new Set(coinIds));
+      if (!uniqueIds.length) return [];
 
-  await processExpiredPresales();
-  await processExpiredCoinDeletionRequests();
+      await processExpiredPresales();
+      await processExpiredCoinDeletionRequests();
 
-  const coinRecords = await readPublicCoinRecords(undefined, userId, undefined, uniqueIds);
-  const coinsById = new Map(coinRecords.map((coin) => [coin.id, coin]));
+      const coinRecords = await readPublicCoinRecords(undefined, userId, undefined, uniqueIds);
+      const coinsById = new Map(coinRecords.map((coin) => [coin.id, coin]));
 
-  return uniqueIds.flatMap((coinId, index) => {
-    const coin = coinsById.get(coinId);
-    return coin ? [toCoinListItem(coin, index)] : [];
-  });
+      return uniqueIds.flatMap((coinId, index) => {
+        const coin = coinsById.get(coinId);
+        return coin ? [toCoinListItem(coin, index)] : [];
+      });
+    },
+  );
 }
 
 export async function getPublicCoinById(id: number, userId?: string | null): Promise<Coin | null> {
-  const coinRecords = await getPublicCoinRecords(undefined, undefined, id);
-  const rankedRecords = rankCoinsByBoostedVotes(coinRecords);
-  const activeCoin = rankedRecords.find((coin) => coin.id === id);
-  if (activeCoin) return userId ? attachSingleUserInteractionState(activeCoin, userId) : activeCoin;
+  return timeAsync(
+    'server.operation',
+    { operation: 'coins.public_detail', authenticated: Boolean(userId) },
+    async () => {
+      const coinRecords = await getPublicCoinRecords(undefined, undefined, id);
+      const rankedRecords = rankCoinsByBoostedVotes(coinRecords);
+      const activeCoin = rankedRecords.find((coin) => coin.id === id);
+      if (activeCoin)
+        return userId ? attachSingleUserInteractionState(activeCoin, userId) : activeCoin;
 
-  const suspendedRecords = await getPublicCoinRecords(id, undefined, id);
-  return suspendedRecords.find((coin) => coin.id === id) || null;
+      const suspendedRecords = await getPublicCoinRecords(id, undefined, id);
+      return suspendedRecords.find((coin) => coin.id === id) || null;
+    },
+  );
 }
 
 async function getPublicCoinRecords(
@@ -111,6 +133,24 @@ async function getPublicCoinRecords(
 }
 
 async function readPublicCoinRecords(
+  coinId?: number,
+  userId?: string | null,
+  priorityCoinId?: number,
+  requestedCoinIds?: number[],
+): Promise<Coin[]> {
+  return timeAsync(
+    'db.operation',
+    {
+      operation: 'coins.public_records',
+      mode: requestedCoinIds?.length ? 'ids' : coinId ? 'detail' : 'list',
+      count: requestedCoinIds?.length || 0,
+      authenticated: Boolean(userId),
+    },
+    () => selectPublicCoinRecords(coinId, userId, priorityCoinId, requestedCoinIds),
+  );
+}
+
+async function selectPublicCoinRecords(
   coinId?: number,
   userId?: string | null,
   priorityCoinId?: number,
@@ -435,10 +475,7 @@ async function selectLatestSubmissionPayloads(
     })
     .from(coinSubmissions)
     .where(
-      and(
-        inArray(coinSubmissions.coinId, coinIds),
-        eq(coinSubmissions.submissionType, 'new-coin'),
-      ),
+      and(inArray(coinSubmissions.coinId, coinIds), eq(coinSubmissions.submissionType, 'new-coin')),
     )
     .orderBy(coinSubmissions.coinId, desc(coinSubmissions.createdAt));
 }

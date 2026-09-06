@@ -6,6 +6,7 @@ import { rememberJson } from '@/lib/cache/json-cache';
 import { db } from '@/lib/db/client';
 import { isMissingRelationError } from '@/lib/db/errors';
 import { airdropSubmissions, coins } from '@/lib/db/schema';
+import { timeAsync } from '@/lib/observability/metrics';
 import { and, asc, eq, sql } from 'drizzle-orm';
 
 const publicAirdropCacheSeconds = Number(process.env.PUBLIC_AIRDROP_LIST_CACHE_SECONDS || 60);
@@ -28,36 +29,49 @@ export type PublicAirdropPage = {
 export async function getPublicAirdropPage(
   options: PublicAirdropPageOptions = {},
 ): Promise<PublicAirdropPage> {
-  const pageSize = normalizePositiveInteger(
-    options.pageSize,
-    defaultAirdropPageSize,
-    maxAirdropPageSize,
-  );
-  const requestedPage = normalizePositiveInteger(options.page, 1, Number.MAX_SAFE_INTEGER);
+  return timeAsync('server.operation', { operation: 'airdrops.page' }, async () => {
+    const pageSize = normalizePositiveInteger(
+      options.pageSize,
+      defaultAirdropPageSize,
+      maxAirdropPageSize,
+    );
+    const requestedPage = normalizePositiveInteger(options.page, 1, Number.MAX_SAFE_INTEGER);
 
-  const [airdropVersion, coinVersion] = await Promise.all([
-    getCacheVersion('public-airdrops'),
-    getCacheVersion('public-coins'),
-  ]);
+    const [airdropVersion, coinVersion] = await Promise.all([
+      getCacheVersion('public-airdrops'),
+      getCacheVersion('public-coins'),
+    ]);
 
-  const pageData = await rememberJson(
-    `airdrops:public:page:${airdropVersion}:${coinVersion}:${requestedPage}:${pageSize}:v1`,
-    { ttlSeconds: publicAirdropCacheSeconds },
-    () => readPublicAirdropPage(requestedPage, pageSize),
-  );
+    const pageData = await rememberJson(
+      `airdrops:public:page:${airdropVersion}:${coinVersion}:${requestedPage}:${pageSize}:v1`,
+      { ttlSeconds: publicAirdropCacheSeconds },
+      () => readPublicAirdropPage(requestedPage, pageSize),
+    );
 
-  const total = pageData.total;
-  const pages = Math.max(1, Math.ceil(total / pageSize));
-  const page = Math.min(requestedPage, pages);
+    const total = pageData.total;
+    const pages = Math.max(1, Math.ceil(total / pageSize));
+    const page = Math.min(requestedPage, pages);
 
-  if (!pageData.rows.length && total > 0 && requestedPage > 1) {
-    return getPublicAirdropPage({ page: 1, pageSize });
-  }
+    if (!pageData.rows.length && total > 0 && requestedPage > 1) {
+      return getPublicAirdropPage({ page: 1, pageSize });
+    }
 
-  return { rows: pageData.rows, total, page, pageSize, pages };
+    return { rows: pageData.rows, total, page, pageSize, pages };
+  });
 }
 
 async function readPublicAirdropPage(
+  page: number,
+  pageSize: number,
+): Promise<{ rows: PublicAirdropRow[]; total: number }> {
+  return timeAsync(
+    'db.operation',
+    { operation: 'airdrops.public_page', page, pageSize },
+    () => selectPublicAirdropPage(page, pageSize),
+  );
+}
+
+async function selectPublicAirdropPage(
   page: number,
   pageSize: number,
 ): Promise<{ rows: PublicAirdropRow[]; total: number }> {

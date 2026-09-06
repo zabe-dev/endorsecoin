@@ -7,6 +7,7 @@ import { getCacheVersion } from '@/lib/cache/cache-version';
 import { rememberJson } from '@/lib/cache/json-cache';
 import { db } from '@/lib/db/client';
 import { coinBoosts, coinPromotions, coinVotes, coins } from '@/lib/db/schema';
+import { timeAsync } from '@/lib/observability/metrics';
 import { sql } from 'drizzle-orm';
 import { getPublicCoinListItemsByIds } from './coin-list';
 import {
@@ -21,9 +22,11 @@ const discoveryCacheSeconds = Number(process.env.DISCOVERY_CACHE_SECONDS || 30);
 const promotedCoinsCacheSeconds = Number(process.env.PROMOTED_COINS_CACHE_SECONDS || 60);
 
 export async function getDiscoveryData(query: LeaderboardQuery = {}): Promise<DiscoveryData> {
-  if (!query.userId) return getCachedDiscoveryData(query);
-
-  return readDiscoveryData(query);
+  return timeAsync(
+    'server.operation',
+    { operation: 'discovery', authenticated: Boolean(query.userId), page: query.page || 1 },
+    () => (!query.userId ? getCachedDiscoveryData(query) : readDiscoveryData(query)),
+  );
 }
 
 async function getCachedDiscoveryData(query: LeaderboardQuery): Promise<DiscoveryData> {
@@ -176,13 +179,7 @@ export async function getPromotedCoinItems(userId?: string | null) {
 async function getCachedActivePromotedCoinIds() {
   const version = await getCacheVersion('promoted-coins');
   return rememberJson(
-    [
-      'promoted-coins',
-      'active',
-      version,
-      getCurrentVoteWeekStart().toISOString(),
-      'v1',
-    ]
+    ['promoted-coins', 'active', version, getCurrentVoteWeekStart().toISOString(), 'v1']
       .map(cacheKeyPart)
       .join(':'),
     { ttlSeconds: promotedCoinsCacheSeconds },
