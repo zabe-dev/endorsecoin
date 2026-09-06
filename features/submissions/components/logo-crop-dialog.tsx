@@ -5,6 +5,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CoinSubmissionValues } from '@/features/submissions/schemas/coin-submission';
 import { loadImage, type LogoDraft } from '@/features/submissions/lib/logo-utils';
 
+const croppedLogoSize = 320;
+const croppedLogoMime = 'image/webp';
+const croppedLogoQuality = 0.86;
+
 export function LogoCropDialog({
   draft,
   onCancel,
@@ -68,7 +72,7 @@ export function LogoCropDialog({
 
   async function applyCrop() {
     const image = await loadImage(draft.dataUrl);
-    const targetSize = 1024;
+    const targetSize = croppedLogoSize;
     const canvas = document.createElement('canvas');
     canvas.width = targetSize;
     canvas.height = targetSize;
@@ -82,12 +86,15 @@ export function LogoCropDialog({
     context.clearRect(0, 0, targetSize, targetSize);
     context.drawImage(image, drawX, drawY, drawWidth, drawHeight);
 
+    const dataUrl = canvas.toDataURL(croppedLogoMime, croppedLogoQuality);
+    const mimeType = readDataUrlMimeType(dataUrl);
+
     onApply({
-      name: pngFileName(draft.name),
-      mimeType: 'image/png',
+      name: croppedFileName(draft.name, mimeType),
+      mimeType,
       width: targetSize,
       height: targetSize,
-      dataUrl: canvas.toDataURL('image/png'),
+      dataUrl,
     });
   }
 
@@ -200,7 +207,11 @@ export function LogoCropDialog({
   );
 }
 
-function pngFileName(fileName: string) {
+function croppedFileName(fileName: string, mimeType: 'image/png' | 'image/webp') {
   const baseName = fileName.replace(/\.[^.]+$/u, '') || 'logo';
-  return `${baseName}.png`;
+  return `${baseName}.${mimeType === 'image/webp' ? 'webp' : 'png'}`;
+}
+
+function readDataUrlMimeType(dataUrl: string): 'image/png' | 'image/webp' {
+  return dataUrl.startsWith('data:image/webp;') ? 'image/webp' : 'image/png';
 }

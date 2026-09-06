@@ -74,7 +74,7 @@ Older aliases `MARKET_DATA_SYNC_LIMIT`, `MARKET_DATA_MAX_SYNC_LIMIT`, `MARKET_DA
 - `R2_BUCKET_NAME` — bucket for submitted project logos.
 - `R2_PUBLIC_URL` — public bucket URL or custom domain for serving stored assets.
 
-Submitted logos are uploaded with long immutable cache headers. The cropper now keeps cropped output as PNG consistently, so the MIME type, file extension, and data URL match.
+Submitted logos are uploaded with long immutable cache headers. The cropper now exports compact 320px WebP logos for new submissions, with PNG fallback if WebP encoding is unavailable, so the MIME type, file extension, and data URL match.
 
 ### Optional development helper
 
@@ -152,6 +152,6 @@ Submitted logos are uploaded with long immutable cache headers. The cropper now 
 
 - Add real query-plan benchmarking before creating aggregate tables or removing indexes.
 - Consider current-market and weekly aggregate tables when traffic/data volume grows.
-- Build server-side image variants for logos and cards after the current R2 flow is stable.
+- Consider server-side image variants later if you want separate original/detail/thumbnail files. The current low-risk step optimizes new submitted logos at crop time without adding a new image-processing dependency.
 - Split the large admin client file into smaller components for maintainability.
 - Add behavioral tests for vote cooldowns, Turnstile retries, airdrop pagination, banner windows, and migration fresh/upgrade paths.
