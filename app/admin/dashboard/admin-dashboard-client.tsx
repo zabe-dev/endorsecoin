@@ -23,6 +23,7 @@ import {
 } from '@/features/ads/types';
 import { AdminPanel } from './components/admin-panel';
 import { AdminOverview } from './components/admin-overview';
+import { ActionGroup, StatusPill } from './components/admin-primitives';
 import type {
   AdminBannerRow,
   AdminDashboardClientProps,
@@ -1757,20 +1758,6 @@ function ConfirmAction({
   );
 }
 
-function ActionGroup({ children }: { children: ReactNode }) {
-  return <div className="admin-icon-actions">{children}</div>;
-}
-
-
-function StatusPill({
-  children,
-  tone = 'neutral',
-}: {
-  children: ReactNode;
-  tone?: 'neutral' | 'lime' | 'warning' | 'danger' | 'amber' | 'purple';
-}) {
-  return <span className={`admin-status-pill ${tone}`}>{children}</span>;
-}
 
 function LogoUrlAction({ logoUrl, name }: { logoUrl: string | null; name: string }) {
   if (!logoUrl) return <span className="admin-empty-cell">—</span>;
