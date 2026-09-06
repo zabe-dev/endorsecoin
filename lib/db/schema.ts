@@ -147,6 +147,8 @@ export const marketSources = pgTable(
     lastErrorCode: text('last_error_code'),
     lastErrorMessage: text('last_error_message'),
     lastErrorAt: timestamp('last_error_at', { withTimezone: true }),
+    failureCount: integer('failure_count').default(0).notNull(),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }),
     ...timestamps,
   },
   (table) => [
@@ -154,6 +156,7 @@ export const marketSources = pgTable(
     uniqueIndex('market_sources_coin_provider_unique').on(table.coinId, table.provider),
     index('market_sources_error_idx').on(table.provider, table.lastErrorCode, table.externalId),
     index('market_sources_sync_idx').on(table.provider, table.lastMarketSyncAt),
+    index('market_sources_next_attempt_idx').on(table.provider, table.nextAttemptAt),
   ],
 );
 

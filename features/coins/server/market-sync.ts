@@ -13,6 +13,8 @@ type MarketSyncCoin = Pick<
 > & {
   marketSourceExternalId?: string | null;
   marketSourceLastErrorCode?: string | null;
+  marketSourceFailureCount?: number | null;
+  marketSourceNextAttemptAt?: Date | string | null;
 };
 
 type MarketSnapshotRow = typeof marketSnapshots.$inferSelect;
@@ -89,6 +91,8 @@ const requestSpacingMs = Math.max(1_050, Number(process.env.MOBULA_REQUEST_SPACI
 const syncLockTtlMs = Number(
   process.env.MARKET_SYNC_LOCK_TTL_MS || process.env.MOBULA_SYNC_LOCK_TTL_MS || 120_000,
 );
+const baseBackoffMs = Number(process.env.MARKET_SYNC_ERROR_BACKOFF_MS || 15 * 60 * 1000);
+const maxBackoffMs = Number(process.env.MARKET_SYNC_MAX_ERROR_BACKOFF_MS || 12 * 60 * 60 * 1000);
 const mobulaProvider = 'mobula';
 const invalidAddressErrorCode = 'invalid-address-format';
 
@@ -275,7 +279,7 @@ async function syncCoinMarketData(coinRows: MarketSyncCoin[]) {
     if (!isValidAddressForChain(coin.chain, address)) {
       recordMetric('market.sync', { event: 'coin_skipped', reason: 'invalid_address_format' });
       await recordMarketSourceError(
-        coin.id,
+        coin,
         externalId,
         invalidAddressErrorCode,
         `Invalid address format for ${coin.chain || 'unknown'} chain.`,
@@ -289,9 +293,7 @@ async function syncCoinMarketData(coinRows: MarketSyncCoin[]) {
     const result = await fetchMobulaTokenDetails(chainId, address);
     if (!result.ok) {
       recordMetric('market.sync', { event: 'coin_fetch_failed', reason: result.code });
-      if (result.code === invalidAddressErrorCode) {
-        await recordMarketSourceError(coin.id, externalId, result.code, result.message);
-      }
+      await recordMarketSourceError(coin, externalId, result.code, result.message);
       console.warn(
         `${LOG_TAG} coin ${coin.id}: no data returned from Mobula for ${chainId}/${address}`,
       );
@@ -411,6 +413,7 @@ function shouldRefreshCoin(coin: MarketSyncCoin, snapshot: MarketSnapshotRow | u
   const chainId = getMobulaChainId(coin.chain);
   if (!chainId) return false;
   if (!isValidAddressForChain(coin.chain, coin.contractAddress.trim())) return false;
+  if (hasActiveBackoff(coin)) return false;
   if (
     hasKnownInvalidAddressError(coin, marketSourceExternalId(chainId, coin.contractAddress.trim()))
   ) {
@@ -427,6 +430,7 @@ function getMobulaChainId(chain: string | null) {
 
 async function selectStaleSyncCoins(limit: number): Promise<MarketSyncCoin[]> {
   const supportedChains = Object.keys(mobulaChainIds);
+  const nowIso = new Date().toISOString();
   const staleBeforeIso = new Date(Date.now() - cacheSeconds * 1_000).toISOString();
   const supportedChainSql = sql.join(
     supportedChains.map((chain) => sql`${chain}`),
@@ -440,7 +444,9 @@ async function selectStaleSyncCoins(limit: number): Promise<MarketSyncCoin[]> {
       c.contract_address as "contractAddress",
       c.listing_status as "listingStatus",
       source.external_id as "marketSourceExternalId",
-      source.last_error_code as "marketSourceLastErrorCode"
+      source.last_error_code as "marketSourceLastErrorCode",
+      source.failure_count as "marketSourceFailureCount",
+      source.next_attempt_at as "marketSourceNextAttemptAt"
     from ${coins} c
     left join ${marketSources} source
       on source.coin_id = c.id
@@ -456,6 +462,10 @@ async function selectStaleSyncCoins(limit: number): Promise<MarketSyncCoin[]> {
       and c.contract_address is not null
       and btrim(c.contract_address) <> ''
       and c.chain in (${supportedChainSql})
+      and (
+        source.next_attempt_at is null
+        or source.next_attempt_at <= ${nowIso}::timestamptz
+      )
       and not coalesce((
         source.last_error_code = ${invalidAddressErrorCode}
         and source.external_id = (
@@ -508,6 +518,23 @@ function hasKnownInvalidAddressError(coin: MarketSyncCoin, externalId: string) {
   );
 }
 
+function hasActiveBackoff(coin: MarketSyncCoin) {
+  const nextAttempt = readDate(coin.marketSourceNextAttemptAt);
+  return Boolean(nextAttempt && nextAttempt.getTime() > Date.now());
+}
+
+function getErrorBackoffMs(failureCount: number) {
+  const multiplier = 2 ** Math.max(0, Math.min(failureCount - 1, 6));
+  return Math.max(baseBackoffMs, Math.min(maxBackoffMs, baseBackoffMs * multiplier));
+}
+
+function readDate(value: Date | string | null | undefined) {
+  if (value instanceof Date) return value;
+  if (typeof value !== 'string') return null;
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? new Date(timestamp) : null;
+}
+
 function marketSourceExternalId(chainId: string, address: string) {
   return `${chainId}:${address.trim()}`;
 }
@@ -541,17 +568,22 @@ function uniqueStrings(values: string[]) {
 }
 
 async function recordMarketSourceError(
-  coinId: number,
+  coin: MarketSyncCoin,
   externalId: string,
   code: string,
   message: string,
 ) {
   const now = new Date();
+  const failureCount = Number(coin.marketSourceFailureCount || 0) + 1;
+  const nextAttemptAt =
+    code === invalidAddressErrorCode
+      ? null
+      : new Date(now.getTime() + getErrorBackoffMs(failureCount));
 
   await db
     .insert(marketSources)
     .values({
-      coinId,
+      coinId: coin.id,
       provider: mobulaProvider,
       externalId,
       lastErrorCode: code,
@@ -566,6 +598,8 @@ async function recordMarketSourceError(
         lastErrorCode: code,
         lastErrorMessage: message.slice(0, 500),
         lastErrorAt: now,
+        failureCount,
+        nextAttemptAt,
         updatedAt: now,
       },
     });
@@ -594,6 +628,8 @@ async function recordMarketSourceSuccess(coinId: number, externalId: string) {
         lastErrorCode: null,
         lastErrorMessage: null,
         lastErrorAt: null,
+        failureCount: 0,
+        nextAttemptAt: null,
         updatedAt: now,
       },
     });
