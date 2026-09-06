@@ -1,14 +1,14 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { SiteHeader } from '@/components/layout/site-header';
-import { CoinDetailPage } from '@/features/coin/components/coin-detail-page';
+import { CoinDetailPage } from '@/features/coin-detail/components/coin-detail-page';
 import { getActiveBannerAds } from '@/features/ads/server/banner-ads';
 import { getPublicCoinById } from '@/features/coins/server/coin-list';
 import { getPromotedCoinItems } from '@/features/coins/server/discovery';
 import { NETWORKS } from '@/features/coins/networks';
 import { getCurrentSession } from '@/lib/auth/session';
 import '../../market.css';
-import '../../../features/coin/styles/coin-page.css';
+import '../../../features/coin-detail/styles/coin-page.css';
 
 type CoinPageParams = { params: Promise<{ id: string }> };
 
