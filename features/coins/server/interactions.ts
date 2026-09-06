@@ -2,6 +2,7 @@ import 'server-only';
 
 import { createHash } from 'crypto';
 import { db } from '@/lib/db/client';
+import { isMissingRelationError } from '@/lib/db/errors';
 import { getCacheVersion } from '@/lib/cache/cache-version';
 import { rememberJson } from '@/lib/cache/json-cache';
 import { coinVotes, coinWatchlists, coins, users } from '@/lib/db/schema';
@@ -219,45 +220,52 @@ export async function recordCoinVote({
   await assertActiveUser(userId);
   await assertActiveCoin(coinId);
 
-  const cooldownStart = addHours(new Date(), -voteCooldownHours);
-  const cooldownStartIso = cooldownStart.toISOString();
-  const [recentVote] = await db
-    .select({ createdAt: coinVotes.createdAt })
-    .from(coinVotes)
-    .where(
-      and(
-        eq(coinVotes.userId, userId),
-        eq(coinVotes.coinId, coinId),
-        sql`${coinVotes.createdAt} > ${cooldownStartIso}::timestamptz`,
-      ),
-    )
-    .orderBy(desc(coinVotes.createdAt))
-    .limit(1);
+  const result = await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${userId}), ${coinId})`);
 
-  if (recentVote) {
-    const nextVoteAt = addHours(recentVote.createdAt, voteCooldownHours);
+    const now = new Date();
+    const cooldownStart = addHours(now, -voteCooldownHours);
+    const cooldownStartIso = cooldownStart.toISOString();
+    const [recentVote] = await tx
+      .select({ createdAt: coinVotes.createdAt })
+      .from(coinVotes)
+      .where(
+        and(
+          eq(coinVotes.userId, userId),
+          eq(coinVotes.coinId, coinId),
+          sql`${coinVotes.createdAt} > ${cooldownStartIso}::timestamptz`,
+        ),
+      )
+      .orderBy(desc(coinVotes.createdAt))
+      .limit(1);
+
+    if (recentVote) {
+      return {
+        ok: false as const,
+        code: 'VOTE_COOLDOWN' as const,
+        message: '',
+        nextVoteAt: addHours(recentVote.createdAt, voteCooldownHours).toISOString(),
+      };
+    }
+
+    await tx.insert(coinVotes).values({
+      coinId,
+      userId,
+      ipAddress,
+      userAgent,
+      weekStartsAt: getCurrentVoteWeekStart(now),
+    });
+
     return {
-      ok: false as const,
-      code: 'VOTE_COOLDOWN',
-      message: '',
-      nextVoteAt: nextVoteAt.toISOString(),
-      summary: await getSingleCoinSummary(coinId, userId),
+      ok: true as const,
+      code: 'VOTE_RECORDED' as const,
+      message: 'Vote recorded.',
+      nextVoteAt: addHours(now, voteCooldownHours).toISOString(),
     };
-  }
-
-  await db.insert(coinVotes).values({
-    coinId,
-    userId,
-    ipAddress,
-    userAgent,
-    weekStartsAt: getCurrentVoteWeekStart(),
   });
 
   return {
-    ok: true as const,
-    code: 'VOTE_RECORDED',
-    message: 'Vote recorded.',
-    nextVoteAt: addHours(new Date(), voteCooldownHours).toISOString(),
+    ...result,
     summary: await getSingleCoinSummary(coinId, userId),
   };
 }
@@ -346,25 +354,8 @@ function addHours(date: Date, hours: number) {
 }
 
 export function isMissingInteractionTableError(error: unknown) {
-  const cause = error instanceof Error ? (error as Error & { cause?: unknown }).cause : null;
-  const message = error instanceof Error ? error.message : '';
-  const causeMessage = cause instanceof Error ? cause.message : '';
-  const code =
-    isRecord(error) && typeof error.code === 'string'
-      ? error.code
-      : isRecord(cause) && typeof cause.code === 'string'
-        ? cause.code
-        : '';
-
   return (
-    code === '42P01' ||
-    message.includes('coin_votes') ||
-    message.includes('coin_watchlists') ||
-    causeMessage.includes('coin_votes') ||
-    causeMessage.includes('coin_watchlists')
+    isMissingRelationError(error, 'coin_votes') ||
+    isMissingRelationError(error, 'coin_watchlists')
   );
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }

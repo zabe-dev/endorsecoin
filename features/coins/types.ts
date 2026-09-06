@@ -117,6 +117,7 @@ export type CoinMarketData = {
 };
 
 export type CoinCommunityData = {
+  rank?: number | null;
   weeklyVotes: number;
   totalVotes: number;
   recentVotes: number;

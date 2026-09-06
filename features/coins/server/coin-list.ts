@@ -337,10 +337,11 @@ function mapDbCoinToCoin({
       fdvUsd: toNumber(snapshot?.fdvUsd),
       totalSupply: toNumber(snapshot?.totalSupply),
       holdersCount: snapshot?.holdersCount ?? null,
-      marketRank: index + 1,
+      marketRank: toNumber(snapshot?.marketRank),
       lastUpdatedAt: snapshot?.recordedAt.toISOString() ?? null,
     },
     community: {
+      rank: index + 1,
       weeklyVotes: interactions?.weeklyVotes || 0,
       totalVotes: interactions?.totalVotes || 0,
       recentVotes: interactions?.recentVotes || 0,
@@ -778,9 +779,9 @@ function rankCoinsByBoostedVotes(coinRecords: Coin[]) {
     )
     .map((coin, index) => ({
       ...coin,
-      market: {
-        ...coin.market,
-        marketRank: index + 1,
+      community: {
+        ...coin.community,
+        rank: index + 1,
       },
     }));
 }
