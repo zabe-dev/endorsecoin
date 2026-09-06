@@ -1446,7 +1446,7 @@ async function mirrorRemoteImageToR2(sourceUrl, { chain }) {
   const storage = getR2Config();
   const image = await fetchRemoteImage(sourceUrl);
   const extension = extensionForMime(image.mimeType);
-  const key = `assets/${chain}/logos/${randomUUID()}.${extension}`;
+  const key = `${chain}/logos/${randomUUID()}.${extension}`;
   const requestUrl = objectRequestUrl(storage.endpoint, storage.bucket, key);
 
   const response = await fetch(requestUrl, {

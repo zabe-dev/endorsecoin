@@ -26,7 +26,7 @@ export async function uploadSubmissionLogo(logo: {
   const body = dataUrlToBuffer(logo.dataUrl, logo.mimeType);
   const extension = extensionForMime(logo.mimeType);
   const chain = cleanPathSegment(logo.chain || 'unknown');
-  const key = `assets/${chain}/logos/${randomUUID()}.${extension}`;
+  const key = `${chain}/logos/${randomUUID()}.${extension}`;
   const url = objectRequestUrl(storage.endpoint, storage.bucket, key);
 
   const response = await fetch(url, {

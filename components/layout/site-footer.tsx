@@ -18,9 +18,11 @@ export function SiteFooter({ id, variant = 'default' }: SiteFooterProps) {
       <div className="container site-footer-inner">
         <div className="site-footer-branding">
           <Brand />
-          <p>
-            <Link href="https://endorsecoin.com">www.endorsecoin.com</Link> © {getCurrentYear()} ·
-            Community-powered crypto discovery.
+          <p className="site-footer-tagline">
+            Community-powered crypto discovery for launches, presales, and early signals.
+          </p>
+          <p className="site-footer-meta">
+            <Link href="https://endorsecoin.com">www.endorsecoin.com</Link> © {getCurrentYear()}
           </p>
         </div>
         <div className="site-footer-columns">
