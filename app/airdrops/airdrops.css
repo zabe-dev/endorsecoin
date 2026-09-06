@@ -1,0 +1,602 @@
+.airdrops-page {
+  display: flex;
+  min-height: 100dvh;
+  flex-direction: column;
+}
+
+.airdrops-shell {
+  flex: 1;
+  padding: 56px 0 112px;
+}
+
+.airdrops-hero {
+  margin-bottom: 22px;
+}
+
+.airdrops-hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 24px;
+  align-items: end;
+}
+
+.airdrops-hero h1 {
+  max-width: 760px;
+  margin: 8px 0 10px;
+  font:
+    700 clamp(34px, 6vw, 68px) / 0.96 var(--font-space-grotesk),
+    sans-serif;
+  letter-spacing: -0.07em;
+}
+
+.airdrops-hero p:not(.eyebrow) {
+  max-width: 670px;
+  margin: 0;
+  color: var(--sub);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.airdrops-hero-card {
+  display: grid;
+  gap: 8px;
+  border: 1px solid rgba(203, 255, 74, 0.18);
+  border-radius: 16px;
+  background: linear-gradient(145deg, rgba(203, 255, 74, 0.08), rgba(255, 255, 255, 0.03));
+  padding: 18px;
+}
+
+.airdrops-hero-card svg {
+  width: 22px;
+  height: 22px;
+  color: var(--lime);
+}
+
+.airdrops-hero-card b {
+  font:
+    700 15px/1.15 var(--font-space-grotesk),
+    sans-serif;
+  letter-spacing: -0.02em;
+}
+
+.airdrops-hero-card span {
+  color: var(--sub);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.airdrops-layout {
+  display: grid;
+  grid-template-columns: minmax(360px, 0.88fr) minmax(0, 1.12fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.airdrops-card {
+  border: 1px solid #252c31;
+  border-radius: 16px;
+  background: linear-gradient(145deg, rgba(20, 25, 28, 0.96), rgba(11, 14, 16, 0.98));
+  padding: 22px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+}
+
+.airdrop-submission-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 22px;
+  margin-bottom: 30px;
+}
+
+.airdrop-submission-head h2 {
+  margin: 8px 0 6px;
+  font:
+    680 clamp(28px, 4vw, 42px) / 1.05 var(--font-space-grotesk),
+    sans-serif;
+  letter-spacing: -0.04em;
+}
+
+.airdrop-submission-head p:not(.eyebrow) {
+  max-width: 520px;
+  margin: 0;
+  color: var(--sub);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.airdrop-submission-status {
+  display: grid;
+  min-width: 118px;
+  gap: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 14px;
+  text-align: right;
+}
+
+.airdrop-submission-status b {
+  color: #f2f4f5;
+  font-size: 12px;
+}
+
+.airdrop-submission-status span {
+  color: var(--sub);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.airdrops-section-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.airdrops-section-head h2 {
+  margin: 0 0 4px;
+  font:
+    650 20px/1.1 var(--font-space-grotesk),
+    sans-serif;
+  letter-spacing: -0.035em;
+}
+
+.airdrops-section-head p {
+  margin: 0;
+  color: var(--sub);
+  font-size: 11px;
+}
+
+.airdrops-icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 1px solid rgba(203, 255, 74, 0.22);
+  border-radius: 11px;
+  background: rgba(203, 255, 74, 0.08);
+  color: var(--lime);
+}
+
+.airdrops-icon svg {
+  width: 17px;
+  height: 17px;
+}
+
+.airdrop-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 13px;
+}
+
+.airdrop-form label {
+  display: grid;
+  gap: 7px;
+  color: #dce2e2;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.055em;
+}
+
+.airdrop-form input,
+.airdrop-form select,
+.airdrop-form textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 46px;
+  border: 1px solid #2b3338;
+  border-radius: 11px;
+  outline: 0;
+  background: rgba(6, 8, 10, 0.78);
+  color: #eef1f2;
+  font:
+    500 12px/1.35 var(--font-poppins),
+    sans-serif;
+  padding: 11px 12px;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    background 0.16s ease;
+}
+
+.airdrop-form textarea {
+  min-height: 98px;
+  resize: vertical;
+}
+
+.airdrop-form input:focus,
+.airdrop-form select:focus,
+.airdrop-form textarea:focus {
+  border-color: rgba(203, 255, 74, 0.46);
+  background: rgba(7, 10, 12, 0.94);
+  box-shadow: 0 0 0 3px rgba(203, 255, 74, 0.08);
+}
+
+.airdrop-form small {
+  color: var(--sub);
+  font-size: 9px;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.airdrop-form-wide {
+  grid-column: 1 / -1;
+}
+
+.airdrop-date-row {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(112px, 1fr);
+  grid-column: 1 / -1;
+  gap: 12px;
+}
+
+.airdrops-page .submission-date-input {
+  position: relative;
+  display: block !important;
+}
+
+.airdrops-page .submission-date-input > input {
+  padding-right: 54px;
+}
+
+.airdrops-page .submission-date-input > button {
+  position: absolute;
+  top: 50%;
+  right: 18px;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #9ea8ae;
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+
+.airdrops-page .submission-date-input > button:hover {
+  background: rgba(203, 255, 74, 0.08);
+  color: var(--lime);
+}
+
+.airdrops-page .submission-date-input > button svg {
+  width: 17px;
+  height: 17px;
+}
+
+.airdrops-page .submission-calendar {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 10px);
+  z-index: 30;
+  display: grid;
+  width: min(300px, calc(100vw - 48px));
+  gap: 12px;
+  border: 1px solid rgba(203, 255, 74, 0.18);
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at top right, rgba(203, 255, 74, 0.1), transparent 34%),
+    linear-gradient(145deg, rgba(20, 25, 28, 0.98), rgba(8, 11, 13, 0.99));
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5);
+  padding: 14px;
+}
+
+.airdrops-page .submission-calendar-head {
+  display: grid;
+  grid-template-columns: 32px 1fr 32px;
+  align-items: center;
+  gap: 10px;
+}
+
+.airdrops-page .submission-calendar-head strong {
+  color: #f2f4f5;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.airdrops-page .submission-calendar-head button {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.035);
+  color: #c9d1d5;
+  cursor: pointer;
+}
+
+.airdrops-page .submission-calendar-head button:hover {
+  border-color: rgba(203, 255, 74, 0.28);
+  color: var(--lime);
+}
+
+.airdrops-page .submission-calendar-head svg {
+  width: 16px;
+  height: 16px;
+}
+
+.airdrops-page .submission-calendar-weekdays,
+.airdrops-page .submission-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+
+.airdrops-page .submission-calendar-weekdays span {
+  color: #747f86;
+  font-size: 9px;
+  font-weight: 800;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.airdrops-page .submission-calendar-grid button {
+  display: grid;
+  aspect-ratio: 1 / 1;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.025);
+  color: #d8dee1;
+  font-size: 11px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.airdrops-page .submission-calendar-grid button:hover {
+  border-color: rgba(203, 255, 74, 0.3);
+  background: rgba(203, 255, 74, 0.07);
+  color: #f5f8f2;
+}
+
+.airdrops-page .submission-calendar-grid button.muted {
+  color: #5f686f;
+}
+
+.airdrops-page .submission-calendar-grid button.selected {
+  border-color: rgba(203, 255, 74, 0.48);
+  background: var(--lime);
+  color: #090c0c;
+}
+
+.airdrop-icon-input {
+  position: relative;
+}
+
+.airdrop-icon-input > span {
+  position: relative;
+  display: block;
+}
+
+.airdrop-icon-input > span::before {
+  content: '';
+  position: absolute;
+  inset: 1px auto 1px 1px;
+  z-index: 1;
+  width: 54px;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 11px 0 0 11px;
+  background: rgba(255, 255, 255, 0.045);
+  pointer-events: none;
+}
+
+.airdrop-icon-input > span > svg {
+  position: absolute;
+  top: 50%;
+  left: 18px;
+  z-index: 2;
+  width: 18px;
+  height: 18px;
+  transform: translateY(-50%);
+  color: #aab3b8;
+}
+
+.airdrop-icon-input > span > input {
+  min-height: 46px;
+  padding-left: 72px;
+  padding-right: 18px;
+}
+
+.airdrop-social-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+.airdrop-social-grid > span {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  gap: 7px;
+  color: var(--copy);
+  font:
+    650 13px/1.2 var(--font-space-grotesk),
+    sans-serif;
+  letter-spacing: -0.02em;
+}
+
+.airdrop-submit-preview {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  grid-column: 1 / -1;
+  min-height: 42px;
+  border: 1px solid rgba(203, 255, 74, 0.32);
+  border-radius: 999px;
+  background: rgba(203, 255, 74, 0.1);
+  color: #e6ffd1;
+  font-size: 11px;
+  font-weight: 750;
+  cursor: default;
+}
+
+.airdrop-submit-preview svg {
+  width: 15px;
+  height: 15px;
+}
+
+.airdrops-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid #20282d;
+  border-radius: 14px;
+}
+
+.airdrops-table {
+  width: 100%;
+  min-width: 820px;
+  border-collapse: collapse;
+}
+
+.airdrops-table th,
+.airdrops-table td {
+  border-bottom: 1px solid #20282d;
+  padding: 13px 14px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.airdrops-table th {
+  color: #78838b;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.airdrops-table td {
+  color: #d9e0e4;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.airdrops-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.airdrop-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 190px;
+}
+
+.airdrop-name-cell > span {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 11px;
+  background: rgba(203, 255, 74, 0.12);
+  color: var(--lime);
+  font-weight: 850;
+}
+
+.airdrop-name-cell div {
+  display: grid;
+  gap: 3px;
+}
+
+.airdrop-name-cell b {
+  color: #f2f4f5;
+  font-size: 12px;
+}
+
+.airdrop-name-cell small {
+  color: var(--sub);
+  font-size: 9px;
+}
+
+.airdrop-winners {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #f0f4f2;
+  font-weight: 700;
+}
+
+.airdrop-winners svg {
+  width: 14px;
+  height: 14px;
+  color: var(--lime);
+}
+
+.airdrop-status {
+  display: inline-flex;
+  border: 1px solid rgba(203, 255, 74, 0.22);
+  border-radius: 999px;
+  background: rgba(203, 255, 74, 0.08);
+  color: #def8c3;
+  padding: 5px 8px;
+  font-size: 9px;
+  font-weight: 750;
+}
+
+.airdrops-table a {
+  color: var(--lime);
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.airdrops-empty-preview {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 14px;
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 12px 13px;
+  color: var(--sub);
+  font-size: 11px;
+}
+
+.airdrops-empty-preview svg {
+  width: 15px;
+  height: 15px;
+  color: var(--lime);
+}
+
+@media (max-width: 980px) {
+  .airdrops-hero-grid,
+  .airdrops-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .airdrops-hero-card {
+    max-width: 420px;
+  }
+}
+
+@media (max-width: 680px) {
+  .airdrops-shell {
+    padding: 42px 0 88px;
+  }
+
+  .airdrops-card {
+    padding: 18px;
+  }
+
+  .airdrop-submission-head {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .airdrop-submission-status {
+    width: 100%;
+    text-align: left;
+  }
+
+  .airdrop-form,
+  .airdrop-date-row,
+  .airdrop-social-grid {
+    grid-template-columns: 1fr;
+  }
+}

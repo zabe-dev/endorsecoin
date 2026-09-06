@@ -27,7 +27,7 @@ export function Navbar({
   active = 'discover',
   initialSession = null,
 }: {
-  active?: 'discover' | 'none';
+  active?: 'discover' | 'airdrops' | 'none';
   initialSession?: InitialSession;
 }) {
   const [authOpen, setAuthOpen] = useState(false);
@@ -93,9 +93,13 @@ export function Navbar({
             >
               <MenuIcon type="discover" /> <span className="menu-item-label">Discover</span>
             </Link>
-            <button className="nav-placeholder-link" type="button" onClick={closeMenu}>
+            <Link
+              className={active === 'airdrops' ? 'active' : ''}
+              href="/airdrops"
+              onClick={closeMenu}
+            >
               <MenuIcon type="airdrops" /> <span className="menu-item-label">Airdrops</span>
-            </button>
+            </Link>
             <Link href="/partners" onClick={closeMenu}>
               <MenuIcon type="partners" /> <span className="menu-item-label">Partners</span>
             </Link>
@@ -173,18 +177,22 @@ export function Navbar({
                         </span>
                       </div>
                       <Link href="/dashboard" onClick={() => setUserMenuOpen(false)}>
-                        <MenuIcon type="account" /> <span className="menu-item-label">Dashboard</span>
+                        <MenuIcon type="account" />{' '}
+                        <span className="menu-item-label">Dashboard</span>
                       </Link>
                       <Link href="/watchlist" onClick={() => setUserMenuOpen(false)}>
-                        <MenuIcon type="watchlist" /> <span className="menu-item-label">Watchlist</span>
+                        <MenuIcon type="watchlist" />{' '}
+                        <span className="menu-item-label">Watchlist</span>
                       </Link>
                       {canOpenAdmin && (
                         <Link href="/admin/dashboard" onClick={() => setUserMenuOpen(false)}>
-                          <MenuIcon type="admin" /> <span className="menu-item-label">Admin Panel</span>
+                          <MenuIcon type="admin" />{' '}
+                          <span className="menu-item-label">Admin Panel</span>
                         </Link>
                       )}
                       <Link href="/settings" onClick={() => setUserMenuOpen(false)}>
-                        <MenuIcon type="settings" /> <span className="menu-item-label">Settings</span>
+                        <MenuIcon type="settings" />{' '}
+                        <span className="menu-item-label">Settings</span>
                       </Link>
                       <button className="logout-action" onClick={() => void logout()}>
                         <MenuIcon type="logout" /> <span className="menu-item-label">Logout</span>

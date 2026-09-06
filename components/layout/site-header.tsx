@@ -4,7 +4,7 @@ import { Topbar, TopbarFallback } from '@/components/layout/topbar';
 import { getCurrentSession } from '@/lib/auth/session';
 
 type SiteHeaderProps = {
-  active?: 'discover' | 'none';
+  active?: 'discover' | 'airdrops' | 'none';
   initialSession?: ComponentProps<typeof Navbar>['initialSession'];
 };
 
