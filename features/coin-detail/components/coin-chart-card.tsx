@@ -10,17 +10,15 @@ export function CoinChartCard({
   canonicalCoin: CanonicalCoin;
 }) {
   const chartLabel = getChartLabel(canonicalCoin.chart);
+  const chartMeta = [coin.symbol, coin.chain, coin.category.toUpperCase()]
+    .filter(Boolean)
+    .join(' / ');
 
   return (
     <section className="detail-card chart-card">
       <div className="chart-head">
         <div>
-          <strong>
-            {coin.symbol} price and chart
-            <small>
-              {coin.chain} / {coin.category.toUpperCase()}
-            </small>
-          </strong>
+          <strong>{chartMeta}</strong>
         </div>
         {canonicalCoin.dex.available ? (
           <a href={canonicalCoin.dex.url} target="_blank" rel="ugc noopener noreferrer">
