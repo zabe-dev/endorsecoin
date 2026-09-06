@@ -29,14 +29,18 @@ export function ListedCoinsTable({
   rows,
   popover,
   pagination,
+  searchQuery,
   isPending,
   onPageChange,
+  onSearchChange,
 }: {
   rows: AdminCoinRow[];
   popover: PopoverController;
   pagination?: AdminTablePagination | null;
+  searchQuery?: string;
   isPending?: boolean;
   onPageChange?: (page: number) => void;
+  onSearchChange?: (query: string) => void;
 }) {
   return (
     <AdminPanel
@@ -49,8 +53,10 @@ export function ListedCoinsTable({
       search={(row) => [row.name, row.symbol, row.chain, row.contactEmail, row.contactTelegram]}
       empty={emptyTableMessage}
       pagination={pagination}
+      searchQuery={searchQuery}
       isPending={isPending}
       onPageChange={onPageChange}
+      onSearchChange={onSearchChange}
       renderTable={(visibleRows) => (
         <table className="admin-table">
           <thead>
@@ -154,14 +160,18 @@ export function PromotionsTable({
   rows,
   popover,
   pagination,
+  searchQuery,
   isPending,
   onPageChange,
+  onSearchChange,
 }: {
   rows: AdminCoinRow[];
   popover: PopoverController;
   pagination?: AdminTablePagination | null;
+  searchQuery?: string;
   isPending?: boolean;
   onPageChange?: (page: number) => void;
+  onSearchChange?: (query: string) => void;
 }) {
   return (
     <AdminPanel
@@ -174,8 +184,10 @@ export function PromotionsTable({
       search={(row) => [row.name, row.symbol, row.chain, row.category]}
       empty={emptyTableMessage}
       pagination={pagination}
+      searchQuery={searchQuery}
       isPending={isPending}
       onPageChange={onPageChange}
+      onSearchChange={onSearchChange}
       renderTable={(visibleRows) => (
         <table className="admin-table admin-promotions-table">
           <thead>

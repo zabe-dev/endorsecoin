@@ -125,6 +125,7 @@ export type AdminDashboardClientProps = {
   bannerAds: AdminBannerRow[];
   users: AdminUserRow[];
   initialTab?: string;
+  searchQuery?: string;
   pagination?: AdminTablePagination | null;
 };
 
@@ -145,4 +146,3 @@ export type PopoverController = {
   activePopoverId: string | null;
   setActivePopoverId: (id: string | null) => void;
 };
-

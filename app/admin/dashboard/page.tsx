@@ -71,7 +71,7 @@ const emptyAdminTabData = (): AdminTabData => ({
 export default async function AdminDashboardPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ tab?: string; page?: string }>;
+  searchParams?: Promise<{ tab?: string; page?: string; search?: string }>;
 }) {
   const resolvedSearchParams = await searchParams;
   const session = await getCurrentSession();
@@ -80,11 +80,12 @@ export default async function AdminDashboardPage({
 
   const activeTab = resolveAdminTab(resolvedSearchParams?.tab);
   const requestedPage = normalizePositiveInteger(resolvedSearchParams?.page, 1);
+  const searchQuery = normalizeAdminSearch(resolvedSearchParams?.search);
   const now = new Date();
   const nowIso = now.toISOString();
   const [summary, data] = await Promise.all([
     getAdminSummary(nowIso),
-    getAdminTabData(activeTab, now, nowIso, requestedPage),
+    getAdminTabData(activeTab, now, nowIso, requestedPage, searchQuery),
   ]);
 
   return (
@@ -105,6 +106,7 @@ export default async function AdminDashboardPage({
           bannerAds={data.bannerAds}
           users={data.users}
           initialTab={activeTab}
+          searchQuery={searchQuery}
           pagination={data.pagination}
         />
       </section>
@@ -213,30 +215,31 @@ async function getAdminTabData(
   now: Date,
   nowIso: string,
   requestedPage: number,
+  searchQuery: string,
 ): Promise<AdminTabData> {
   const data = emptyAdminTabData();
 
   switch (tab) {
     case 'submissions':
-      Object.assign(data, await getPendingCoinSubmissions(requestedPage));
+      Object.assign(data, await getPendingCoinSubmissions(requestedPage, searchQuery));
       break;
     case 'airdrops':
-      Object.assign(data, await getPendingAirdropSubmissions(requestedPage));
+      Object.assign(data, await getPendingAirdropSubmissions(requestedPage, searchQuery));
       break;
     case 'coins':
-      Object.assign(data, await getListedCoins(now, nowIso, requestedPage));
+      Object.assign(data, await getListedCoins(now, nowIso, requestedPage, searchQuery));
       break;
     case 'promotions':
-      Object.assign(data, await getPromotedAdminCoins(now, nowIso, requestedPage));
+      Object.assign(data, await getPromotedAdminCoins(now, nowIso, requestedPage, searchQuery));
       break;
     case 'banners':
-      Object.assign(data, await getAdminBannerRows(now, requestedPage));
+      Object.assign(data, await getAdminBannerRows(now, requestedPage, searchQuery));
       break;
     case 'users':
-      Object.assign(data, await getAdminUsers(requestedPage));
+      Object.assign(data, await getAdminUsers(requestedPage, searchQuery));
       break;
     case 'reports':
-      Object.assign(data, await getAdminChangeRequests(requestedPage));
+      Object.assign(data, await getAdminChangeRequests(requestedPage, searchQuery));
       break;
     case 'overview':
       break;
@@ -245,15 +248,17 @@ async function getAdminTabData(
   return data;
 }
 
-async function getPendingCoinSubmissions(requestedPage: number): Promise<Partial<AdminTabData>> {
-  const total = await countPendingCoinSubmissions();
+async function getPendingCoinSubmissions(
+  requestedPage: number,
+  searchQuery: string,
+): Promise<Partial<AdminTabData>> {
+  const where = pendingCoinSubmissionsWhere(searchQuery);
+  const total = await countPendingCoinSubmissions(where);
   const pagination = buildPagination(total, requestedPage);
   const submissionRows = await db
     .select()
     .from(coinSubmissions)
-    .where(
-      and(eq(coinSubmissions.submissionType, 'new-coin'), eq(coinSubmissions.status, 'pending')),
-    )
+    .where(where)
     .orderBy(desc(coinSubmissions.createdAt))
     .limit(pagination.pageSize)
     .offset((pagination.page - 1) * pagination.pageSize);
@@ -288,14 +293,18 @@ async function getPendingCoinSubmissions(requestedPage: number): Promise<Partial
   return { pendingSubmissions, pagination };
 }
 
-async function getPendingAirdropSubmissions(requestedPage: number): Promise<Partial<AdminTabData>> {
-  const total = await countPendingAirdropSubmissions();
+async function getPendingAirdropSubmissions(
+  requestedPage: number,
+  searchQuery: string,
+): Promise<Partial<AdminTabData>> {
+  const where = pendingAirdropSubmissionsWhere(searchQuery);
+  const total = await countPendingAirdropSubmissions(where);
   const pagination = buildPagination(total, requestedPage);
   const rows = await db
     .select({ submission: airdropSubmissions, coin: coins })
     .from(airdropSubmissions)
     .innerJoin(coins, eq(airdropSubmissions.coinId, coins.id))
-    .where(eq(airdropSubmissions.status, 'pending'))
+    .where(where)
     .orderBy(desc(airdropSubmissions.createdAt))
     .limit(pagination.pageSize)
     .offset((pagination.page - 1) * pagination.pageSize)
@@ -343,12 +352,15 @@ async function getListedCoins(
   now: Date,
   nowIso: string,
   requestedPage: number,
+  searchQuery: string,
 ): Promise<Partial<AdminTabData>> {
-  const total = await countTableRows(coins);
+  const where = adminCoinSearchWhere(searchQuery);
+  const total = await countTableRows(coins, where);
   const pagination = buildPagination(total, requestedPage);
   const coinRows = await db
     .select()
     .from(coins)
+    .where(where)
     .orderBy(desc(coins.submittedAt))
     .limit(pagination.pageSize)
     .offset((pagination.page - 1) * pagination.pageSize);
@@ -359,15 +371,24 @@ async function getPromotedAdminCoins(
   now: Date,
   nowIso: string,
   requestedPage: number,
+  searchQuery: string,
 ): Promise<Partial<AdminTabData>> {
   const [activeBoostRows, activePromotionRows] = await Promise.all([
     readActiveBoosts(nowIso),
     readActivePromotions(nowIso),
   ]);
-  const coinIds = uniqueNumbers([
+  let coinIds = uniqueNumbers([
     ...activeBoostRows.map((boost) => boost.coinId),
     ...activePromotionRows.map((promotion) => promotion.coinId),
   ]);
+  if (searchQuery && coinIds.length) {
+    const matchingCoins = await db
+      .select({ id: coins.id })
+      .from(coins)
+      .where(and(inArray(coins.id, coinIds), adminCoinSearchWhere(searchQuery)));
+    const matchingIds = new Set(matchingCoins.map((coin) => coin.id));
+    coinIds = coinIds.filter((coinId) => matchingIds.has(coinId));
+  }
   const pagination = buildPagination(coinIds.length, requestedPage);
   const pagedCoinIds = coinIds.slice(
     (pagination.page - 1) * pagination.pageSize,
@@ -469,12 +490,15 @@ async function hydrateAdminCoins(
 async function getAdminBannerRows(
   now: Date,
   requestedPage: number,
+  searchQuery: string,
 ): Promise<Partial<AdminTabData>> {
-  const total = await countTableRows(bannerAds).catch(() => 0);
+  const where = adminBannerSearchWhere(searchQuery);
+  const total = await countTableRows(bannerAds, where).catch(() => 0);
   const pagination = buildPagination(total, requestedPage);
   const bannerRows = await db
     .select()
     .from(bannerAds)
+    .where(where)
     .orderBy(desc(bannerAds.updatedAt))
     .limit(pagination.pageSize)
     .offset((pagination.page - 1) * pagination.pageSize)
@@ -514,12 +538,17 @@ async function getAdminBannerRows(
   return { bannerAds: adminBannerAds, pagination };
 }
 
-async function getAdminUsers(requestedPage: number): Promise<Partial<AdminTabData>> {
-  const total = await countTableRows(users);
+async function getAdminUsers(
+  requestedPage: number,
+  searchQuery: string,
+): Promise<Partial<AdminTabData>> {
+  const where = adminUserSearchWhere(searchQuery);
+  const total = await countTableRows(users, where);
   const pagination = buildPagination(total, requestedPage);
   const userRows = await db
     .select()
     .from(users)
+    .where(where)
     .orderBy(desc(users.createdAt))
     .limit(pagination.pageSize)
     .offset((pagination.page - 1) * pagination.pageSize);
@@ -572,18 +601,30 @@ async function getAdminUsers(requestedPage: number): Promise<Partial<AdminTabDat
   return { users: adminUsers, pagination };
 }
 
-async function getAdminChangeRequests(requestedPage: number): Promise<Partial<AdminTabData>> {
-  const total = await countTableRows(changeRequests);
+async function getAdminChangeRequests(
+  requestedPage: number,
+  searchQuery: string,
+): Promise<Partial<AdminTabData>> {
+  const where = adminChangeRequestSearchWhere(searchQuery);
+  const totalRows = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(changeRequests)
+    .leftJoin(coins, eq(changeRequests.coinId, coins.id))
+    .where(where);
+  const total = readCount(totalRows);
   const pagination = buildPagination(total, requestedPage);
   const changeRequestRows = await db
-    .select()
+    .select({ request: changeRequests })
     .from(changeRequests)
+    .leftJoin(coins, eq(changeRequests.coinId, coins.id))
+    .where(where)
     .orderBy(desc(changeRequests.createdAt))
     .limit(pagination.pageSize)
     .offset((pagination.page - 1) * pagination.pageSize);
-  const coinById = await getCoinMapByIds(changeRequestRows.map((request) => request.coinId));
+  const requests = changeRequestRows.map((row) => row.request);
+  const coinById = await getCoinMapByIds(requests.map((request) => request.coinId));
 
-  const adminChangeRequests = changeRequestRows.map((request) => {
+  const adminChangeRequests = requests.map((request) => {
     const coin = coinById.get(request.coinId);
     return {
       id: request.id,
@@ -602,21 +643,22 @@ async function getAdminChangeRequests(requestedPage: number): Promise<Partial<Ad
   return { changeRequests: adminChangeRequests, pagination };
 }
 
-async function countPendingCoinSubmissions() {
+async function countPendingCoinSubmissions(where: ReturnType<typeof pendingCoinSubmissionsWhere>) {
   const rows = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(coinSubmissions)
-    .where(
-      and(eq(coinSubmissions.submissionType, 'new-coin'), eq(coinSubmissions.status, 'pending')),
-    );
+    .where(where);
   return readCount(rows);
 }
 
-async function countPendingAirdropSubmissions() {
+async function countPendingAirdropSubmissions(
+  where: ReturnType<typeof pendingAirdropSubmissionsWhere>,
+) {
   const rows = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(airdropSubmissions)
-    .where(eq(airdropSubmissions.status, 'pending'))
+    .innerJoin(coins, eq(airdropSubmissions.coinId, coins.id))
+    .where(where)
     .catch((error) => {
       if (isMissingRelationError(error, 'airdrop_submissions')) return [{ count: 0 }];
       throw error;
@@ -624,9 +666,112 @@ async function countPendingAirdropSubmissions() {
   return readCount(rows);
 }
 
-async function countTableRows<TTable>(table: TTable) {
-  const rows = await db.select({ count: sql<number>`count(*)::int` }).from(table as never);
+async function countTableRows<TTable>(table: TTable, where?: ReturnType<typeof sql>) {
+  const rows = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(table as never)
+    .where(where);
   return readCount(rows);
+}
+
+function normalizeAdminSearch(value: string | null | undefined) {
+  return String(value || '')
+    .trim()
+    .slice(0, 120);
+}
+
+function searchPattern(searchQuery: string) {
+  return `%${searchQuery.toLowerCase()}%`;
+}
+
+function pendingCoinSubmissionsWhere(searchQuery: string) {
+  const base = and(
+    eq(coinSubmissions.submissionType, 'new-coin'),
+    eq(coinSubmissions.status, 'pending'),
+  );
+  if (!searchQuery) return base;
+  const pattern = searchPattern(searchQuery);
+  return and(
+    base,
+    sql`(
+      lower(${coinSubmissions.requesterEmail}) like ${pattern}
+      or lower(coalesce(${coinSubmissions.requesterTelegram}, '')) like ${pattern}
+      or lower(${coinSubmissions.coinData}::text) like ${pattern}
+      or cast(${coinSubmissions.id} as text) like ${pattern}
+    )`,
+  );
+}
+
+function pendingAirdropSubmissionsWhere(searchQuery: string) {
+  const base = eq(airdropSubmissions.status, 'pending');
+  if (!searchQuery) return base;
+  const pattern = searchPattern(searchQuery);
+  return and(
+    base,
+    sql`(
+      lower(${airdropSubmissions.name}) like ${pattern}
+      or lower(${airdropSubmissions.requesterEmail}) like ${pattern}
+      or lower(${coins.name}) like ${pattern}
+      or lower(${coins.symbol}) like ${pattern}
+      or lower(coalesce(${coins.chain}, '')) like ${pattern}
+      or cast(${airdropSubmissions.id} as text) like ${pattern}
+    )`,
+  );
+}
+
+function adminCoinSearchWhere(searchQuery: string) {
+  if (!searchQuery) return undefined;
+  const pattern = searchPattern(searchQuery);
+  return sql`(
+    lower(${coins.name}) like ${pattern}
+    or lower(${coins.symbol}) like ${pattern}
+    or lower(${coins.slug}) like ${pattern}
+    or lower(${coins.category}) like ${pattern}
+    or lower(coalesce(${coins.chain}, '')) like ${pattern}
+    or lower(coalesce(${coins.contractAddress}, '')) like ${pattern}
+    or lower(${coins.listingStatus}) like ${pattern}
+    or cast(${coins.id} as text) like ${pattern}
+  )`;
+}
+
+function adminBannerSearchWhere(searchQuery: string) {
+  if (!searchQuery) return undefined;
+  const pattern = searchPattern(searchQuery);
+  return sql`(
+    lower(${bannerAds.placement}) like ${pattern}
+    or lower(${bannerAds.title}) like ${pattern}
+    or lower(coalesce(${bannerAds.subtitle}, '')) like ${pattern}
+    or lower(${bannerAds.targetUrl}) like ${pattern}
+    or lower(${bannerAds.status}) like ${pattern}
+    or lower(coalesce(${bannerAds.notes}, '')) like ${pattern}
+  )`;
+}
+
+function adminUserSearchWhere(searchQuery: string) {
+  if (!searchQuery) return undefined;
+  const pattern = searchPattern(searchQuery);
+  return sql`(
+    lower(${users.name}) like ${pattern}
+    or lower(${users.email}) like ${pattern}
+    or lower(coalesce(${users.role}, '')) like ${pattern}
+    or cast(${users.id} as text) like ${pattern}
+  )`;
+}
+
+function adminChangeRequestSearchWhere(searchQuery: string) {
+  if (!searchQuery) return undefined;
+  const pattern = searchPattern(searchQuery);
+  return sql`(
+    lower(coalesce(${coins.name}, '')) like ${pattern}
+    or lower(coalesce(${coins.symbol}, '')) like ${pattern}
+    or lower(${changeRequests.requesterEmail}) like ${pattern}
+    or lower(coalesce(${changeRequests.requesterTelegram}, '')) like ${pattern}
+    or lower(${changeRequests.requestedChanges}) like ${pattern}
+    or lower(${changeRequests.status}) like ${pattern}
+    or lower(coalesce(${changeRequests.evidenceUrl}, '')) like ${pattern}
+    or cast(${changeRequests.coinId} as text) like ${pattern}
+    or cast(${changeRequests.id} as text) like ${pattern}
+  )`;
 }
 
 function buildPagination(total: number, requestedPage: number): AdminTablePagination {

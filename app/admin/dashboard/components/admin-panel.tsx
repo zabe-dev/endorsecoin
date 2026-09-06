@@ -2,7 +2,7 @@
 
 import { getPaginationItems } from '@/lib/ui/pagination';
 import { Search } from 'lucide-react';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { AdminTablePagination } from '../types';
 
 const pageSize = 10;
@@ -18,8 +18,10 @@ export function AdminPanel<T>({
   empty,
   action,
   pagination,
+  searchQuery,
   isPending = false,
   onPageChange,
+  onSearchChange,
   renderTable,
 }: {
   eyebrow: string;
@@ -32,23 +34,37 @@ export function AdminPanel<T>({
   empty: string;
   action?: ReactNode;
   pagination?: AdminTablePagination | null;
+  searchQuery?: string;
   isPending?: boolean;
   onPageChange?: (page: number) => void;
+  onSearchChange?: (query: string) => void;
   renderTable: (rows: T[]) => ReactNode;
 }) {
-  const [query, setQuery] = useState('');
+  const normalizedSearchQuery = searchQuery || '';
+  const [searchState, setSearchState] = useState(() => ({
+    query: normalizedSearchQuery,
+    source: normalizedSearchQuery,
+  }));
   const [page, setPage] = useState(0);
+
+  if (searchState.source !== normalizedSearchQuery) {
+    setSearchState({ query: normalizedSearchQuery, source: normalizedSearchQuery });
+  }
+
+  const query =
+    searchState.source === normalizedSearchQuery ? searchState.query : normalizedSearchQuery;
   const normalizedQuery = query.trim().toLowerCase();
+  const usesServerSearch = Boolean(pagination && onSearchChange);
   const filteredRows = useMemo(
     () =>
-      normalizedQuery
+      normalizedQuery && !usesServerSearch
         ? rows.filter((row) =>
             search(row).some((value) => value.toLowerCase().includes(normalizedQuery)),
           )
         : rows,
-    [normalizedQuery, rows, search],
+    [normalizedQuery, rows, search, usesServerSearch],
   );
-  const usesServerPagination = Boolean(pagination && !normalizedQuery);
+  const usesServerPagination = Boolean(pagination);
   const pageCount = usesServerPagination
     ? Math.max(1, pagination?.pages || 1)
     : Math.max(1, Math.ceil(filteredRows.length / pageSize));
@@ -60,6 +76,18 @@ export function AdminPanel<T>({
     : filteredRows.slice(safePage * pageSize, safePage * pageSize + pageSize);
   const totalResults = usesServerPagination ? pagination?.total || 0 : filteredRows.length;
   const pageItems = getPaginationItems({ count: pageCount, page: safePage + 1 });
+
+  useEffect(() => {
+    if (!usesServerSearch) return;
+    const nextQuery = query.trim();
+    if (nextQuery === normalizedSearchQuery) return;
+
+    const timer = window.setTimeout(() => {
+      onSearchChange?.(nextQuery);
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [normalizedSearchQuery, onSearchChange, query, usesServerSearch]);
 
   function selectPage(nextPage: number) {
     if (usesServerPagination && onPageChange) {
@@ -88,7 +116,7 @@ export function AdminPanel<T>({
           <input
             value={query}
             onChange={(event) => {
-              setQuery(event.target.value);
+              setSearchState({ query: event.target.value, source: normalizedSearchQuery });
               setPage(0);
             }}
             placeholder={searchPlaceholder}

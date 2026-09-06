@@ -16,14 +16,18 @@ export function ChangeRequestsTable({
   rows,
   popover,
   pagination,
+  searchQuery,
   isPending,
   onPageChange,
+  onSearchChange,
 }: {
   rows: AdminChangeRequestRow[];
   popover: PopoverController;
   pagination?: AdminTablePagination | null;
+  searchQuery?: string;
   isPending?: boolean;
   onPageChange?: (page: number) => void;
+  onSearchChange?: (query: string) => void;
 }) {
   const [reportRow, setReportRow] = useState<AdminChangeRequestRow | null>(null);
 
@@ -46,8 +50,10 @@ export function ChangeRequestsTable({
         ]}
         empty={emptyTableMessage}
         pagination={pagination}
+        searchQuery={searchQuery}
         isPending={isPending}
         onPageChange={onPageChange}
+        onSearchChange={onSearchChange}
         renderTable={(visibleRows) => (
           <table className="admin-table admin-reports-table">
             <thead>

@@ -19,8 +19,10 @@ export function PendingSubmissionsTable({
   note,
   searchPlaceholder,
   pagination,
+  searchQuery,
   isPending,
   onPageChange,
+  onSearchChange,
 }: {
   rows: AdminSubmissionRow[];
   popover: PopoverController;
@@ -28,8 +30,10 @@ export function PendingSubmissionsTable({
   note: string;
   searchPlaceholder: string;
   pagination?: AdminTablePagination | null;
+  searchQuery?: string;
   isPending?: boolean;
   onPageChange?: (page: number) => void;
+  onSearchChange?: (query: string) => void;
 }) {
   const [detailRow, setDetailRow] = useState<AdminSubmissionRow | null>(null);
 
@@ -45,8 +49,10 @@ export function PendingSubmissionsTable({
         search={(row) => [row.name, row.symbol, row.chain, row.contactEmail, row.contactTelegram]}
         empty={emptyTableMessage}
         pagination={pagination}
+        searchQuery={searchQuery}
         isPending={isPending}
         onPageChange={onPageChange}
+        onSearchChange={onSearchChange}
         renderTable={(visibleRows) => (
           <table className="admin-table">
             <thead>
@@ -146,14 +152,18 @@ export function PendingAirdropsTable({
   rows,
   popover,
   pagination,
+  searchQuery,
   isPending,
   onPageChange,
+  onSearchChange,
 }: {
   rows: AdminSubmissionRow[];
   popover: PopoverController;
   pagination?: AdminTablePagination | null;
+  searchQuery?: string;
   isPending?: boolean;
   onPageChange?: (page: number) => void;
+  onSearchChange?: (query: string) => void;
 }) {
   const [detailRow, setDetailRow] = useState<AdminSubmissionRow | null>(null);
 
@@ -169,8 +179,10 @@ export function PendingAirdropsTable({
         search={(row) => [row.name, row.symbol, row.chain, row.contactEmail, row.contactTelegram]}
         empty={emptyTableMessage}
         pagination={pagination}
+        searchQuery={searchQuery}
         isPending={isPending}
         onPageChange={onPageChange}
+        onSearchChange={onSearchChange}
         renderTable={(visibleRows) => (
           <table className="admin-table admin-airdrops-table">
             <thead>

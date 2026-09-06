@@ -15,14 +15,18 @@ export function UsersTable({
   rows,
   popover,
   pagination,
+  searchQuery,
   isPending,
   onPageChange,
+  onSearchChange,
 }: {
   rows: AdminUserRow[];
   popover: PopoverController;
   pagination?: AdminTablePagination | null;
+  searchQuery?: string;
   isPending?: boolean;
   onPageChange?: (page: number) => void;
+  onSearchChange?: (query: string) => void;
 }) {
   return (
     <AdminPanel
@@ -35,8 +39,10 @@ export function UsersTable({
       search={(row) => [row.name, row.email, row.role, row.status, row.lastIp]}
       empty={emptyTableMessage}
       pagination={pagination}
+      searchQuery={searchQuery}
       isPending={isPending}
       onPageChange={onPageChange}
+      onSearchChange={onSearchChange}
       renderTable={(visibleRows) => (
         <table className="admin-table">
           <thead>

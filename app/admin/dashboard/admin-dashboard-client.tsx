@@ -52,6 +52,7 @@ export function AdminDashboardClient({
   bannerAds,
   users,
   initialTab,
+  searchQuery = '',
   pagination,
 }: AdminDashboardClientProps) {
   const [activePopoverId, setActivePopoverId] = useState<string | null>(null);
@@ -69,6 +70,8 @@ export function AdminDashboardClient({
     const params = new URLSearchParams(window.location.search);
     if (activeTab === 'overview') params.delete('tab');
     else params.set('tab', activeTab);
+    if (searchQuery.trim()) params.set('search', searchQuery.trim());
+    else params.delete('search');
     if (nextPage <= 1) params.delete('page');
     else params.set('page', String(nextPage));
     const query = params.toString();
@@ -85,6 +88,20 @@ export function AdminDashboardClient({
       params.set('tab', nextTab);
     }
     params.delete('page');
+    params.delete('search');
+    const query = params.toString();
+    const href = query ? `${window.location.pathname}?${query}` : window.location.pathname;
+    startTabTransition(() => router.replace(href, { scroll: false }));
+  }
+
+  function searchAdmin(nextQuery: string) {
+    if (isTabPending) return;
+    const params = new URLSearchParams(window.location.search);
+    if (activeTab === 'overview') params.delete('tab');
+    else params.set('tab', activeTab);
+    params.delete('page');
+    if (nextQuery.trim()) params.set('search', nextQuery.trim());
+    else params.delete('search');
     const query = params.toString();
     const href = query ? `${window.location.pathname}?${query}` : window.location.pathname;
     startTabTransition(() => router.replace(href, { scroll: false }));
@@ -124,8 +141,10 @@ export function AdminDashboardClient({
             note="Projects waiting for approval. They become public only after admin review."
             searchPlaceholder="Search project, symbol, or chain"
             pagination={pagination}
+            searchQuery={searchQuery}
             isPending={isTabPending}
             onPageChange={goToAdminPage}
+            onSearchChange={searchAdmin}
           />
         )}
         {activeTab === 'airdrops' && (
@@ -133,8 +152,10 @@ export function AdminDashboardClient({
             rows={pendingAirdropSubmissions}
             popover={popover}
             pagination={pagination}
+            searchQuery={searchQuery}
             isPending={isTabPending}
             onPageChange={goToAdminPage}
+            onSearchChange={searchAdmin}
           />
         )}
         {activeTab === 'coins' && (
@@ -142,8 +163,10 @@ export function AdminDashboardClient({
             rows={listedCoins}
             popover={popover}
             pagination={pagination}
+            searchQuery={searchQuery}
             isPending={isTabPending}
             onPageChange={goToAdminPage}
+            onSearchChange={searchAdmin}
           />
         )}
         {activeTab === 'promotions' && (
@@ -151,8 +174,10 @@ export function AdminDashboardClient({
             rows={listedCoins}
             popover={popover}
             pagination={pagination}
+            searchQuery={searchQuery}
             isPending={isTabPending}
             onPageChange={goToAdminPage}
+            onSearchChange={searchAdmin}
           />
         )}
         {activeTab === 'banners' && (
@@ -160,8 +185,10 @@ export function AdminDashboardClient({
             rows={bannerAds}
             popover={popover}
             pagination={pagination}
+            searchQuery={searchQuery}
             isPending={isTabPending}
             onPageChange={goToAdminPage}
+            onSearchChange={searchAdmin}
           />
         )}
         {activeTab === 'users' && (
@@ -169,8 +196,10 @@ export function AdminDashboardClient({
             rows={users}
             popover={popover}
             pagination={pagination}
+            searchQuery={searchQuery}
             isPending={isTabPending}
             onPageChange={goToAdminPage}
+            onSearchChange={searchAdmin}
           />
         )}
         {activeTab === 'reports' && (
@@ -178,8 +207,10 @@ export function AdminDashboardClient({
             rows={changeRequests}
             popover={popover}
             pagination={pagination}
+            searchQuery={searchQuery}
             isPending={isTabPending}
             onPageChange={goToAdminPage}
+            onSearchChange={searchAdmin}
           />
         )}
       </div>

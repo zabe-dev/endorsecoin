@@ -21,14 +21,18 @@ export function BannerAdsTable({
   rows,
   popover,
   pagination,
+  searchQuery,
   isPending,
   onPageChange,
+  onSearchChange,
 }: {
   rows: AdminBannerRow[];
   popover: PopoverController;
   pagination?: AdminTablePagination | null;
+  searchQuery?: string;
   isPending?: boolean;
   onPageChange?: (page: number) => void;
+  onSearchChange?: (query: string) => void;
 }) {
   return (
     <AdminPanel
@@ -42,8 +46,10 @@ export function BannerAdsTable({
       empty={emptyTableMessage}
       action={<BannerEditAction popover={popover} />}
       pagination={pagination}
+      searchQuery={searchQuery}
       isPending={isPending}
       onPageChange={onPageChange}
+      onSearchChange={onSearchChange}
       renderTable={(visibleRows) => (
         <table className="admin-table banner-admin-table">
           <thead>
