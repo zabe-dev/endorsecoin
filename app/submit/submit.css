@@ -1153,14 +1153,12 @@
 .submission-flow .submission-primary:hover:not(:disabled),
 .submission-modal .submission-primary:hover:not(:disabled),
 .submission-success .submission-primary:hover:not(:disabled) {
-  transform: translateY(-1px);
   background: #d9ff64;
 }
 
 .submission-flow .submission-secondary:hover:not(:disabled),
 .submission-modal .submission-secondary:hover:not(:disabled),
 .submission-success .submission-secondary:hover:not(:disabled) {
-  transform: translateY(-1px);
   border-color: rgba(203, 255, 74, 0.28);
   background: rgba(203, 255, 74, 0.08);
   color: var(--lime);
