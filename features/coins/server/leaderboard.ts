@@ -63,6 +63,10 @@ export async function getLeaderboardSelection(
   const pages = Math.max(1, Math.ceil(total / normalized.pageSize));
   const page = Math.min(normalized.page, pages);
 
+  if (!rows.length && normalized.page > 1) {
+    return getLeaderboardSelection({ ...query, page: 1 });
+  }
+
   if (!rows.length && total === 0) {
     return {
       ids: [],
@@ -76,10 +80,6 @@ export async function getLeaderboardSelection(
       search: normalized.search,
       sort: normalized.sort,
     };
-  }
-
-  if (!rows.length && normalized.page > 1) {
-    return getLeaderboardSelection({ ...query, page: 1 });
   }
 
   return {
@@ -178,7 +178,7 @@ async function selectLeaderboardCoinIds(
   const weekStartIso = getCurrentVoteWeekStart().toISOString();
   const dayAgoIso = new Date(Date.now() - 24 * 60 * 60 * 1_000).toISOString();
   const offset = (query.page - 1) * query.pageSize;
-  const where = buildLeaderboardWhere(query, nowIso);
+  const where = buildLeaderboardWhere(query);
   const scoredWhere = buildScoredLeaderboardWhere(query, nowIso);
   const orderBy = buildLeaderboardOrderBy(query);
 
@@ -302,7 +302,7 @@ function buildLeaderboardCacheKey(query: NormalizedLeaderboardQuery, version: nu
     .join(':');
 }
 
-function buildLeaderboardWhere(query: NormalizedLeaderboardQuery, nowIso: string) {
+function buildLeaderboardWhere(query: NormalizedLeaderboardQuery) {
   const where = [sql`${coins.listingStatus} = 'active'`];
   const chainId = getNetworkIdFromShortName(query.chain);
 
@@ -341,13 +341,15 @@ function buildScoredLeaderboardWhere(query: NormalizedLeaderboardQuery, nowIso: 
 
 function buildLeaderboardOrderBy(query: NormalizedLeaderboardQuery) {
   if (isDefaultSort(query.sort)) {
-    if (query.view === 'trending') return sql`trending_score desc, boosted_votes desc, name asc`;
-    if (query.view === 'watched') return sql`watch_count desc, boosted_votes desc, name asc`;
+    if (query.view === 'trending')
+      return sql`trending_score desc, boosted_votes desc, name asc, id asc`;
+    if (query.view === 'watched')
+      return sql`watch_count desc, boosted_votes desc, name asc, id asc`;
     if (query.view === 'recent')
-      return sql`launch_date desc nulls last, boosted_votes desc, name asc`;
+      return sql`launch_date desc nulls last, boosted_votes desc, name asc, id asc`;
     if (query.view === 'presales')
-      return sql`presale_end_at asc nulls last, boosted_votes desc, name asc`;
-    return sql`boosted_votes desc, name asc`;
+      return sql`presale_end_at asc nulls last, boosted_votes desc, name asc, id asc`;
+    return sql`boosted_votes desc, name asc, id asc`;
   }
 
   return buildCustomOrderBy(query.sort);
@@ -356,21 +358,29 @@ function buildLeaderboardOrderBy(query: NormalizedLeaderboardQuery) {
 function buildCustomOrderBy(sort: { key: CoinSortKey; direction: 'asc' | 'desc' }) {
   const descending = sort.direction === 'desc';
 
-  if (sort.key === 'name') return descending ? sql`name desc` : sql`name asc`;
+  if (sort.key === 'name') return descending ? sql`name desc, id asc` : sql`name asc, id asc`;
   if (sort.key === 'capN')
-    return descending ? sql`market_cap_usd desc nulls last` : sql`market_cap_usd asc nulls last`;
+    return descending
+      ? sql`market_cap_usd desc nulls last, id asc`
+      : sql`market_cap_usd asc nulls last, id asc`;
   if (sort.key === 'price')
-    return descending ? sql`price_usd desc nulls last` : sql`price_usd asc nulls last`;
+    return descending
+      ? sql`price_usd desc nulls last, id asc`
+      : sql`price_usd asc nulls last, id asc`;
   if (sort.key === 'change')
-    return descending ? sql`change_24h desc nulls last` : sql`change_24h asc nulls last`;
+    return descending
+      ? sql`change_24h desc nulls last, id asc`
+      : sql`change_24h asc nulls last, id asc`;
   if (sort.key === 'launch')
-    return descending ? sql`launch_date desc nulls last` : sql`launch_date asc nulls last`;
+    return descending
+      ? sql`launch_date desc nulls last, id asc`
+      : sql`launch_date asc nulls last, id asc`;
   if (sort.key === 'boost')
-    return descending ? sql`boost_multiplier desc` : sql`boost_multiplier asc`;
+    return descending ? sql`boost_multiplier desc, id asc` : sql`boost_multiplier asc, id asc`;
   if (sort.key === 'age')
-    return descending ? sql`submitted_at desc` : sql`submitted_at asc`;
+    return descending ? sql`submitted_at desc, id asc` : sql`submitted_at asc, id asc`;
   if (sort.key === 'rank') return descending ? sql`id desc` : sql`id asc`;
-  return descending ? sql`boosted_votes desc` : sql`boosted_votes asc`;
+  return descending ? sql`boosted_votes desc, id asc` : sql`boosted_votes asc, id asc`;
 }
 
 function presaleEndDateSql() {
