@@ -57,14 +57,14 @@ const bannerPlacements = [
     size: 'Desktop: 652×90px - 728×120px',
     price: '$25/day',
     mobile: 'Mobile: 320×90px - 620×120px',
-    note: 'Located at the homepage top row and below the community leaderboard. Rotates through active ads.',
+    note: 'Located at the top of homepage and airdrops pages, plus below the homepage community leaderboard. Rotates through active ads.',
   },
   {
     placement: 'Premium banner',
     size: 'Desktop: 1320×90px - 1400×120px',
     price: '$50/day',
     mobile: 'Mobile: 320×90px - 620×120px',
-    note: 'Located below promoted coins, under coin page headers, and inside dashboard/watchlist pages. Exclusive ad space, does not rotate.',
+    note: 'Located between promoted coins and the homepage leaderboard, under coin page headers, inside dashboard/watchlist pages, and between the airdrops table and promoted coins. Exclusive ad space, does not rotate.',
   },
   {
     placement: 'Fixed footer banner',
