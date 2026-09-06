@@ -1,6 +1,6 @@
 'use client';
 
-import { AuthModal } from '@/features/auth/components/auth-modal';
+import { AuthModal } from '@/features/auth/components/lazy-auth-modal';
 import { CoinTable } from '@/features/coins/components/coin-table';
 import { getBoostVoteFactor, type CoinListItem } from '@/features/coins/view';
 import { showRateLimitToast } from '@/lib/api/rate-limit-toast';

@@ -1,7 +1,7 @@
 'use client';
 
 import { Brand } from '@/components/ui/brand';
-import { AuthModal } from '@/features/auth/components/auth-modal';
+import { AuthModal } from '@/features/auth/components/lazy-auth-modal';
 import { authClient } from '@/lib/auth/client';
 import { hasAdminAccess } from '@/lib/auth/roles';
 import {

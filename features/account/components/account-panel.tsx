@@ -2,7 +2,7 @@
 
 import { VoteButton, WatchlistButton } from '@/components/ui/action-buttons';
 import { TablePagination } from '@/components/ui/table-pagination';
-import { AuthModal } from '@/features/auth/components/auth-modal';
+import { AuthModal } from '@/features/auth/components/lazy-auth-modal';
 import type { AccountTablePage } from '@/features/account/types';
 import { CoinCells } from '@/features/coins/components/coin-table';
 import { getBoostVoteFactor, type CoinListItem } from '@/features/coins/view';

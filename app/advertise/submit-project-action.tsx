@@ -1,6 +1,6 @@
 'use client';
 
-import { AuthModal } from '@/features/auth/components/auth-modal';
+import { AuthModal } from '@/features/auth/components/lazy-auth-modal';
 import { authClient } from '@/lib/auth/client';
 import { Send } from 'lucide-react';
 import Link from 'next/link';

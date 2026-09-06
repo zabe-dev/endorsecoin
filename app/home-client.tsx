@@ -5,7 +5,7 @@ import { MailingListSignup } from '@/components/layout/mailing-list-signup';
 import { SiteFooter } from '@/components/layout/site-footer';
 import { BasicAdBannerPair, PremiumAdBanner } from '@/features/ads/components/ad-banners';
 import type { BannerAdMap } from '@/features/ads/types';
-import { AuthModal } from '@/features/auth/components/auth-modal';
+import { AuthModal } from '@/features/auth/components/lazy-auth-modal';
 import {
   CoinCells as Cells,
   DiscoveryCard as Discovery,

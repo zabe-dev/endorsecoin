@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { SiteFooter } from '@/components/layout/site-footer';
 import { PremiumAdBanner } from '@/features/ads/components/ad-banners';
 import type { PublicBannerAd } from '@/features/ads/types';
-import { AuthModal } from '@/features/auth/components/auth-modal';
+import { AuthModal } from '@/features/auth/components/lazy-auth-modal';
 import { CoinTable } from '@/features/coins/components';
 import type { Coin } from '@/features/coins/types';
 import { getBoostVoteFactor, toCoinListItem, type CoinListItem } from '@/features/coins/view';
