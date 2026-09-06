@@ -43,6 +43,15 @@ export async function rememberJson<T>(
   return value;
 }
 
+export async function readCachedJson<T>(key: string): Promise<T | null> {
+  const cachedValue = await readJson<T>(key);
+  return cachedValue.hit ? cachedValue.value : null;
+}
+
+export async function writeCachedJson(key: string, value: unknown, ttlSeconds: number) {
+  await writeJson(key, value, ttlSeconds);
+}
+
 export async function incrementCacheCounter(key: string, ttlSeconds: number) {
   try {
     const redis = await getReadyRedisClient();

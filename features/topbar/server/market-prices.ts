@@ -1,7 +1,13 @@
 import 'server-only';
 
 import type { TopbarPriceTicker } from '@/features/topbar/types';
-import { incrementCacheCounter, rememberJson } from '@/lib/cache/json-cache';
+import {
+  incrementCacheCounter,
+  readCachedJson,
+  rememberJson,
+  writeCachedJson,
+} from '@/lib/cache/json-cache';
+import { recordMetric, timeAsync } from '@/lib/observability/metrics';
 
 const symbols = ['BTC', 'ETH', 'SOL', 'BNB'] as const;
 const binanceSymbols = symbols.map((symbol) => `${symbol}USDT`);
@@ -21,6 +27,10 @@ const providerState = globalThis as typeof globalThis & {
 const requestTimeoutMs = 4_000;
 const maxRequestsPerDay = Number(process.env.TOPBAR_PRICE_DAILY_LIMIT || 480);
 const cacheSeconds = Number(process.env.TOPBAR_PRICE_CACHE_SECONDS || 120);
+const lastGoodCacheSeconds = Number(process.env.TOPBAR_PRICE_LAST_GOOD_SECONDS || 86_400);
+const fetchOnCacheMiss = process.env.TOPBAR_PRICE_FETCH_ON_MISS !== 'false';
+const topbarPriceCacheKey = 'topbar:prices:v2';
+const topbarLastGoodPriceCacheKey = 'topbar:prices:last-good:v1';
 
 const binanceFallbackBaseUrls = [
   ...(
@@ -33,16 +43,40 @@ const binanceFallbackBaseUrls = [
 ].filter((url, index, list) => list.indexOf(url) === index);
 
 export function getCachedTopbarPrices() {
-  return rememberJson('topbar:prices:v1', { ttlSeconds: cacheSeconds }, getSafeTopbarPrices);
+  return rememberJson(topbarPriceCacheKey, { ttlSeconds: cacheSeconds }, getSafeTopbarPrices);
+}
+
+export async function refreshTopbarPrices() {
+  return timeAsync('server.operation', { operation: 'topbar.prices.refresh' }, async () => {
+    const prices = await dedupeFetch('topbar-market-prices', fetchMarketPrices);
+    if (!hasPriceData(prices)) {
+      recordMetric('topbar.prices', { event: 'refresh_empty' });
+      return { updated: false, prices: await getLastGoodPrices() };
+    }
+
+    await persistLastGoodPrices(prices);
+    await writeCachedJson(topbarPriceCacheKey, prices, cacheSeconds);
+    recordMetric('topbar.prices', { event: 'refresh_updated' });
+    return { updated: true, prices };
+  });
 }
 
 async function getSafeTopbarPrices(): Promise<TopbarPriceTicker[]> {
+  const persistedPrices = await getLastGoodPrices();
+  if (!fetchOnCacheMiss && hasPriceData(persistedPrices)) {
+    recordMetric('topbar.prices', { event: 'served_last_good' });
+    return persistedPrices;
+  }
+
   try {
     const prices = await dedupeFetch('topbar-market-prices', fetchMarketPrices);
-    if (hasPriceData(prices)) providerState.endorsecoinTopbarLastGoodPrices = prices;
-    return hasPriceData(prices) ? prices : getLastGoodPrices();
+    if (hasPriceData(prices)) {
+      await persistLastGoodPrices(prices);
+      return prices;
+    }
+    return persistedPrices;
   } catch {
-    return getLastGoodPrices();
+    return persistedPrices;
   }
 }
 
@@ -182,8 +216,23 @@ function hasPriceData(prices: TopbarPriceTicker[]) {
   return prices.some((price) => price.price !== null);
 }
 
-function getLastGoodPrices() {
-  return hasPriceData(providerState.endorsecoinTopbarLastGoodPrices || [])
-    ? providerState.endorsecoinTopbarLastGoodPrices!
-    : fallbackPrices;
+async function persistLastGoodPrices(prices: TopbarPriceTicker[]) {
+  if (!hasPriceData(prices)) return;
+
+  providerState.endorsecoinTopbarLastGoodPrices = prices;
+  await writeCachedJson(topbarLastGoodPriceCacheKey, prices, lastGoodCacheSeconds);
+}
+
+async function getLastGoodPrices() {
+  if (hasPriceData(providerState.endorsecoinTopbarLastGoodPrices || [])) {
+    return providerState.endorsecoinTopbarLastGoodPrices!;
+  }
+
+  const cached = await readCachedJson<TopbarPriceTicker[]>(topbarLastGoodPriceCacheKey);
+  if (cached && hasPriceData(cached)) {
+    providerState.endorsecoinTopbarLastGoodPrices = cached;
+    return cached;
+  }
+
+  return fallbackPrices;
 }
