@@ -2,7 +2,6 @@
 
 import { Check, X } from 'lucide-react';
 import { showRateLimitToast } from '@/lib/api/rate-limit-toast';
-import { captureEvent } from '@/lib/analytics/posthog';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 
 export function ChangeRequestModal({
@@ -70,10 +69,6 @@ export function ChangeRequestModal({
       return;
     }
 
-    captureEvent('change_request_submitted', {
-      coin_id: coinId,
-      request_intent: defaultType,
-    });
     setSubmitted(true);
   }
 

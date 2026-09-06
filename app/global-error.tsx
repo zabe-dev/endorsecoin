@@ -1,7 +1,6 @@
 'use client';
 
 import { SystemStatePage } from '@/components/layout/system-state-page';
-import { captureError } from '@/lib/analytics/posthog';
 import { OctagonAlert } from 'lucide-react';
 import { useEffect } from 'react';
 import './globals.css';
@@ -15,7 +14,6 @@ export default function GlobalError({
 }) {
   useEffect(() => {
     console.error(error);
-    captureError(error);
   }, [error]);
 
   return (

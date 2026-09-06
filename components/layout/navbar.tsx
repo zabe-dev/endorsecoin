@@ -2,7 +2,7 @@
 
 import { Brand } from '@/components/ui/brand';
 import { AuthModal } from '@/features/auth/components/lazy-auth-modal';
-import { authClient, identifyPostHogUser, resetPostHogUser } from '@/lib/auth/client';
+import { authClient } from '@/lib/auth/client';
 import { hasAdminAccess } from '@/lib/auth/roles';
 import {
   ChevronDown,
@@ -60,11 +60,6 @@ export function Navbar({
     return () => window.removeEventListener('spooky-auth-modal-open', closeForAuthModal);
   }, []);
 
-  useEffect(() => {
-    if (!session?.user) return;
-
-    identifyPostHogUser(session.user);
-  }, [session?.user]);
 
   useEffect(() => {
     if (!isSignedIn) return;
@@ -86,7 +81,6 @@ export function Navbar({
     closeMenu();
     setLoggingOut(true);
     await authClient.signOut();
-    resetPostHogUser();
     window.location.replace('/');
   }
 

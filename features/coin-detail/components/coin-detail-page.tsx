@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { SiteFooter } from '@/components/layout/site-footer';
 import { PremiumAdBanner } from '@/features/ads/components/ad-banners';
 import type { PublicBannerAd } from '@/features/ads/types';
-import { captureEvent } from '@/lib/analytics/posthog';
 import { AuthModal } from '@/features/auth/components/lazy-auth-modal';
 import { CoinTable } from '@/features/coins/components';
 import type { Coin } from '@/features/coins/types';
@@ -113,7 +112,6 @@ export function CoinDetailPage({
 
     if (body.data?.nextVoteAt) setNextVoteAt(body.data.nextVoteAt);
     updateInteractionSummary(body.data?.summary);
-    captureEvent('coin_voted', { coin_id: coin.coinId, placement: 'detail' });
   }
 
   async function toggleWatch() {
@@ -155,11 +153,6 @@ export function CoinDetailPage({
     }
 
     updateInteractionSummary(body.data?.summary);
-    captureEvent('watchlist_updated', {
-      coin_id: coin.coinId,
-      action: adding ? 'added' : 'removed',
-      placement: 'detail',
-    });
   }
 
   async function votePromoted(coinId: number) {
@@ -220,7 +213,6 @@ export function CoinDetailPage({
     }
 
     updatePromotedInteractionSummary(coinId, body.data?.summary);
-    captureEvent('coin_voted', { coin_id: coinId, placement: 'promoted' });
   }
 
   async function togglePromotedWatch(coinId: number) {
@@ -280,11 +272,6 @@ export function CoinDetailPage({
     }
 
     updatePromotedInteractionSummary(coinId, body.data?.summary);
-    captureEvent('watchlist_updated', {
-      coin_id: coinId,
-      action: removing ? 'removed' : 'added',
-      placement: 'promoted',
-    });
   }
 
   function updateInteractionSummary(

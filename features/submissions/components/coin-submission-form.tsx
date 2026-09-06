@@ -38,7 +38,6 @@ import {
 } from '@/features/submissions/schemas/coin-submission';
 import { Check, ChevronLeft, ChevronRight, Home, Loader2, PartyPopper, Plus } from 'lucide-react';
 import { showRateLimitToast } from '@/lib/api/rate-limit-toast';
-import { captureEvent } from '@/lib/analytics/posthog';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
@@ -356,11 +355,6 @@ export function CoinSubmissionForm({
     }
 
     setErrors({});
-    captureEvent('coin_submission_created', {
-      submission_type: result.data.isPresale ? 'presale' : 'launched',
-      contract_count: result.data.contracts.length,
-      category_count: result.data.categories.length,
-    });
     setSubmitted(true);
     onSubmittedChange?.(true);
   }

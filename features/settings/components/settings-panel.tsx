@@ -1,8 +1,7 @@
 'use client';
 
 import { PasswordField } from '@/components/ui/password-field';
-import { authClient, resetPostHogUser } from '@/lib/auth/client';
-import { captureEvent } from '@/lib/analytics/posthog';
+import { authClient } from '@/lib/auth/client';
 import { CheckCircle2, LoaderCircle, X, XCircle } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 
@@ -117,15 +116,11 @@ export function SettingsPanel({ user }: { user: { name: string; email: string } 
       return;
     }
 
-    captureEvent('account_deleted');
-
     try {
       await authClient.signOut();
     } catch {
       // The account deletion request may already remove the active session.
     }
-    resetPostHogUser();
-
     window.location.replace('/');
   }
 
