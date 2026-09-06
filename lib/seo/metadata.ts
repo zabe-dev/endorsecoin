@@ -5,7 +5,7 @@ export const siteName = 'EndorseCoin';
 export const homeTitle = 'Discover New Crypto Coins, Presales and Airdrops | EndorseCoin';
 export const homeDescription =
   'Discover new coins, explore token presales, and compare trending projects. Check prices, charts, and community rankings to research your next investment.';
-export const socialImage = '/opengraph-image';
+export const socialImage = '/android-chrome-512x512.png';
 
 type PublicPageMetadataOptions = {
   title: string;
