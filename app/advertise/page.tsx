@@ -1,6 +1,7 @@
 import { SiteFooter } from '@/components/layout/site-footer';
 import { SiteHeader } from '@/components/layout/site-header';
 import { BoltIcon } from '@/features/coins/components';
+import { createPublicPageMetadata } from '@/lib/seo/metadata';
 import {
   Activity,
   BarChart3,
@@ -10,14 +11,13 @@ import {
   ShieldCheck,
   Sparkles,
 } from 'lucide-react';
-import { createPublicPageMetadata } from '@/lib/seo/metadata';
 import type { Metadata } from 'next';
 import '../market.css';
 import './advertise.css';
 import { SubmitProjectAction } from './submit-project-action';
 
 export const metadata: Metadata = createPublicPageMetadata({
-  title: 'Project Advertising & Banner Placements',
+  title: 'Advertisement and Promotions | EndorseCoin',
   description:
     'Promote your project with EndorseCoin banner ads, promoted placements, and boosts. Compare prices, ad sizes, and available locations.',
   path: '/advertise',
