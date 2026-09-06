@@ -154,6 +154,235 @@ const supportedExchangeMatchers = {
   solana: [/raydium/i],
 };
 
+const categoryKeywordMap = {
+  AI: {
+    strong: [
+      'artificial intelligence',
+      'machine learning',
+      'ai agent',
+      'ai agents',
+      'neural network',
+      'large language model',
+      'generative ai',
+      'decentralized ai',
+    ],
+    medium: [
+      'ai',
+      'agent',
+      'agents',
+      'neural',
+      'llm',
+      'model',
+      'models',
+      'inference',
+      'compute',
+      'gpu',
+      'data intelligence',
+      'automation',
+      'chatbot',
+      'bot',
+    ],
+    light: ['analytics', 'prediction', 'intelligence'],
+  },
+  DeFi: {
+    strong: [
+      'decentralized finance',
+      'liquid staking',
+      'restaking',
+      'yield farming',
+      'liquidity mining',
+      'perpetual futures',
+      'prediction market',
+    ],
+    medium: [
+      'defi',
+      'dex',
+      'swap',
+      'staking',
+      'stake',
+      'yield',
+      'farm',
+      'liquidity',
+      'lending',
+      'borrow',
+      'borrowing',
+      'vault',
+      'amm',
+      'pool',
+      'lp',
+      'perps',
+      'derivatives',
+      'stablecoin',
+      'stablecoins',
+      'launchpad',
+      'ido',
+      'ico',
+      'presale',
+      'airdrop',
+      'airdrop rewards',
+    ],
+    light: ['finance', 'trading', 'trade', 'exchange', 'earn', 'rewards'],
+  },
+  Memecoins: {
+    strong: ['memecoin', 'memecoins', 'meme coin', 'meme token'],
+    medium: [
+      'meme',
+      'pepe',
+      'doge',
+      'shib',
+      'shiba',
+      'inu',
+      'floki',
+      'bonk',
+      'wif',
+      'wojak',
+      'chad',
+      'mascot',
+      'community meme',
+    ],
+    light: ['frog', 'dog', 'cat', 'kitty', 'pup', 'based', 'degen'],
+  },
+  Gaming: {
+    strong: ['gamefi', 'blockchain game', 'web3 game', 'gaming metaverse'],
+    medium: [
+      'gaming',
+      'game',
+      'games',
+      'quest',
+      'battle',
+      'arena',
+      'rpg',
+      'mmorpg',
+      'metaverse',
+      'avatar',
+      'guild',
+      'esports',
+      'player',
+      'players',
+      'in-game',
+      'virtual world',
+    ],
+    light: ['play', 'collect', 'questing', 'character'],
+  },
+  'Play To Earn': {
+    strong: [
+      'play to earn',
+      'play-to-earn',
+      'tap to earn',
+      'tap-to-earn',
+      'move to earn',
+      'move-to-earn',
+    ],
+    medium: ['p2e', 'm2e', 't2e', 'earn rewards', 'earn tokens', 'telegram mini app'],
+    light: ['mini app', 'mini-app', 'tap', 'quest rewards'],
+  },
+  'NFT Platform': {
+    strong: ['nft marketplace', 'nft platform', 'non-fungible token'],
+    medium: [
+      'nft',
+      'nfts',
+      'non-fungible',
+      'collectible',
+      'collectibles',
+      'mint',
+      'minting',
+      'marketplace',
+      'collection',
+      'creator',
+      'royalty',
+      'ordinals',
+    ],
+    light: ['art', 'artists', 'digital collectible'],
+  },
+  'Fan Token': {
+    strong: ['fan token', 'sports token', 'club token'],
+    medium: [
+      'fans',
+      'sports',
+      'club',
+      'team',
+      'football',
+      'soccer',
+      'basketball',
+      'ufc',
+      'formula 1',
+      'f1',
+      'esports fan',
+      'supporters',
+    ],
+    light: ['league', 'stadium', 'athlete'],
+  },
+  Gambling: {
+    strong: ['online casino', 'sportsbook', 'prediction betting'],
+    medium: [
+      'gambling',
+      'casino',
+      'bet',
+      'bets',
+      'betting',
+      'poker',
+      'lottery',
+      'jackpot',
+      'wager',
+      'wagering',
+      'roulette',
+      'slots',
+      'raffle',
+    ],
+    light: ['odds', 'dice', 'lotto'],
+  },
+  'Utility Token': {
+    strong: [
+      'real world assets',
+      'tokenized assets',
+      'decentralized physical infrastructure',
+      'cross-chain bridge',
+      'identity protocol',
+      'privacy protocol',
+      'data availability',
+    ],
+    medium: [
+      'utility',
+      'payment',
+      'payments',
+      'pay',
+      'infrastructure',
+      'protocol',
+      'oracle',
+      'data',
+      'identity',
+      'storage',
+      'privacy',
+      'security',
+      'bridge',
+      'cross-chain',
+      'interoperability',
+      'governance',
+      'enterprise',
+      'network',
+      'api',
+      'tool',
+      'tools',
+      'service',
+      'rwa',
+      'depin',
+      'layer 1',
+      'layer 2',
+      'l1',
+      'l2',
+      'wallet',
+      'wallets',
+      'messaging',
+      'socialfi',
+      'dao',
+      'rollup',
+      'rollups',
+      'modular',
+    ],
+    light: ['chain', 'mainnet', 'validator', 'node', 'nodes', 'appchain', 'sdk'],
+  },
+};
+
 const symbolDenylist = new Set(
   [
     'USDT',
@@ -297,6 +526,11 @@ async function fetchMobulaAssets() {
       'total_supply',
       'holders_count',
       'description',
+      'category',
+      'categories',
+      'tags',
+      'sectors',
+      'narratives',
       'socials',
       'website',
       'twitter',
@@ -839,6 +1073,11 @@ function applyMobulaAssetDetails(token, detail) {
   token.marketCap = pickNumber(asset, ['marketCapUSD', 'market_cap_usd']) ?? token.marketCap;
   token.fdv = pickNumber(asset, ['marketCapDilutedUSD', 'market_cap_diluted_usd']) ?? token.fdv;
   token.totalSupply = pickNumber(asset, ['totalSupply', 'total_supply']) ?? token.totalSupply;
+  token.classificationTerms = [
+    ...token.classificationTerms,
+    ...extractClassificationTerms(asset),
+    ...extractClassificationTerms(matchingToken),
+  ];
 
   const listedAt = pickDate(asset, ['listedAt', 'listed_at']);
   const createdAt = pickDate(asset, ['createdAt', 'created_at']);
@@ -950,6 +1189,8 @@ function buildToken(item) {
     symbol,
     logo: pickString(item, ['logo', 'logoUrl', 'logo_url']),
     description: sanitizePlainText(pickString(item, ['description'])),
+    classificationTerms: extractClassificationTerms(item),
+    category: 'Other',
     price,
     marketCap,
     fdv: pickNumber(item, ['market_cap_diluted', 'marketCapDiluted', 'fully_diluted_valuation']),
@@ -989,7 +1230,7 @@ async function upsertToken(token, slug) {
       )
       values (
         ${coinId}, ${slug}, ${token.name}, ${token.symbol}, ${logoUrl}, ${token.description},
-        'Other', ${token.contract.chain}, ${token.contract.address}, ${token.launchDate},
+        ${token.category}, ${token.contract.chain}, ${token.contract.address}, ${token.launchDate},
         'imported', 'active', false, ${now}, ${now}, ${now}
       )
       on conflict (id) do update set
@@ -1240,6 +1481,89 @@ function shuffle(items) {
 
 function randomItem(items) {
   return items[Math.floor(Math.random() * items.length)];
+}
+
+function logCategorySummary(tokens) {
+  const counts = tokens.reduce((summary, token) => {
+    summary[token.category] = (summary[token.category] || 0) + 1;
+    return summary;
+  }, {});
+
+  log(
+    `Category inference: ${Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([category, count]) => `${category}=${count}`)
+      .join(', ')}`,
+  );
+}
+
+function inferCoinCategory(token) {
+  const searchText = buildCategorySearchText(token);
+  if (!searchText) return 'Other';
+
+  const scores = new Map();
+  for (const [category, groups] of Object.entries(categoryKeywordMap)) {
+    let score = 0;
+    score += scoreKeywords(searchText, groups.strong, 6);
+    score += scoreKeywords(searchText, groups.medium, 3);
+    score += scoreKeywords(searchText, groups.light, 1);
+    if (score > 0) scores.set(category, score);
+  }
+
+  if (!scores.size) return 'Other';
+
+  const ranked = [...scores.entries()].sort((a, b) => b[1] - a[1]);
+  const [winner, winnerScore] = ranked[0];
+  const runnerUpScore = ranked[1]?.[1] || 0;
+
+  if (winnerScore < 3) return 'Other';
+  if (winnerScore < 6 && runnerUpScore > 0) return 'Other';
+  if (runnerUpScore > 0 && winnerScore - runnerUpScore < 2) return 'Other';
+
+  return winner;
+}
+
+function scoreKeywords(searchText, keywords, weight) {
+  return keywords.reduce((score, keyword) => {
+    const matches = searchText.match(keywordPattern(keyword));
+    return score + (matches?.length || 0) * weight;
+  }, 0);
+}
+
+function keywordPattern(keyword) {
+  const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '[\\s-]+');
+  return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, 'gi');
+}
+
+function buildCategorySearchText(token) {
+  return [
+    token.name,
+    token.symbol,
+    token.description,
+    ...(token.classificationTerms || []),
+    ...Object.values(token.projectLinks || {}),
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+}
+
+function extractClassificationTerms(source) {
+  if (!source || typeof source !== 'object') return [];
+
+  return [
+    ...pickStringArray(source, ['tags']),
+    ...pickStringArray(source, ['categories']),
+    ...pickStringArray(source, ['category']),
+    ...pickStringArray(source, ['sectors']),
+    ...pickStringArray(source, ['sector']),
+    ...pickStringArray(source, ['narratives']),
+    ...pickStringArray(source, ['narrative']),
+    pickString(source, ['category', 'sector', 'narrative']),
+  ]
+    .filter(Boolean)
+    .map((value) => sanitizePlainText(String(value)))
+    .filter(Boolean);
 }
 
 function pick(obj, keys) {
@@ -1796,6 +2120,10 @@ async function main() {
   await enrichTokensWithMobulaDetails(tokens);
   await enrichTokensWithMobulaMetadata(tokens);
   await enrichTokensWithMobulaMarketDetails(tokens);
+  tokens.forEach((token) => {
+    token.category = inferCoinCategory(token);
+  });
+  logCategorySummary(tokens);
 
   if (DRY_RUN) {
     logSection(`Dry run: previewing ${tokens.length} enriched token(s) — no rows will be written`);
@@ -1805,6 +2133,7 @@ async function main() {
         chain: token.contract.chain,
         symbol: token.symbol,
         name: token.name,
+        category: token.category,
         price: token.price,
         marketCap: token.marketCap,
         fdv: token.fdv,
