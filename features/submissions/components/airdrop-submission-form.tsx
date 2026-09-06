@@ -16,7 +16,6 @@ import {
   type TurnstileSlotHandle,
 } from '@/features/submissions/components/submission-fields';
 import { showRateLimitToast } from '@/lib/api/rate-limit-toast';
-import confetti from 'canvas-confetti';
 import { Check, Home, Loader2, PartyPopper, Search, Send } from 'lucide-react';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
@@ -113,15 +112,23 @@ export function AirdropSubmissionForm({
   useEffect(() => {
     if (!submitted) return;
 
+    let cancelled = false;
     const colors = ['#cbff4a', '#ffc52f', '#37d9ff', '#ffffff', '#b36bff'];
-    void confetti({
-      particleCount: 70,
-      spread: 68,
-      startVelocity: 38,
-      scalar: 0.78,
-      origin: { y: 0.72 },
-      colors,
+    void import('canvas-confetti').then(({ default: confetti }) => {
+      if (cancelled) return;
+      void confetti({
+        particleCount: 70,
+        spread: 68,
+        startVelocity: 38,
+        scalar: 0.78,
+        origin: { y: 0.72 },
+        colors,
+      });
     });
+
+    return () => {
+      cancelled = true;
+    };
   }, [submitted]);
 
   function update<K extends keyof AirdropSubmissionFormValues>(

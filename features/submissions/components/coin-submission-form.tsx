@@ -1,6 +1,5 @@
 'use client';
 
-import { LogoCropDialog } from '@/features/submissions/components/logo-crop-dialog';
 import {
   CategoryField,
   ContractRow,
@@ -37,11 +36,17 @@ import {
   type SubmissionCategory,
   type SubmissionNetwork,
 } from '@/features/submissions/schemas/coin-submission';
-import confetti from 'canvas-confetti';
 import { Check, ChevronLeft, ChevronRight, Home, Loader2, PartyPopper, Plus } from 'lucide-react';
 import { showRateLimitToast } from '@/lib/api/rate-limit-toast';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+
+const LogoCropDialog = dynamic(
+  () =>
+    import('@/features/submissions/components/logo-crop-dialog').then((mod) => mod.LogoCropDialog),
+  { ssr: false },
+);
 
 const steps = ['Basics', 'Links', 'Market', 'Security', 'Contact', 'Review'] as const;
 
@@ -134,36 +139,46 @@ export function CoinSubmissionForm({
   useEffect(() => {
     if (!submitted) return;
 
+    let cancelled = false;
     const colors = ['#cbff4a', '#ffc52f', '#37d9ff', '#ffffff', '#b36bff'];
-    void confetti({
-      particleCount: 90,
-      spread: 72,
-      startVelocity: 42,
-      scalar: 0.86,
-      origin: { y: 0.72 },
-      colors,
+    void import('canvas-confetti').then(({ default: confetti }) => {
+      if (cancelled) return;
+
+      void confetti({
+        particleCount: 90,
+        spread: 72,
+        startVelocity: 42,
+        scalar: 0.86,
+        origin: { y: 0.72 },
+        colors,
+      });
+
+      window.setTimeout(() => {
+        if (cancelled) return;
+        void confetti({
+          particleCount: 45,
+          angle: 60,
+          spread: 58,
+          startVelocity: 36,
+          scalar: 0.72,
+          origin: { x: 0, y: 0.78 },
+          colors,
+        });
+        void confetti({
+          particleCount: 45,
+          angle: 120,
+          spread: 58,
+          startVelocity: 36,
+          scalar: 0.72,
+          origin: { x: 1, y: 0.78 },
+          colors,
+        });
+      }, 180);
     });
 
-    window.setTimeout(() => {
-      void confetti({
-        particleCount: 45,
-        angle: 60,
-        spread: 58,
-        startVelocity: 36,
-        scalar: 0.72,
-        origin: { x: 0, y: 0.78 },
-        colors,
-      });
-      void confetti({
-        particleCount: 45,
-        angle: 120,
-        spread: 58,
-        startVelocity: 36,
-        scalar: 0.72,
-        origin: { x: 1, y: 0.78 },
-        colors,
-      });
-    }, 180);
+    return () => {
+      cancelled = true;
+    };
   }, [submitted]);
 
   function update<K extends keyof CoinSubmissionValues>(
