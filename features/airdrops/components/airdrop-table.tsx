@@ -1,11 +1,13 @@
 'use client';
 
 /* eslint-disable @next/next/no-img-element -- Airdrop cards reuse approved project logos from stored coin records. */
-import { TablePagination, type TablePaginationState } from '@/components/ui/table-pagination';
+import type { TablePaginationState } from '@/components/ui/table-pagination';
+import { getPaginationItems } from '@/lib/ui/pagination';
 import type { PublicAirdropRow } from '@/features/airdrops/types';
 import { Icon as IconifyIcon } from '@iconify/react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import type { KeyboardEvent, MouseEvent } from 'react';
+import { useTransition, type KeyboardEvent, type MouseEvent } from 'react';
 
 type AirdropLink = {
   key: string;
@@ -24,8 +26,11 @@ export function AirdropTable({
   pagination: TablePaginationState;
 }) {
   const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const paginationItems = getPaginationItems({ count: pagination.pages, page: pagination.page });
 
   function openCoin(coinId: number) {
+    if (isPending) return;
     router.push(`/coin/${coinId}`);
   }
 
@@ -39,9 +44,24 @@ export function AirdropTable({
     event.stopPropagation();
   }
 
+  function goToPage(page: number) {
+    if (isPending || page === pagination.page) return;
+
+    const params = new URLSearchParams(window.location.search);
+    if (page <= 1) params.delete('page');
+    else params.set('page', String(page));
+
+    const query = params.toString();
+    startTransition(() => {
+      router.push(`${window.location.pathname}${query ? `?${query}` : ''}#airdrops`, {
+        scroll: false,
+      });
+    });
+  }
+
   return (
     <>
-      <div className="airdrops-card-grid">
+      <div className={`airdrops-card-grid ${isPending ? 'airdrops-card-grid--pending' : ''}`.trim()}>
         {rows.map((airdrop, index) => {
           const status = getAirdropStatus(airdrop.startsAt, airdrop.endsAt);
           const progress = getAirdropProgress(airdrop.startsAt, airdrop.endsAt);
@@ -54,7 +74,7 @@ export function AirdropTable({
             <article
               className="airdrop-card"
               key={airdrop.id}
-              tabIndex={0}
+              tabIndex={isPending ? -1 : 0}
               aria-label={`Open ${airdrop.projectName} coin page`}
               onClick={() => openCoin(airdrop.coinId)}
               onKeyDown={(event) => openCoinFromKeyboard(event, airdrop.coinId)}
@@ -162,7 +182,49 @@ export function AirdropTable({
           );
         })}
       </div>
-      <TablePagination className="airdrops-pagination" pagination={pagination} />
+      {pagination.pages > 1 ? (
+        <div className="airdrops-pagination table-pagination">
+          <span>
+            Showing {pagination.total ? (pagination.page - 1) * pagination.pageSize + 1 : 0}–
+            {Math.min(pagination.page * pagination.pageSize, pagination.total)} of {pagination.total}
+          </span>
+          <div>
+            <button
+              type="button"
+              disabled={isPending || pagination.page === 1}
+              onClick={() => goToPage(Math.max(1, pagination.page - 1))}
+            >
+              <ChevronLeft aria-hidden="true" />
+              <span className="sr-only">Previous</span>
+            </button>
+            {paginationItems.map((item) =>
+              typeof item === 'number' ? (
+                <button
+                  type="button"
+                  className={pagination.page === item ? 'active' : ''}
+                  disabled={isPending}
+                  key={item}
+                  onClick={() => goToPage(item)}
+                >
+                  {item}
+                </button>
+              ) : (
+                <span className="table-pagination-ellipsis" key={item} aria-hidden="true">
+                  ...
+                </span>
+              ),
+            )}
+            <button
+              type="button"
+              disabled={isPending || pagination.page === pagination.pages}
+              onClick={() => goToPage(Math.min(pagination.pages, pagination.page + 1))}
+            >
+              <ChevronRight aria-hidden="true" />
+              <span className="sr-only">Next</span>
+            </button>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }

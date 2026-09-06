@@ -27,6 +27,12 @@
   gap: 12px;
 }
 
+.airdrops-card-grid--pending {
+  opacity: 0.55;
+  pointer-events: none;
+  transition: opacity 0.16s ease;
+}
+
 .airdrop-card {
   position: relative;
   display: flex;
@@ -77,7 +83,7 @@
   gap: 10px;
 }
 
-.airdrop-card-rank {
+.airdrop-card-number {
   color: #6e777f;
   font-size: 9px;
   font-weight: 700;

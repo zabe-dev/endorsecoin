@@ -44,7 +44,7 @@ export default async function AirdropsPage({ searchParams }: AirdropsPageProps) 
       <BasicAdBannerPair ads={bannerAds.basic} />
 
       <section className="container airdrops-shell">
-        <section className="leaderboard airdrops-leaderboard">
+        <section className="leaderboard airdrops-leaderboard" id="airdrops">
           <div className="section-title">
             <div>
               <small>AIRDROP BOARD</small>

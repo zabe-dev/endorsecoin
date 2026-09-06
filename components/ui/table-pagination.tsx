@@ -1,6 +1,7 @@
 'use client';
 
 import { getPaginationItems } from '@/lib/ui/pagination';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 export type TablePaginationState = {
@@ -13,12 +14,14 @@ export type TablePaginationState = {
 export function TablePagination({
   pagination,
   className = '',
+  scrollTargetId,
 }: {
-  pagination: TablePaginationState;
+  pagination?: TablePaginationState;
   className?: string;
+  scrollTargetId?: string;
 }) {
   const router = useRouter();
-  if (pagination.pages <= 1) return null;
+  if (!pagination || pagination.pages <= 1) return null;
 
   const items = getPaginationItems({ count: pagination.pages, page: pagination.page });
 
@@ -27,7 +30,8 @@ export function TablePagination({
     if (page <= 1) params.delete('page');
     else params.set('page', String(page));
     const query = params.toString();
-    router.push(`${window.location.pathname}${query ? `?${query}` : ''}`);
+    const hash = scrollTargetId ? `#${scrollTargetId}` : window.location.hash;
+    router.push(`${window.location.pathname}${query ? `?${query}` : ''}${hash}`);
   }
 
   return (
@@ -42,7 +46,8 @@ export function TablePagination({
           disabled={pagination.page === 1}
           onClick={() => goToPage(Math.max(1, pagination.page - 1))}
         >
-          Previous
+          <ChevronLeft aria-hidden="true" />
+          <span className="sr-only">Previous</span>
         </button>
         {items.map((item) =>
           typeof item === 'number' ? (
@@ -65,7 +70,8 @@ export function TablePagination({
           disabled={pagination.page === pagination.pages}
           onClick={() => goToPage(Math.min(pagination.pages, pagination.page + 1))}
         >
-          Next
+          <ChevronRight aria-hidden="true" />
+          <span className="sr-only">Next</span>
         </button>
       </div>
     </div>

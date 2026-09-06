@@ -4321,6 +4321,11 @@ img.admin-project-logo {
   border-color: rgba(203, 255, 74, 0.34);
   color: var(--lime);
 }
+.table-pagination button svg {
+  width: 13px;
+  height: 13px;
+}
+
 .table-pagination button.active {
   border-color: rgba(203, 255, 74, 0.72);
   background: var(--lime);
