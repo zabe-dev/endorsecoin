@@ -1,6 +1,6 @@
 import { apiError, apiSuccess } from '@/lib/api/responses';
 import { db } from '@/lib/db/client';
-import { getReadyRedisClient } from '@/lib/cache/redis';
+import { getReadyRedisClient, getRedisDiagnostics } from '@/lib/cache/redis';
 import { sql } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
@@ -46,7 +46,10 @@ async function checkRedis() {
 
   try {
     const redis = await getReadyRedisClient();
-    if (!redis) throw new Error('Redis client is unavailable.');
+    if (!redis) {
+      const diagnostics = getRedisDiagnostics();
+      throw new Error(diagnostics.lastError || 'Redis client is unavailable.');
+    }
     await redis.ping();
     return { ok: true, configured: true, durationMs: Math.round(performance.now() - startedAt) };
   } catch (error) {

@@ -1,12 +1,14 @@
 import 'server-only';
 
+import { readFileSync } from 'node:fs';
 import { recordMetric } from '@/lib/observability/metrics';
-import Redis from 'ioredis';
+import Redis, { type RedisOptions } from 'ioredis';
 
 let redisClient: Redis | null | undefined;
 let redisConnectPromise: Promise<Redis | null> | null = null;
 let redisUnavailableUntil = 0;
 let lastRedisWarningAt = 0;
+let lastRedisError: string | null = null;
 
 const redisRetryPauseMs = Number(process.env.REDIS_RETRY_PAUSE_MS || 30_000);
 
@@ -19,6 +21,9 @@ export function getRedisClient() {
     return redisClient;
   }
 
+  const tls = getRedisTlsOptions();
+  if (tls === null) return null;
+
   redisConnectPromise = null;
   redisClient = new Redis(redisUrl, {
     connectTimeout: 1000,
@@ -26,6 +31,7 @@ export function getRedisClient() {
     lazyConnect: true,
     maxRetriesPerRequest: 1,
     retryStrategy: () => null,
+    ...(tls ? { tls } : null),
   });
 
   redisClient.on('error', (error) => {
@@ -43,6 +49,7 @@ export async function getReadyRedisClient() {
     if (client.status === 'wait' || client.status === 'connecting' || client.status === 'connect') {
       redisConnectPromise ||= client.connect().then(
         () => {
+          lastRedisError = null;
           recordMetric('redis.connection', { event: 'ready' });
           return client;
         },
@@ -65,8 +72,39 @@ export async function getReadyRedisClient() {
   }
 }
 
+export function getRedisDiagnostics() {
+  return {
+    configured: Boolean(process.env.REDIS_URL),
+    clientStatus: redisClient?.status || null,
+    pausedUntil:
+      redisUnavailableUntil > Date.now() ? new Date(redisUnavailableUntil).toISOString() : null,
+    lastError: lastRedisError,
+  };
+}
+
+function getRedisTlsOptions(): RedisOptions['tls'] | undefined | null {
+  const inlineCa = process.env.REDIS_TLS_CA_CERT;
+  const servername = process.env.REDIS_TLS_SERVERNAME;
+  const baseTls = servername ? { servername } : {};
+
+  if (inlineCa) return { ...baseTls, ca: inlineCa.replaceAll('\\n', '\n') };
+
+  const caPath = process.env.REDIS_TLS_CA_CERT_PATH;
+  if (!caPath) return servername ? baseTls : undefined;
+
+  try {
+    return { ...baseTls, ca: readFileSync(caPath, 'utf8') };
+  } catch (error) {
+    markRedisUnavailable(
+      `Failed to read REDIS_TLS_CA_CERT_PATH: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return null;
+  }
+}
+
 function markRedisUnavailable(message: string) {
   redisUnavailableUntil = Date.now() + redisRetryPauseMs;
+  lastRedisError = message;
   recordMetric('redis.connection', { event: 'unavailable' });
 
   if (redisClient) {

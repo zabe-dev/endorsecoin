@@ -18,6 +18,9 @@ These notes explain the optimization work that has been committed during this pa
 
 - `REDIS_URL` — Redis connection string. For your TLS Redis setup this should include the correct username/password if using ACL users.
 - `REDIS_RETRY_PAUSE_MS` — how long the app pauses Redis usage after a Redis connection failure. Default: `30000`.
+- `REDIS_TLS_CA_CERT` — optional CA certificate PEM content for TLS Redis with a self-signed/private CA. Use this in Coolify if the CA file is not mounted into the app container. Escaped `\n` newlines are supported.
+- `REDIS_TLS_CA_CERT_PATH` — optional path to a mounted CA certificate file for TLS Redis. Use this instead of `REDIS_TLS_CA_CERT` when the certificate is available as a file inside the app container.
+- `REDIS_TLS_SERVERNAME` — optional TLS server name override. Use this when `REDIS_URL` points at a private/internal Redis hostname but the Redis certificate was issued for a different hostname or IP.
 - `COIN_INTERACTION_CACHE_SECONDS` — public vote/watchlist summary cache TTL. Default: `30`.
 - `DISCOVERY_CACHE_SECONDS` — homepage/discovery payload cache TTL. Default: `30`.
 - `LEADERBOARD_CACHE_SECONDS` — leaderboard ID selection cache TTL. Default: `30`.
