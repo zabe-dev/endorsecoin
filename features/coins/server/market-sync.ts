@@ -5,7 +5,7 @@ import { db } from '@/lib/db/client';
 import { coins, marketSnapshots, marketSources } from '@/lib/db/schema';
 import { withRedisLock } from '@/lib/cache/redis-lock';
 import { recordMetric, timeAsync } from '@/lib/observability/metrics';
-import { desc, inArray, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 
 type MarketSyncCoin = Pick<
   typeof coins.$inferSelect,
@@ -99,6 +99,7 @@ export async function refreshStaleMarketSnapshots(
   coinRows: MarketSyncCoin[],
   latestSnapshots: Map<number, MarketSnapshotRow>,
   priorityCoinId?: number,
+  limit = defaultSyncLimit,
 ) {
   return timeAsync(
     'server.operation',
@@ -113,7 +114,7 @@ export async function refreshStaleMarketSnapshots(
             if (b.id === priorityCoinId) return 1;
             return 0;
           })
-          .slice(0, defaultSyncLimit);
+          .slice(0, Math.max(1, Math.min(maxSyncLimit, limit)));
 
         if (!staleCoins.length) {
           recordMetric('market.sync', { event: 'nothing_stale', checked: coinRows.length });
@@ -159,13 +160,14 @@ export async function syncMobulaMarketData(limit = defaultSyncLimit) {
       return { checked: 0, updated: 0 };
     }
 
-    const snapshotRows = await db
-      .select()
-      .from(marketSnapshots)
-      .where(inArray(marketSnapshots.coinId, coinIds))
-      .orderBy(desc(marketSnapshots.recordedAt));
+    const snapshotRows = await selectLatestMarketSnapshots(coinIds);
     const latestByCoin = firstByCoinId(snapshotRows);
-    const refreshed = await refreshStaleMarketSnapshots(coinRows, latestByCoin);
+    const refreshed = await refreshStaleMarketSnapshots(
+      coinRows,
+      latestByCoin,
+      undefined,
+      safeLimit,
+    );
 
     recordMetric('market.sync', {
       event: 'complete',
@@ -176,6 +178,35 @@ export async function syncMobulaMarketData(limit = defaultSyncLimit) {
 
     return { checked: coinRows.length, updated: refreshed.size };
   });
+}
+
+async function selectLatestMarketSnapshots(coinIds: number[]) {
+  if (!coinIds.length) return [];
+  const idSql = sql.join(
+    coinIds.map((coinId) => sql`${coinId}`),
+    sql`, `,
+  );
+
+  const rows = await db.execute<MarketSnapshotRow>(sql`
+    select distinct on (${marketSnapshots.coinId})
+      ${marketSnapshots.id},
+      ${marketSnapshots.coinId} as "coinId",
+      ${marketSnapshots.priceUsd} as "priceUsd",
+      ${marketSnapshots.marketCapUsd} as "marketCapUsd",
+      ${marketSnapshots.volume24hUsd} as "volume24hUsd",
+      ${marketSnapshots.change24h} as "change24h",
+      ${marketSnapshots.liquidityUsd} as "liquidityUsd",
+      ${marketSnapshots.fdvUsd} as "fdvUsd",
+      ${marketSnapshots.totalSupply} as "totalSupply",
+      ${marketSnapshots.holdersCount} as "holdersCount",
+      ${marketSnapshots.marketRank} as "marketRank",
+      ${marketSnapshots.recordedAt} as "recordedAt"
+    from ${marketSnapshots}
+    where ${marketSnapshots.coinId} in (${idSql})
+    order by ${marketSnapshots.coinId}, ${marketSnapshots.recordedAt} desc
+  `);
+
+  return Array.from(rows);
 }
 
 async function runDedupeSync(fetcher: () => Promise<Map<number, MarketSnapshotRow>>) {
