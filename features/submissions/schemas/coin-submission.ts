@@ -1,5 +1,10 @@
 import { SUPPORTED_NETWORK_IDS } from '@/features/coins/networks';
 import { providerOptions } from '@/features/submissions/lib/market-options';
+import {
+  isMatchingSocialUrl,
+  socialUrlError,
+  type SocialUrlKind,
+} from '@/features/submissions/lib/social-url-validation';
 import { z } from 'zod';
 
 export const submissionCategories = [
@@ -115,6 +120,13 @@ const linkSchema = z.object({
   whitepaper: optionalUrl,
 });
 
+const socialLinkPaths = [
+  'telegram',
+  'x',
+  'discord',
+  'github',
+] as const satisfies readonly SocialUrlKind[];
+
 const contractSchema = z.object({
   chain: networkSchema.or(z.literal('')),
   address: optionalText,
@@ -211,6 +223,16 @@ export const coinSubmissionSchema = z
         path: ['website'],
       });
     }
+
+    socialLinkPaths.forEach((path) => {
+      if (!isMatchingSocialUrl(value[path], path)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: socialUrlError(path),
+          path: [path],
+        });
+      }
+    });
 
     if (!firstContract?.chain) {
       ctx.addIssue({

@@ -1,3 +1,8 @@
+import {
+  isMatchingSocialUrl,
+  socialUrlError,
+  type SocialUrlKind,
+} from '@/features/submissions/lib/social-url-validation';
 import { z } from 'zod';
 
 const optionalUrl = z
@@ -49,6 +54,15 @@ const socialLinksSchema = z.object({
   facebook: optionalUrl,
 });
 
+const socialLinkPaths = [
+  'telegram',
+  'x',
+  'reddit',
+  'discord',
+  'youtube',
+  'facebook',
+] as const satisfies readonly SocialUrlKind[];
+
 export const airdropSubmissionSchema = z
   .object({
     name: plainText(4, 80, 'Airdrop name must be 4–80 characters.'),
@@ -78,6 +92,16 @@ export const airdropSubmissionSchema = z
         path: ['agreedToTerms'],
       });
     }
+
+    socialLinkPaths.forEach((path) => {
+      if (!isMatchingSocialUrl(value.socialLinks[path], path)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: socialUrlError(path),
+          path: ['socialLinks', path],
+        });
+      }
+    });
 
     const startsAt = toUtcDate(value.startDate, value.startTime);
     const endsAt = toUtcDate(value.endDate, value.endTime);

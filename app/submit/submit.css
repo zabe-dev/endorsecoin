@@ -1868,7 +1868,7 @@
 
 .submission-airdrop-schedule-row {
   display: grid;
-  grid-template-columns: minmax(0, 5fr) minmax(112px, 1fr) minmax(0, 5fr) minmax(112px, 1fr);
+  grid-template-columns: minmax(0, 1.4fr) minmax(136px, 0.9fr) minmax(0, 1.4fr) minmax(136px, 0.9fr);
   gap: 12px;
   align-items: start;
 }
