@@ -56,6 +56,13 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 
+export type AdminTablePagination = {
+  page: number;
+  pageSize: number;
+  total: number;
+  pages: number;
+};
+
 export type AdminSummary = {
   users: number;
   coins: number;
@@ -176,6 +183,7 @@ type AdminDashboardClientProps = {
   bannerAds: AdminBannerRow[];
   users: AdminUserRow[];
   initialTab?: string;
+  pagination?: AdminTablePagination | null;
 };
 
 type PopoverController = {
@@ -227,6 +235,7 @@ export function AdminDashboardClient({
   bannerAds,
   users,
   initialTab,
+  pagination,
 }: AdminDashboardClientProps) {
   const [activePopoverId, setActivePopoverId] = useState<string | null>(null);
   const safeInitialTab: AdminTab = isAdminTab(initialTab || null)
@@ -238,6 +247,18 @@ export function AdminDashboardClient({
   const popover = { activePopoverId, setActivePopoverId };
   const counts = tabCounts(summary);
 
+  function goToAdminPage(nextPage: number) {
+    if (isTabPending) return;
+    const params = new URLSearchParams(window.location.search);
+    if (activeTab === 'overview') params.delete('tab');
+    else params.set('tab', activeTab);
+    if (nextPage <= 1) params.delete('page');
+    else params.set('page', String(nextPage));
+    const query = params.toString();
+    const href = query ? `${window.location.pathname}?${query}` : window.location.pathname;
+    startTabTransition(() => router.replace(href, { scroll: false }));
+  }
+
   function switchTab(nextTab: AdminTab) {
     setActivePopoverId(null);
     const params = new URLSearchParams(window.location.search);
@@ -246,6 +267,7 @@ export function AdminDashboardClient({
     } else {
       params.set('tab', nextTab);
     }
+    params.delete('page');
     const query = params.toString();
     const href = query ? `${window.location.pathname}?${query}` : window.location.pathname;
     startTabTransition(() => router.replace(href, { scroll: false }));
@@ -284,16 +306,65 @@ export function AdminDashboardClient({
             title="Pending submissions"
             note="Projects waiting for approval. They become public only after admin review."
             searchPlaceholder="Search project, symbol, or chain"
+            pagination={pagination}
+            isPending={isTabPending}
+            onPageChange={goToAdminPage}
           />
         )}
         {activeTab === 'airdrops' && (
-          <PendingAirdropsTable rows={pendingAirdropSubmissions} popover={popover} />
+          <PendingAirdropsTable
+            rows={pendingAirdropSubmissions}
+            popover={popover}
+            pagination={pagination}
+            isPending={isTabPending}
+            onPageChange={goToAdminPage}
+          />
         )}
-        {activeTab === 'coins' && <ListedCoinsTable rows={listedCoins} popover={popover} />}
-        {activeTab === 'promotions' && <PromotionsTable rows={listedCoins} popover={popover} />}
-        {activeTab === 'banners' && <BannerAdsTable rows={bannerAds} popover={popover} />}
-        {activeTab === 'users' && <UsersTable rows={users} popover={popover} />}
-        {activeTab === 'reports' && <ChangeRequestsTable rows={changeRequests} popover={popover} />}
+        {activeTab === 'coins' && (
+          <ListedCoinsTable
+            rows={listedCoins}
+            popover={popover}
+            pagination={pagination}
+            isPending={isTabPending}
+            onPageChange={goToAdminPage}
+          />
+        )}
+        {activeTab === 'promotions' && (
+          <PromotionsTable
+            rows={listedCoins}
+            popover={popover}
+            pagination={pagination}
+            isPending={isTabPending}
+            onPageChange={goToAdminPage}
+          />
+        )}
+        {activeTab === 'banners' && (
+          <BannerAdsTable
+            rows={bannerAds}
+            popover={popover}
+            pagination={pagination}
+            isPending={isTabPending}
+            onPageChange={goToAdminPage}
+          />
+        )}
+        {activeTab === 'users' && (
+          <UsersTable
+            rows={users}
+            popover={popover}
+            pagination={pagination}
+            isPending={isTabPending}
+            onPageChange={goToAdminPage}
+          />
+        )}
+        {activeTab === 'reports' && (
+          <ChangeRequestsTable
+            rows={changeRequests}
+            popover={popover}
+            pagination={pagination}
+            isPending={isTabPending}
+            onPageChange={goToAdminPage}
+          />
+        )}
       </div>
     </div>
   );
@@ -397,9 +468,15 @@ function OverviewQueueCard({
 function ChangeRequestsTable({
   rows,
   popover,
+  pagination,
+  isPending,
+  onPageChange,
 }: {
   rows: AdminChangeRequestRow[];
   popover: PopoverController;
+  pagination?: AdminTablePagination | null;
+  isPending?: boolean;
+  onPageChange?: (page: number) => void;
 }) {
   const [reportRow, setReportRow] = useState<AdminChangeRequestRow | null>(null);
 
@@ -421,6 +498,9 @@ function ChangeRequestsTable({
           row.status,
         ]}
         empty={emptyTableMessage}
+        pagination={pagination}
+        isPending={isPending}
+        onPageChange={onPageChange}
         renderTable={(visibleRows) => (
           <table className="admin-table admin-reports-table">
             <thead>
@@ -581,12 +661,18 @@ function PendingSubmissionsTable({
   title,
   note,
   searchPlaceholder,
+  pagination,
+  isPending,
+  onPageChange,
 }: {
   rows: AdminSubmissionRow[];
   popover: PopoverController;
   title: string;
   note: string;
   searchPlaceholder: string;
+  pagination?: AdminTablePagination | null;
+  isPending?: boolean;
+  onPageChange?: (page: number) => void;
 }) {
   const [detailRow, setDetailRow] = useState<AdminSubmissionRow | null>(null);
 
@@ -601,6 +687,9 @@ function PendingSubmissionsTable({
         searchPlaceholder={searchPlaceholder}
         search={(row) => [row.name, row.symbol, row.chain, row.contactEmail, row.contactTelegram]}
         empty={emptyTableMessage}
+        pagination={pagination}
+        isPending={isPending}
+        onPageChange={onPageChange}
         renderTable={(visibleRows) => (
           <table className="admin-table">
             <thead>
@@ -699,9 +788,15 @@ function PendingSubmissionsTable({
 function PendingAirdropsTable({
   rows,
   popover,
+  pagination,
+  isPending,
+  onPageChange,
 }: {
   rows: AdminSubmissionRow[];
   popover: PopoverController;
+  pagination?: AdminTablePagination | null;
+  isPending?: boolean;
+  onPageChange?: (page: number) => void;
 }) {
   const [detailRow, setDetailRow] = useState<AdminSubmissionRow | null>(null);
 
@@ -716,6 +811,9 @@ function PendingAirdropsTable({
         searchPlaceholder="Search airdrop, project, or contact"
         search={(row) => [row.name, row.symbol, row.chain, row.contactEmail, row.contactTelegram]}
         empty={emptyTableMessage}
+        pagination={pagination}
+        isPending={isPending}
+        onPageChange={onPageChange}
         renderTable={(visibleRows) => (
           <table className="admin-table admin-airdrops-table">
             <thead>
@@ -807,7 +905,19 @@ function PendingAirdropsTable({
   );
 }
 
-function ListedCoinsTable({ rows, popover }: { rows: AdminCoinRow[]; popover: PopoverController }) {
+function ListedCoinsTable({
+  rows,
+  popover,
+  pagination,
+  isPending,
+  onPageChange,
+}: {
+  rows: AdminCoinRow[];
+  popover: PopoverController;
+  pagination?: AdminTablePagination | null;
+  isPending?: boolean;
+  onPageChange?: (page: number) => void;
+}) {
   return (
     <AdminPanel
       eyebrow="Public listings"
@@ -818,6 +928,9 @@ function ListedCoinsTable({ rows, popover }: { rows: AdminCoinRow[]; popover: Po
       searchPlaceholder="Search coin, symbol, or chain"
       search={(row) => [row.name, row.symbol, row.chain, row.contactEmail, row.contactTelegram]}
       empty={emptyTableMessage}
+      pagination={pagination}
+      isPending={isPending}
+      onPageChange={onPageChange}
       renderTable={(visibleRows) => (
         <table className="admin-table">
           <thead>
@@ -917,7 +1030,19 @@ function ListedCoinsTable({ rows, popover }: { rows: AdminCoinRow[]; popover: Po
   );
 }
 
-function PromotionsTable({ rows, popover }: { rows: AdminCoinRow[]; popover: PopoverController }) {
+function PromotionsTable({
+  rows,
+  popover,
+  pagination,
+  isPending,
+  onPageChange,
+}: {
+  rows: AdminCoinRow[];
+  popover: PopoverController;
+  pagination?: AdminTablePagination | null;
+  isPending?: boolean;
+  onPageChange?: (page: number) => void;
+}) {
   return (
     <AdminPanel
       eyebrow="Visibility"
@@ -928,6 +1053,9 @@ function PromotionsTable({ rows, popover }: { rows: AdminCoinRow[]; popover: Pop
       searchPlaceholder="Search coin, symbol, or chain"
       search={(row) => [row.name, row.symbol, row.chain, row.category]}
       empty={emptyTableMessage}
+      pagination={pagination}
+      isPending={isPending}
+      onPageChange={onPageChange}
       renderTable={(visibleRows) => (
         <table className="admin-table admin-promotions-table">
           <thead>
@@ -1017,7 +1145,19 @@ function PromotionsTable({ rows, popover }: { rows: AdminCoinRow[]; popover: Pop
   );
 }
 
-function BannerAdsTable({ rows, popover }: { rows: AdminBannerRow[]; popover: PopoverController }) {
+function BannerAdsTable({
+  rows,
+  popover,
+  pagination,
+  isPending,
+  onPageChange,
+}: {
+  rows: AdminBannerRow[];
+  popover: PopoverController;
+  pagination?: AdminTablePagination | null;
+  isPending?: boolean;
+  onPageChange?: (page: number) => void;
+}) {
   return (
     <AdminPanel
       eyebrow="Banner inventory"
@@ -1029,6 +1169,9 @@ function BannerAdsTable({ rows, popover }: { rows: AdminBannerRow[]; popover: Po
       search={(row) => [row.placement, row.placementLabel, row.targetUrl, row.status]}
       empty={emptyTableMessage}
       action={<BannerEditAction popover={popover} />}
+      pagination={pagination}
+      isPending={isPending}
+      onPageChange={onPageChange}
       renderTable={(visibleRows) => (
         <table className="admin-table banner-admin-table">
           <thead>
@@ -1099,7 +1242,19 @@ function BannerAdsTable({ rows, popover }: { rows: AdminBannerRow[]; popover: Po
   );
 }
 
-function UsersTable({ rows, popover }: { rows: AdminUserRow[]; popover: PopoverController }) {
+function UsersTable({
+  rows,
+  popover,
+  pagination,
+  isPending,
+  onPageChange,
+}: {
+  rows: AdminUserRow[];
+  popover: PopoverController;
+  pagination?: AdminTablePagination | null;
+  isPending?: boolean;
+  onPageChange?: (page: number) => void;
+}) {
   return (
     <AdminPanel
       eyebrow="Accounts"
@@ -1110,6 +1265,9 @@ function UsersTable({ rows, popover }: { rows: AdminUserRow[]; popover: PopoverC
       searchPlaceholder="Search name or email"
       search={(row) => [row.name, row.email, row.role, row.status, row.lastIp]}
       empty={emptyTableMessage}
+      pagination={pagination}
+      isPending={isPending}
+      onPageChange={onPageChange}
       renderTable={(visibleRows) => (
         <table className="admin-table">
           <thead>
@@ -1205,6 +1363,9 @@ function AdminPanel<T>({
   search,
   empty,
   action,
+  pagination,
+  isPending = false,
+  onPageChange,
   renderTable,
 }: {
   eyebrow: string;
@@ -1216,6 +1377,9 @@ function AdminPanel<T>({
   search: (row: T) => string[];
   empty: string;
   action?: ReactNode;
+  pagination?: AdminTablePagination | null;
+  isPending?: boolean;
+  onPageChange?: (page: number) => void;
   renderTable: (rows: T[]) => ReactNode;
 }) {
   const [query, setQuery] = useState('');
@@ -1230,10 +1394,26 @@ function AdminPanel<T>({
         : rows,
     [normalizedQuery, rows, search],
   );
-  const pageCount = Math.max(1, Math.ceil(filteredRows.length / pageSize));
-  const safePage = Math.min(page, pageCount - 1);
-  const visibleRows = filteredRows.slice(safePage * pageSize, safePage * pageSize + pageSize);
+  const usesServerPagination = Boolean(pagination && !normalizedQuery);
+  const pageCount = usesServerPagination
+    ? Math.max(1, pagination?.pages || 1)
+    : Math.max(1, Math.ceil(filteredRows.length / pageSize));
+  const safePage = usesServerPagination
+    ? Math.max(0, Math.min((pagination?.page || 1) - 1, pageCount - 1))
+    : Math.min(page, pageCount - 1);
+  const visibleRows = usesServerPagination
+    ? filteredRows
+    : filteredRows.slice(safePage * pageSize, safePage * pageSize + pageSize);
+  const totalResults = usesServerPagination ? pagination?.total || 0 : filteredRows.length;
   const pageItems = getPaginationItems({ count: pageCount, page: safePage + 1 });
+
+  function selectPage(nextPage: number) {
+    if (usesServerPagination && onPageChange) {
+      onPageChange(nextPage);
+      return;
+    }
+    setPage(nextPage - 1);
+  }
 
   return (
     <section className="admin-panel">
@@ -1261,7 +1441,7 @@ function AdminPanel<T>({
           />
         </label>
         <span>
-          {filteredRows.length} result{filteredRows.length === 1 ? '' : 's'}
+          {totalResults} result{totalResults === 1 ? '' : 's'}
         </span>
       </div>
       <div className="admin-table-wrap">
@@ -1278,7 +1458,11 @@ function AdminPanel<T>({
           Page {safePage + 1} of {pageCount}
         </span>
         <div>
-          <button type="button" disabled={safePage === 0} onClick={() => setPage(safePage - 1)}>
+          <button
+            type="button"
+            disabled={isPending || safePage === 0}
+            onClick={() => selectPage(safePage)}
+          >
             Previous
           </button>
           {pageItems.map((item) =>
@@ -1287,7 +1471,8 @@ function AdminPanel<T>({
                 key={item}
                 className={safePage + 1 === item ? 'active' : ''}
                 type="button"
-                onClick={() => setPage(item - 1)}
+                disabled={isPending}
+                onClick={() => selectPage(item)}
               >
                 {item}
               </button>
@@ -1299,8 +1484,8 @@ function AdminPanel<T>({
           )}
           <button
             type="button"
-            disabled={safePage >= pageCount - 1}
-            onClick={() => setPage(safePage + 1)}
+            disabled={isPending || safePage >= pageCount - 1}
+            onClick={() => selectPage(safePage + 2)}
           >
             Next
           </button>

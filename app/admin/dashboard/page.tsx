@@ -55,7 +55,17 @@ type AdminTabData = {
   listedCoins: AdminCoinRow[];
   bannerAds: AdminBannerRow[];
   users: AdminUserRow[];
+  pagination: AdminTablePagination | null;
 };
+
+type AdminTablePagination = {
+  page: number;
+  pageSize: number;
+  total: number;
+  pages: number;
+};
+
+const adminPageSize = 10;
 
 const emptyAdminTabData = (): AdminTabData => ({
   pendingSubmissions: [],
@@ -64,12 +74,13 @@ const emptyAdminTabData = (): AdminTabData => ({
   listedCoins: [],
   bannerAds: [],
   users: [],
+  pagination: null,
 });
 
 export default async function AdminDashboardPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ tab?: string }>;
+  searchParams?: Promise<{ tab?: string; page?: string }>;
 }) {
   const resolvedSearchParams = await searchParams;
   const session = await getCurrentSession();
@@ -77,11 +88,12 @@ export default async function AdminDashboardPage({
   if (!hasAdminAccess(session.user.role)) notFound();
 
   const activeTab = resolveAdminTab(resolvedSearchParams?.tab);
+  const requestedPage = normalizePositiveInteger(resolvedSearchParams?.page, 1);
   const now = new Date();
   const nowIso = now.toISOString();
   const [summary, data] = await Promise.all([
     getAdminSummary(nowIso),
-    getAdminTabData(activeTab, now, nowIso),
+    getAdminTabData(activeTab, now, nowIso, requestedPage),
   ]);
 
   return (
@@ -102,6 +114,7 @@ export default async function AdminDashboardPage({
           bannerAds={data.bannerAds}
           users={data.users}
           initialTab={activeTab}
+          pagination={data.pagination}
         />
       </section>
       <SiteFooter />
@@ -204,30 +217,35 @@ async function getAdminSummary(nowIso: string): Promise<AdminSummary> {
   };
 }
 
-async function getAdminTabData(tab: AdminTab, now: Date, nowIso: string): Promise<AdminTabData> {
+async function getAdminTabData(
+  tab: AdminTab,
+  now: Date,
+  nowIso: string,
+  requestedPage: number,
+): Promise<AdminTabData> {
   const data = emptyAdminTabData();
 
   switch (tab) {
     case 'submissions':
-      data.pendingSubmissions = await getPendingCoinSubmissions();
+      Object.assign(data, await getPendingCoinSubmissions(requestedPage));
       break;
     case 'airdrops':
-      data.pendingAirdropSubmissions = await getPendingAirdropSubmissions();
+      Object.assign(data, await getPendingAirdropSubmissions(requestedPage));
       break;
     case 'coins':
-      data.listedCoins = await getListedCoins(now, nowIso);
+      Object.assign(data, await getListedCoins(now, nowIso, requestedPage));
       break;
     case 'promotions':
-      data.listedCoins = await getPromotedAdminCoins(now, nowIso);
+      Object.assign(data, await getPromotedAdminCoins(now, nowIso, requestedPage));
       break;
     case 'banners':
-      data.bannerAds = await getAdminBannerRows(now);
+      Object.assign(data, await getAdminBannerRows(now, requestedPage));
       break;
     case 'users':
-      data.users = await getAdminUsers();
+      Object.assign(data, await getAdminUsers(requestedPage));
       break;
     case 'reports':
-      data.changeRequests = await getAdminChangeRequests();
+      Object.assign(data, await getAdminChangeRequests(requestedPage));
       break;
     case 'overview':
       break;
@@ -236,7 +254,9 @@ async function getAdminTabData(tab: AdminTab, now: Date, nowIso: string): Promis
   return data;
 }
 
-async function getPendingCoinSubmissions(): Promise<AdminSubmissionRow[]> {
+async function getPendingCoinSubmissions(requestedPage: number): Promise<Partial<AdminTabData>> {
+  const total = await countPendingCoinSubmissions();
+  const pagination = buildPagination(total, requestedPage);
   const submissionRows = await db
     .select()
     .from(coinSubmissions)
@@ -244,12 +264,13 @@ async function getPendingCoinSubmissions(): Promise<AdminSubmissionRow[]> {
       and(eq(coinSubmissions.submissionType, 'new-coin'), eq(coinSubmissions.status, 'pending')),
     )
     .orderBy(desc(coinSubmissions.createdAt))
-    .limit(500);
+    .limit(pagination.pageSize)
+    .offset((pagination.page - 1) * pagination.pageSize);
   const userById = await getUsersByIds(
     submissionRows.map((submission) => submission.submittedByUserId).filter(isString),
   );
 
-  return submissionRows.map((submission) => {
+  const pendingSubmissions: AdminSubmissionRow[] = submissionRows.map((submission) => {
     const data = readSubmissionData(submission.coinData);
     const submitter = submission.submittedByUserId
       ? userById.get(submission.submittedByUserId)
@@ -272,16 +293,21 @@ async function getPendingCoinSubmissions(): Promise<AdminSubmissionRow[]> {
       rawData: JSON.stringify(submission.coinData, null, 2),
     };
   });
+
+  return { pendingSubmissions, pagination };
 }
 
-async function getPendingAirdropSubmissions(): Promise<AdminSubmissionRow[]> {
+async function getPendingAirdropSubmissions(requestedPage: number): Promise<Partial<AdminTabData>> {
+  const total = await countPendingAirdropSubmissions();
+  const pagination = buildPagination(total, requestedPage);
   const rows = await db
     .select({ submission: airdropSubmissions, coin: coins })
     .from(airdropSubmissions)
     .innerJoin(coins, eq(airdropSubmissions.coinId, coins.id))
     .where(eq(airdropSubmissions.status, 'pending'))
     .orderBy(desc(airdropSubmissions.createdAt))
-    .limit(500)
+    .limit(pagination.pageSize)
+    .offset((pagination.page - 1) * pagination.pageSize)
     .catch((error) => {
       if (isMissingRelationError(error, 'airdrop_submissions')) {
         console.warn(
@@ -296,7 +322,7 @@ async function getPendingAirdropSubmissions(): Promise<AdminSubmissionRow[]> {
     rows.map(({ submission }) => submission.submittedByUserId).filter(isString),
   );
 
-  return rows.map(({ submission, coin }) => {
+  const pendingAirdropSubmissions: AdminSubmissionRow[] = rows.map(({ submission, coin }) => {
     const submitter = submission.submittedByUserId
       ? userById.get(submission.submittedByUserId)
       : null;
@@ -318,14 +344,31 @@ async function getPendingAirdropSubmissions(): Promise<AdminSubmissionRow[]> {
       rawData: JSON.stringify(submission, null, 2),
     };
   });
+
+  return { pendingAirdropSubmissions, pagination };
 }
 
-async function getListedCoins(now: Date, nowIso: string): Promise<AdminCoinRow[]> {
-  const coinRows = await db.select().from(coins).orderBy(desc(coins.submittedAt)).limit(200);
-  return hydrateAdminCoins(coinRows, now, nowIso);
+async function getListedCoins(
+  now: Date,
+  nowIso: string,
+  requestedPage: number,
+): Promise<Partial<AdminTabData>> {
+  const total = await countTableRows(coins);
+  const pagination = buildPagination(total, requestedPage);
+  const coinRows = await db
+    .select()
+    .from(coins)
+    .orderBy(desc(coins.submittedAt))
+    .limit(pagination.pageSize)
+    .offset((pagination.page - 1) * pagination.pageSize);
+  return { listedCoins: await hydrateAdminCoins(coinRows, now, nowIso), pagination };
 }
 
-async function getPromotedAdminCoins(now: Date, nowIso: string): Promise<AdminCoinRow[]> {
+async function getPromotedAdminCoins(
+  now: Date,
+  nowIso: string,
+  requestedPage: number,
+): Promise<Partial<AdminTabData>> {
   const [activeBoostRows, activePromotionRows] = await Promise.all([
     readActiveBoosts(nowIso),
     readActivePromotions(nowIso),
@@ -334,7 +377,12 @@ async function getPromotedAdminCoins(now: Date, nowIso: string): Promise<AdminCo
     ...activeBoostRows.map((boost) => boost.coinId),
     ...activePromotionRows.map((promotion) => promotion.coinId),
   ]);
-  const coinRows = await getCoinsByIds(coinIds);
+  const pagination = buildPagination(coinIds.length, requestedPage);
+  const pagedCoinIds = coinIds.slice(
+    (pagination.page - 1) * pagination.pageSize,
+    pagination.page * pagination.pageSize,
+  );
+  const coinRows = await getCoinsByIds(pagedCoinIds);
   const promotedRows = await hydrateAdminCoins(
     coinRows,
     now,
@@ -343,11 +391,13 @@ async function getPromotedAdminCoins(now: Date, nowIso: string): Promise<AdminCo
     activePromotionRows,
   );
 
-  return promotedRows.sort((a, b) => {
+  const listedCoins = promotedRows.sort((a, b) => {
     const aDate = a.promotion?.expiresAt || a.boost?.expiresAt || '';
     const bDate = b.promotion?.expiresAt || b.boost?.expiresAt || '';
     return aDate.localeCompare(bDate);
   });
+
+  return { listedCoins, pagination };
 }
 
 async function hydrateAdminCoins(
@@ -425,12 +475,18 @@ async function hydrateAdminCoins(
   });
 }
 
-async function getAdminBannerRows(now: Date): Promise<AdminBannerRow[]> {
+async function getAdminBannerRows(
+  now: Date,
+  requestedPage: number,
+): Promise<Partial<AdminTabData>> {
+  const total = await countTableRows(bannerAds).catch(() => 0);
+  const pagination = buildPagination(total, requestedPage);
   const bannerRows = await db
     .select()
     .from(bannerAds)
     .orderBy(desc(bannerAds.updatedAt))
-    .limit(200)
+    .limit(pagination.pageSize)
+    .offset((pagination.page - 1) * pagination.pageSize)
     .catch((error) => {
       console.warn(
         '[admin] Banner ad rows unavailable:',
@@ -439,7 +495,7 @@ async function getAdminBannerRows(now: Date): Promise<AdminBannerRow[]> {
       return [];
     });
 
-  return bannerRows.map((banner) => ({
+  const adminBannerAds = bannerRows.map((banner) => ({
     ...(() => {
       const placement = normalizeBannerPlacement(banner.placement) || 'premium';
       const status = getBannerStatus(banner.startsAt, banner.expiresAt, now);
@@ -463,10 +519,19 @@ async function getAdminBannerRows(now: Date): Promise<AdminBannerRow[]> {
     schedule: formatBannerSchedule(banner.startsAt, banner.expiresAt, now),
     notes: banner.notes || '',
   }));
+
+  return { bannerAds: adminBannerAds, pagination };
 }
 
-async function getAdminUsers(): Promise<AdminUserRow[]> {
-  const userRows = await db.select().from(users).orderBy(desc(users.createdAt)).limit(200);
+async function getAdminUsers(requestedPage: number): Promise<Partial<AdminTabData>> {
+  const total = await countTableRows(users);
+  const pagination = buildPagination(total, requestedPage);
+  const userRows = await db
+    .select()
+    .from(users)
+    .orderBy(desc(users.createdAt))
+    .limit(pagination.pageSize)
+    .offset((pagination.page - 1) * pagination.pageSize);
   const userIds = userRows.map((user) => user.id);
   const [sessionRows, submittedCountRows] = await Promise.all([
     userIds.length
@@ -495,7 +560,7 @@ async function getAdminUsers(): Promise<AdminUserRow[]> {
     submittedCountsByUser.set(row.userId, Number(row.count || 0));
   });
 
-  return userRows.map((user) => {
+  const adminUsers = userRows.map((user) => {
     const latestSession = latestSessionByUser.get(user.id);
 
     return {
@@ -512,17 +577,22 @@ async function getAdminUsers(): Promise<AdminUserRow[]> {
       lastIp: latestSession?.ipAddress || '—',
     };
   });
+
+  return { users: adminUsers, pagination };
 }
 
-async function getAdminChangeRequests(): Promise<AdminChangeRequestRow[]> {
+async function getAdminChangeRequests(requestedPage: number): Promise<Partial<AdminTabData>> {
+  const total = await countTableRows(changeRequests);
+  const pagination = buildPagination(total, requestedPage);
   const changeRequestRows = await db
     .select()
     .from(changeRequests)
     .orderBy(desc(changeRequests.createdAt))
-    .limit(200);
+    .limit(pagination.pageSize)
+    .offset((pagination.page - 1) * pagination.pageSize);
   const coinById = await getCoinMapByIds(changeRequestRows.map((request) => request.coinId));
 
-  return changeRequestRows.map((request) => {
+  const adminChangeRequests = changeRequestRows.map((request) => {
     const coin = coinById.get(request.coinId);
     return {
       id: request.id,
@@ -537,6 +607,47 @@ async function getAdminChangeRequests(): Promise<AdminChangeRequestRow[]> {
       submittedAt: formatDateTime(request.createdAt),
     };
   });
+
+  return { changeRequests: adminChangeRequests, pagination };
+}
+
+async function countPendingCoinSubmissions() {
+  const rows = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(coinSubmissions)
+    .where(
+      and(eq(coinSubmissions.submissionType, 'new-coin'), eq(coinSubmissions.status, 'pending')),
+    );
+  return readCount(rows);
+}
+
+async function countPendingAirdropSubmissions() {
+  const rows = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(airdropSubmissions)
+    .where(eq(airdropSubmissions.status, 'pending'))
+    .catch((error) => {
+      if (isMissingRelationError(error, 'airdrop_submissions')) return [{ count: 0 }];
+      throw error;
+    });
+  return readCount(rows);
+}
+
+async function countTableRows<TTable>(table: TTable) {
+  const rows = await db.select({ count: sql<number>`count(*)::int` }).from(table as never);
+  return readCount(rows);
+}
+
+function buildPagination(total: number, requestedPage: number): AdminTablePagination {
+  const pages = Math.max(1, Math.ceil(total / adminPageSize));
+  const page = Math.min(Math.max(1, requestedPage), pages);
+  return { page, pageSize: adminPageSize, total, pages };
+}
+
+function normalizePositiveInteger(value: string | number | null | undefined, fallback: number) {
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < 1) return fallback;
+  return parsed;
 }
 
 async function readActiveBoosts(nowIso: string, coinIds?: number[]) {
