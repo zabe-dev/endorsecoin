@@ -3,6 +3,7 @@ import { apiError, apiSuccess } from '@/lib/api/responses';
 import { rateLimitError } from '@/lib/api/rate-limit-response';
 import { auth } from '@/lib/auth/server';
 import { db } from '@/lib/db/client';
+import { isMissingRelationError } from '@/lib/db/errors';
 import { airdropSubmissions, coins } from '@/lib/db/schema';
 import { getClientIp } from '@/lib/http/client-ip';
 import { buildRequestSubject, consumeRateLimit, oneHourMs } from '@/lib/security/rate-limit';
@@ -88,7 +89,7 @@ export async function POST(request: Request) {
 
     return apiSuccess({ id: submission.id }, 'Airdrop submitted for review.');
   } catch (error) {
-    if (isMissingAirdropSubmissionsTable(error)) {
+    if (isMissingRelationError(error, 'airdrop_submissions')) {
       return apiError(
         'AIRDROP_SUBMISSIONS_UNAVAILABLE',
         'Airdrop submissions are not ready yet. Run the latest database migrations, then try again.',
@@ -146,16 +147,4 @@ async function verifyTurnstile(token: string, requestHeaders: Headers) {
   } catch {
     return { ok: false, error: 'Could not verify this submission. Please try again.' };
   }
-}
-
-function isMissingAirdropSubmissionsTable(error: unknown) {
-  if (!error || typeof error !== 'object') return false;
-  const candidate = error as { code?: string; message?: string; cause?: unknown };
-  if (candidate.code === '42P01') return true;
-  if (candidate.message?.includes('airdrop_submissions')) return true;
-
-  const cause = candidate.cause;
-  if (!cause || typeof cause !== 'object') return false;
-  const nested = cause as { code?: string; message?: string };
-  return nested.code === '42P01' || Boolean(nested.message?.includes('airdrop_submissions'));
 }

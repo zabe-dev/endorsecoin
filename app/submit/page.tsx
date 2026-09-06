@@ -1,6 +1,5 @@
 import { SiteHeader } from '@/components/layout/site-header';
 import { SiteFooter } from '@/components/layout/site-footer';
-import { getApprovedProjectOptions } from '@/features/airdrops/server/approved-projects';
 import { SubmissionTypeSwitcher } from '@/features/submissions/components/submission-type-switcher';
 import { getCurrentSession } from '@/lib/auth/session';
 import type { Metadata } from 'next';
@@ -26,16 +25,11 @@ export default async function SubmitCoinPage() {
 
   if (!session) redirect('/');
 
-  const approvedProjects = await getApprovedProjectOptions();
-
   return (
     <main className="market-page submit-page">
       <SiteHeader active="none" initialSession={session} />
       <div className="container submission-shell">
-        <SubmissionTypeSwitcher
-          userEmail={session.user.email || ''}
-          approvedProjects={approvedProjects}
-        />
+        <SubmissionTypeSwitcher userEmail={session.user.email || ''} />
       </div>
       <SiteFooter />
     </main>

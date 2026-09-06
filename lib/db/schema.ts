@@ -10,7 +10,9 @@ import {
   timestamp,
   uniqueIndex,
   uuid,
+  check,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 
 const timestamps = {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
@@ -48,6 +50,14 @@ export const coins = pgTable(
     index('coins_status_category_idx').on(table.listingStatus, table.category),
     index('coins_status_chain_idx').on(table.listingStatus, table.chain),
     index('coins_status_name_idx').on(table.listingStatus, table.name),
+    index('coins_status_normalized_name_idx').on(
+      table.listingStatus,
+      sql`lower(regexp_replace(trim(${table.name}), '[[:space:]]+', ' ', 'g'))`,
+    ),
+    index('coins_status_normalized_symbol_idx').on(
+      table.listingStatus,
+      sql`lower(regexp_replace(trim(${table.symbol}), '[[:space:]]+', ' ', 'g'))`,
+    ),
   ],
 );
 
@@ -165,7 +175,13 @@ export const marketSnapshots = pgTable(
     marketRank: integer('market_rank'),
     recordedAt: timestamp('recorded_at', { withTimezone: true }).defaultNow().notNull(),
   },
-  (table) => [index('market_snapshots_coin_recorded_idx').on(table.coinId, table.recordedAt)],
+  (table) => [
+    index('market_snapshots_coin_recorded_idx').on(table.coinId, table.recordedAt),
+    index('market_snapshots_coin_recorded_lookup_idx').on(
+      table.coinId,
+      sql`${table.recordedAt} desc`,
+    ),
+  ],
 );
 
 export const coinLinks = pgTable(
@@ -340,6 +356,8 @@ export const airdropSubmissions = pgTable(
     index('airdrop_submissions_coin_status_idx').on(table.coinId, table.status),
     index('airdrop_submissions_schedule_idx').on(table.startsAt, table.endsAt),
     index('airdrop_submissions_user_idx').on(table.submittedByUserId),
+    check('airdrop_submissions_winners_count_check', sql`${table.winnersCount} > 0`),
+    check('airdrop_submissions_date_order_check', sql`${table.endsAt} > ${table.startsAt}`),
   ],
 );
 

@@ -120,6 +120,13 @@
       "when": 1788753600000,
       "tag": "0016_airdrop_query_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1788757200000,
+      "tag": "0017_stage_one_reliability",
+      "breakpoints": true
     }
   ]
 }

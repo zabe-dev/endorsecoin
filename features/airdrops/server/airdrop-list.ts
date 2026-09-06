@@ -4,6 +4,7 @@ import type { AirdropSocialLinks, PublicAirdropRow } from '@/features/airdrops/t
 import { getCacheVersion } from '@/lib/cache/cache-version';
 import { rememberJson } from '@/lib/cache/json-cache';
 import { db } from '@/lib/db/client';
+import { isMissingRelationError } from '@/lib/db/errors';
 import { airdropSubmissions, coins } from '@/lib/db/schema';
 import { and, asc, eq, sql } from 'drizzle-orm';
 
@@ -27,7 +28,11 @@ export type PublicAirdropPage = {
 export async function getPublicAirdropPage(
   options: PublicAirdropPageOptions = {},
 ): Promise<PublicAirdropPage> {
-  const pageSize = normalizePositiveInteger(options.pageSize, defaultAirdropPageSize, maxAirdropPageSize);
+  const pageSize = normalizePositiveInteger(
+    options.pageSize,
+    defaultAirdropPageSize,
+    maxAirdropPageSize,
+  );
   const requestedPage = normalizePositiveInteger(options.page, 1, Number.MAX_SAFE_INTEGER);
 
   const [airdropVersion, coinVersion] = await Promise.all([
@@ -126,7 +131,7 @@ async function readPublicAirdropPage(
       })),
     };
   } catch (error) {
-    if (isMissingAirdropSubmissionsTable(error)) {
+    if (isMissingRelationError(error, 'airdrop_submissions')) {
       console.warn(
         '[airdrops] airdrop_submissions table is unavailable. Run migrations to enable airdrops.',
       );
@@ -145,18 +150,6 @@ function normalizePositiveInteger(
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed < 1) return fallback;
   return Math.min(parsed, max);
-}
-
-function isMissingAirdropSubmissionsTable(error: unknown) {
-  if (!error || typeof error !== 'object') return false;
-  const candidate = error as { code?: string; message?: string; cause?: unknown };
-  if (candidate.code === '42P01') return true;
-  if (candidate.message?.includes('airdrop_submissions')) return true;
-
-  const cause = candidate.cause;
-  if (!cause || typeof cause !== 'object') return false;
-  const nested = cause as { code?: string; message?: string };
-  return nested.code === '42P01' || Boolean(nested.message?.includes('airdrop_submissions'));
 }
 
 function normalizeAirdropSocialLinks(value: unknown): AirdropSocialLinks {

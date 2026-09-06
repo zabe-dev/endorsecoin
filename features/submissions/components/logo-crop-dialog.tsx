@@ -83,8 +83,8 @@ export function LogoCropDialog({
     context.drawImage(image, drawX, drawY, drawWidth, drawHeight);
 
     onApply({
-      name: draft.name,
-      mimeType: draft.mimeType,
+      name: pngFileName(draft.name),
+      mimeType: 'image/png',
       width: targetSize,
       height: targetSize,
       dataUrl: canvas.toDataURL('image/png'),
@@ -198,4 +198,9 @@ export function LogoCropDialog({
       </div>
     </div>
   );
+}
+
+function pngFileName(fileName: string) {
+  const baseName = fileName.replace(/\.[^.]+$/u, '') || 'logo';
+  return `${baseName}.png`;
 }

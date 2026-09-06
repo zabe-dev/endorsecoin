@@ -3,6 +3,7 @@ import 'server-only';
 import Redis from 'ioredis';
 
 let redisClient: Redis | null | undefined;
+let redisConnectPromise: Promise<Redis | null> | null = null;
 let redisUnavailableUntil = 0;
 let lastRedisWarningAt = 0;
 
@@ -13,8 +14,11 @@ export function getRedisClient() {
 
   if (!redisUrl) return null;
   if (Date.now() < redisUnavailableUntil) return null;
-  if (redisClient !== undefined && redisClient?.status !== 'end') return redisClient;
+  if (redisClient && redisClient.status !== 'end' && redisClient.status !== 'close') {
+    return redisClient;
+  }
 
+  redisConnectPromise = null;
   redisClient = new Redis(redisUrl, {
     connectTimeout: 1000,
     enableOfflineQueue: false,
@@ -35,8 +39,16 @@ export async function getReadyRedisClient() {
   if (!client) return null;
 
   try {
-    if (client.status === 'wait') {
-      await client.connect();
+    if (client.status === 'wait' || client.status === 'connecting' || client.status === 'connect') {
+      redisConnectPromise ||= client.connect().then(
+        () => client,
+        (error) => {
+          markRedisUnavailable(error instanceof Error ? error.message : String(error));
+          return null;
+        },
+      );
+
+      await redisConnectPromise;
     }
 
     if (client.status !== 'ready') return null;
@@ -56,6 +68,7 @@ function markRedisUnavailable(message: string) {
     redisClient.disconnect();
     redisClient = null;
   }
+  redisConnectPromise = null;
 
   if (process.env.NODE_ENV === 'production') return;
   if (Date.now() - lastRedisWarningAt < redisRetryPauseMs) return;

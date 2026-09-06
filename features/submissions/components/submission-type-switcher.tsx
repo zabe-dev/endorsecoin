@@ -1,6 +1,5 @@
 'use client';
 
-import type { ApprovedProjectOption } from '@/features/airdrops/types';
 import { AirdropSubmissionForm } from '@/features/submissions/components/airdrop-submission-form';
 import { CoinSubmissionForm } from '@/features/submissions/components/coin-submission-form';
 import { Gift, Rocket } from 'lucide-react';
@@ -26,13 +25,7 @@ const modeCopy = {
   },
 } satisfies Record<SubmissionMode, { eyebrow: string; title: string; description: string }>;
 
-export function SubmissionTypeSwitcher({
-  userEmail,
-  approvedProjects,
-}: {
-  userEmail: string;
-  approvedProjects: ApprovedProjectOption[];
-}) {
+export function SubmissionTypeSwitcher({ userEmail }: { userEmail: string }) {
   const [mode, setMode] = useState<SubmissionMode>('project');
   const [status, setStatus] = useState<SubmissionStatus>({ label: 'Basics', meta: 'Step 1 of 6' });
   const [submissionComplete, setSubmissionComplete] = useState(false);
@@ -111,7 +104,6 @@ export function SubmissionTypeSwitcher({
         ) : (
           <AirdropSubmissionForm
             userEmail={userEmail}
-            projects={approvedProjects}
             embedded
             onStatusChange={updateStatus}
             onSubmittedChange={setSubmissionComplete}

@@ -15,6 +15,7 @@ import { processExpiredPresales } from '@/features/coins/server/presale-expiry';
 import { hasAdminAccess } from '@/lib/auth/roles';
 import { getCurrentSession } from '@/lib/auth/session';
 import { db } from '@/lib/db/client';
+import { isMissingRelationError } from '@/lib/db/errors';
 import {
   airdropSubmissions,
   coinBoosts,
@@ -79,7 +80,7 @@ export default async function AdminDashboardPage({
       .orderBy(desc(airdropSubmissions.createdAt))
       .limit(500)
       .catch((error) => {
-        if (isMissingAirdropSubmissionsTable(error)) {
+        if (isMissingRelationError(error, 'airdrop_submissions')) {
           console.warn(
             '[admin] airdrop_submissions table is unavailable. Run migrations to enable airdrops.',
           );
@@ -142,7 +143,7 @@ export default async function AdminDashboardPage({
       .from(airdropSubmissions)
       .where(eq(airdropSubmissions.status, 'pending'))
       .catch((error) => {
-        if (isMissingAirdropSubmissionsTable(error)) return [{ count: 0 }];
+        if (isMissingRelationError(error, 'airdrop_submissions')) return [{ count: 0 }];
         throw error;
       }),
     db.select().from(changeRequests).orderBy(desc(changeRequests.createdAt)).limit(200),
@@ -652,16 +653,4 @@ function emailInitials(email: string) {
 function emailTone(email: string) {
   const total = Array.from(email).reduce((sum, letter) => sum + letter.charCodeAt(0), 0);
   return (total % 6) + 1;
-}
-
-function isMissingAirdropSubmissionsTable(error: unknown) {
-  if (!error || typeof error !== 'object') return false;
-  const candidate = error as { code?: string; message?: string; cause?: unknown };
-  if (candidate.code === '42P01') return true;
-  if (candidate.message?.includes('airdrop_submissions')) return true;
-
-  const cause = candidate.cause;
-  if (!cause || typeof cause !== 'object') return false;
-  const nested = cause as { code?: string; message?: string };
-  return nested.code === '42P01' || Boolean(nested.message?.includes('airdrop_submissions'));
 }

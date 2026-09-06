@@ -84,13 +84,11 @@ const initialValues = (today: string): AirdropSubmissionFormValues => ({
 
 export function AirdropSubmissionForm({
   userEmail,
-  projects,
   embedded = false,
   onStatusChange,
   onSubmittedChange,
 }: {
   userEmail: string;
-  projects: ApprovedProjectOption[];
   embedded?: boolean;
   onStatusChange?: (status: { label: string; meta: string }) => void;
   onSubmittedChange?: (submitted: boolean) => void;
@@ -102,8 +100,9 @@ export function AirdropSubmissionForm({
   const [submitting, setSubmitting] = useState(false);
   const [projectQuery, setProjectQuery] = useState('');
   const [projectLookupState, setProjectLookupState] = useState<
-    'idle' | 'searching' | 'found' | 'missing'
+    'idle' | 'searching' | 'found' | 'missing' | 'ambiguous'
   >('idle');
+  const [selectedProject, setSelectedProject] = useState<ApprovedProjectOption | null>(null);
   const turnstileRef = useRef<TurnstileSlotHandle>(null);
 
   useEffect(() => {
@@ -144,45 +143,78 @@ export function AirdropSubmissionForm({
     setErrors((current) => clearError(current, `socialLinks.${field}`));
   }
 
-  const selectedProject = useMemo(
-    () => projects.find((project) => project.id === values.coinId) || null,
-    [projects, values.coinId],
-  );
   const projectMatchStatus = getProjectMatchStatus(projectLookupState, selectedProject);
 
   const resolveProjectQuery = useCallback(
-    (nextValue = projectQuery) => {
+    async (nextValue = projectQuery, signal?: AbortSignal) => {
       const normalizedValue = nextValue.trim();
       if (!normalizedValue) {
         setValues((current) => ({ ...current, coinId: 0 }));
+        setSelectedProject(null);
         setErrors((current) => clearError(current, 'coinId'));
         setProjectLookupState('idle');
-        return;
+        return null;
       }
 
-      const exactMatch = findExactProject(projects, normalizedValue);
-      setValues((current) => ({ ...current, coinId: exactMatch?.id || 0 }));
-      setErrors((current) => clearError(current, 'coinId'));
-      setProjectLookupState(exactMatch ? 'found' : 'missing');
-      if (exactMatch) setProjectQuery(formatProjectLabel(exactMatch));
+      setProjectLookupState('searching');
+
+      try {
+        const response = await fetch(
+          `/api/approved-projects/lookup?q=${encodeURIComponent(normalizedValue)}`,
+          { signal },
+        );
+        const body = (await response.json().catch(() => null)) as {
+          success?: boolean;
+          data?: ProjectLookupResult | null;
+        } | null;
+
+        if (signal?.aborted) return null;
+
+        const result = response.ok && body?.success ? body.data : null;
+        if (result?.status === 'found') {
+          setSelectedProject(result.project);
+          setValues((current) => ({ ...current, coinId: result.project.id }));
+          setErrors((current) => clearError(current, 'coinId'));
+          setProjectLookupState('found');
+          setProjectQuery(formatProjectLabel(result.project));
+          return result.project;
+        }
+
+        setSelectedProject(null);
+        setValues((current) => ({ ...current, coinId: 0 }));
+        setErrors((current) => clearError(current, 'coinId'));
+        setProjectLookupState(result?.status === 'ambiguous' ? 'ambiguous' : 'missing');
+        return null;
+      } catch {
+        if (signal?.aborted) return null;
+        setSelectedProject(null);
+        setValues((current) => ({ ...current, coinId: 0 }));
+        setProjectLookupState('missing');
+        return null;
+      }
     },
-    [projectQuery, projects],
+    [projectQuery],
   );
 
   useEffect(() => {
     const query = projectQuery.trim();
     if (!query || projectLookupState !== 'searching') return;
+    const controller = new AbortController();
 
     const timer = window.setTimeout(() => {
-      resolveProjectQuery(query);
+      void resolveProjectQuery(query, controller.signal);
     }, 550);
 
-    return () => window.clearTimeout(timer);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
   }, [projectLookupState, projectQuery, resolveProjectQuery]);
 
   function updateProjectQuery(nextValue: string) {
     setProjectQuery(nextValue);
     setProjectLookupState(nextValue.trim() ? 'searching' : 'idle');
+    setSelectedProject(null);
     setValues((current) => ({ ...current, coinId: 0 }));
     setErrors((current) => clearError(current, 'coinId'));
   }
@@ -191,10 +223,14 @@ export function AirdropSubmissionForm({
     event.preventDefault();
     setSubmitting(true);
 
-    const exactProject = findExactProject(projects, projectQuery);
+    const exactProject =
+      selectedProject &&
+      normalizeProjectLookup(projectQuery) ===
+        normalizeProjectLookup(formatProjectLabel(selectedProject))
+        ? selectedProject
+        : await resolveProjectQuery(projectQuery);
     const selectedCoinId = exactProject?.id || values.coinId;
     if (!selectedCoinId) {
-      setProjectLookupState(projectQuery.trim() ? 'missing' : 'idle');
       setErrors({ coinId: 'Select an approved project.' });
       setSubmitting(false);
       return;
@@ -265,6 +301,7 @@ export function AirdropSubmissionForm({
               setValues(initialValues(today));
               setProjectQuery('');
               setProjectLookupState('idle');
+              setSelectedProject(null);
               setErrors({});
             }}
           >
@@ -301,12 +338,6 @@ export function AirdropSubmissionForm({
       <form className="submission-form" onSubmit={submit}>
         <section className="submission-card">
           {errors.form && <div className="submission-alert">{errors.form}</div>}
-          {!projects.length && (
-            <div className="submission-note">
-              Add an approved project first, then you can submit an airdrop for it.
-            </div>
-          )}
-
           <div className="submission-section-stack">
             <SectionCard>
               <div className="submission-grid">
@@ -324,12 +355,12 @@ export function AirdropSubmissionForm({
                     <Search aria-hidden="true" />
                     <input
                       value={projectQuery}
-                      onBlur={() => resolveProjectQuery()}
+                      onBlur={() => void resolveProjectQuery()}
                       onChange={(event) => updateProjectQuery(event.target.value)}
                       onKeyDown={(event) => {
                         if (event.key === 'Enter') {
                           event.preventDefault();
-                          resolveProjectQuery();
+                          void resolveProjectQuery();
                         }
                       }}
                       placeholder="Type exact project name or symbol"
@@ -505,7 +536,7 @@ export function AirdropSubmissionForm({
           <button
             className="submission-step-button submission-step-button--primary"
             type="submit"
-            disabled={submitting || !projects.length}
+            disabled={submitting}
           >
             {submitting ? (
               <Loader2 className="spin" aria-hidden="true" />
@@ -534,28 +565,16 @@ function toFieldErrors(error: z.ZodError) {
   }, {});
 }
 
-function findExactProject(projects: ApprovedProjectOption[], query: string) {
-  const normalizedQuery = normalizeProjectLookup(query);
-  if (!normalizedQuery) return null;
-
-  return (
-    projects.find((project) => normalizeProjectLookup(project.name) === normalizedQuery) ||
-    projects.find((project) => normalizeProjectLookup(project.symbol) === normalizedQuery) ||
-    projects.find(
-      (project) => normalizeProjectLookup(formatProjectLabel(project)) === normalizedQuery,
-    ) ||
-    null
-  );
-}
-
 function getProjectMatchStatus(
-  state: 'idle' | 'searching' | 'found' | 'missing',
+  state: 'idle' | 'searching' | 'found' | 'missing' | 'ambiguous',
   selectedProject: ApprovedProjectOption | null,
 ) {
   if (state === 'idle') return '';
   if (state === 'searching') return 'Searching for project name....';
   if (state === 'found' && selectedProject)
     return `Selected ${formatProjectLabel(selectedProject)}.`;
+  if (state === 'ambiguous')
+    return 'Multiple approved projects match that name. Type the exact project name.';
   if (state === 'missing') return 'No approved project found with that exact name or symbol.';
   return '';
 }
@@ -567,3 +586,9 @@ function normalizeProjectLookup(value: string) {
 function formatProjectLabel(project: ApprovedProjectOption) {
   return `${project.name}${project.symbol ? ` (${project.symbol})` : ''}`;
 }
+
+type ProjectLookupResult =
+  | { status: 'empty' }
+  | { status: 'missing' }
+  | { status: 'found'; project: ApprovedProjectOption }
+  | { status: 'ambiguous'; projects: ApprovedProjectOption[] };
