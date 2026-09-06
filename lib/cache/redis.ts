@@ -83,17 +83,11 @@ export function getRedisDiagnostics() {
 }
 
 function getRedisTlsOptions(): RedisOptions['tls'] | undefined | null {
-  const inlineCa = process.env.REDIS_TLS_CA_CERT;
-  const servername = process.env.REDIS_TLS_SERVERNAME;
-  const baseTls = servername ? { servername } : {};
-
-  if (inlineCa) return { ...baseTls, ca: inlineCa.replaceAll('\\n', '\n') };
-
   const caPath = process.env.REDIS_TLS_CA_CERT_PATH;
-  if (!caPath) return servername ? baseTls : undefined;
+  if (!caPath) return undefined;
 
   try {
-    return { ...baseTls, ca: readFileSync(caPath, 'utf8') };
+    return { ca: readFileSync(caPath, 'utf8') };
   } catch (error) {
     markRedisUnavailable(
       `Failed to read REDIS_TLS_CA_CERT_PATH: ${error instanceof Error ? error.message : String(error)}`,
