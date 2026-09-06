@@ -21,7 +21,20 @@ import {
   bannerPlacements,
   type BannerPlacement,
 } from '@/features/ads/types';
-import { getPaginationItems } from '@/lib/ui/pagination';
+import { AdminPanel } from './components/admin-panel';
+import { AdminOverview } from './components/admin-overview';
+import type {
+  AdminBannerRow,
+  AdminDashboardClientProps,
+  AdminChangeRequestRow,
+  AdminCoinRow,
+  AdminSubmissionRow,
+  AdminSummary,
+  AdminTab,
+  AdminTablePagination,
+  AdminUserRow,
+  PopoverController,
+} from './types';
 import { Icon as IconifyIcon } from '@iconify/react';
 import {
   Check,
@@ -34,7 +47,6 @@ import {
   Pause,
   Pencil,
   Play,
-  Search,
   ShieldAlert,
   Square,
   Trash2,
@@ -46,7 +58,6 @@ import { useRouter } from 'next/navigation';
 import {
   useEffect,
   useLayoutEffect,
-  useMemo,
   useRef,
   useState,
   useTransition,
@@ -56,142 +67,6 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 
-export type AdminTablePagination = {
-  page: number;
-  pageSize: number;
-  total: number;
-  pages: number;
-};
-
-export type AdminSummary = {
-  users: number;
-  coins: number;
-  activeBoosts: number;
-  promotedCoins: number;
-  activeBanners: number;
-  scheduledBanners: number;
-  pendingSubmissions: number;
-  pendingAirdrops: number;
-  changeRequests: number;
-};
-
-export type AdminSubmissionRow = {
-  id: string;
-  submissionKind: 'coin' | 'airdrop';
-  logoUrl: string | null;
-  name: string;
-  symbol: string;
-  chain: string;
-  submittedBy: string;
-  contactEmail: string;
-  contactTelegram: string;
-  submittedAt: string;
-  status: string;
-  flag: string;
-  details: AdminSubmissionDetailSection[];
-  rawData: string;
-};
-
-export type AdminSubmissionDetailSection = {
-  title: string;
-  rows: Array<{ label: string; value: string }>;
-};
-
-export type AdminCoinRow = {
-  id: number;
-  logoUrl: string | null;
-  name: string;
-  symbol: string;
-  chain: string;
-  submittedBy: string;
-  contactEmail: string;
-  contactTelegram: string;
-  submittedAt: string;
-  status: string;
-  category: string;
-  boost: {
-    tier: number;
-    status: string;
-    startDate: string;
-    startsAt: string;
-    expiresAt: string;
-    remaining: string;
-  } | null;
-  promotion: {
-    status: string;
-    priority: number;
-    startDate: string;
-    startsAt: string;
-    durationDays: number;
-    expiresAt: string;
-    remaining: string;
-  } | null;
-};
-
-export type AdminBannerRow = {
-  id: string;
-  placement: string;
-  placementLabel: string;
-  title: string;
-  subtitle: string;
-  desktopImageUrl: string;
-  mobileImageUrl: string;
-  targetUrl: string;
-  status: string;
-  priority: number;
-  startDate: string;
-  startsAt: string;
-  endsAt: string;
-  durationDays: number;
-  schedule: string;
-  notes: string;
-};
-
-export type AdminChangeRequestRow = {
-  id: string;
-  coinId: number;
-  coinName: string;
-  coinSymbol: string;
-  requesterEmail: string;
-  requesterTelegram: string;
-  requestedChanges: string;
-  evidenceUrl: string;
-  status: string;
-  submittedAt: string;
-};
-
-export type AdminUserRow = {
-  id: string;
-  avatar: string;
-  avatarTone: number;
-  name: string;
-  email: string;
-  role: string;
-  status: string;
-  projectsSubmitted: number;
-  joinedAt: string;
-  lastActive: string;
-  lastIp: string;
-};
-
-type AdminDashboardClientProps = {
-  summary: AdminSummary;
-  pendingSubmissions: AdminSubmissionRow[];
-  pendingAirdropSubmissions: AdminSubmissionRow[];
-  changeRequests: AdminChangeRequestRow[];
-  listedCoins: AdminCoinRow[];
-  bannerAds: AdminBannerRow[];
-  users: AdminUserRow[];
-  initialTab?: string;
-  pagination?: AdminTablePagination | null;
-};
-
-type PopoverController = {
-  activePopoverId: string | null;
-  setActivePopoverId: (id: string | null) => void;
-};
-
-const pageSize = 10;
 const emptyTableMessage = 'There is currently no items available to display.';
 const boostPackages = [
   { value: 10, label: '10x', detail: 'votes ×2 · 24h' },
@@ -212,7 +87,6 @@ const adminTabs = [
   { id: 'reports', label: 'Reports', icon: ShieldAlert },
 ] as const;
 
-type AdminTab = (typeof adminTabs)[number]['id'];
 
 const tabCounts = (summary: AdminSummary) =>
   ({
@@ -370,100 +244,6 @@ export function AdminDashboardClient({
   );
 }
 
-function AdminOverview({
-  summary,
-  onSelectTab,
-}: {
-  summary: AdminSummary;
-  onSelectTab: (tab: AdminTab) => void;
-}) {
-  return (
-    <section className="admin-overview">
-      <div className="admin-overview-focus">
-        <div>
-          <span>Needs review</span>
-          <strong>
-            {summary.pendingSubmissions + summary.pendingAirdrops + summary.changeRequests}
-          </strong>
-          <small>Items waiting for an admin decision.</small>
-        </div>
-        <div className="admin-attention-grid">
-          <OverviewQueueCard
-            title="Projects"
-            value={summary.pendingSubmissions}
-            label="submissions"
-            action="Review"
-            onClick={() => onSelectTab('submissions')}
-          />
-          <OverviewQueueCard
-            title="Airdrops"
-            value={summary.pendingAirdrops}
-            label="campaigns"
-            action="Review"
-            onClick={() => onSelectTab('airdrops')}
-          />
-          <OverviewQueueCard
-            title="Reports"
-            value={summary.changeRequests}
-            label="requests"
-            action="Open"
-            onClick={() => onSelectTab('reports')}
-          />
-        </div>
-      </div>
-
-      <div className="admin-dashboard-grid" aria-label="Admin summary">
-        <SummaryCard label="Users" value={summary.users} />
-        <SummaryCard label="Listed coins" value={summary.coins} />
-        <SummaryCard label="Active boosts" value={summary.activeBoosts} />
-        <SummaryCard label="Promoted coins" value={summary.promotedCoins} />
-        <SummaryCard label="Active banners" value={summary.activeBanners} />
-        <SummaryCard label="Scheduled banners" value={summary.scheduledBanners} />
-      </div>
-
-      <div className="admin-overview-shortcuts">
-        <button type="button" onClick={() => onSelectTab('promotions')}>
-          <span>Promotion desk</span>
-          <b>{summary.activeBoosts + summary.promotedCoins}</b>
-          <small>coins with active visibility</small>
-        </button>
-        <button type="button" onClick={() => onSelectTab('banners')}>
-          <span>Banner schedule</span>
-          <b>{summary.activeBanners}</b>
-          <small>active placements</small>
-        </button>
-        <button type="button" onClick={() => onSelectTab('coins')}>
-          <span>Listings</span>
-          <b>{summary.coins}</b>
-          <small>approved coins</small>
-        </button>
-      </div>
-    </section>
-  );
-}
-
-function OverviewQueueCard({
-  title,
-  value,
-  label,
-  action,
-  onClick,
-}: {
-  title: string;
-  value: number;
-  label: string;
-  action: string;
-  onClick: () => void;
-}) {
-  return (
-    <button type="button" className="admin-queue-card" onClick={onClick}>
-      <span>{title}</span>
-      <strong>{value}</strong>
-      <small>{label}</small>
-      <b>{action} →</b>
-    </button>
-  );
-}
 
 function ChangeRequestsTable({
   rows,
@@ -1353,148 +1133,6 @@ function UsersTable({
   );
 }
 
-function AdminPanel<T>({
-  eyebrow,
-  title,
-  count,
-  note,
-  rows,
-  searchPlaceholder,
-  search,
-  empty,
-  action,
-  pagination,
-  isPending = false,
-  onPageChange,
-  renderTable,
-}: {
-  eyebrow: string;
-  title: string;
-  count: string;
-  note: string;
-  rows: T[];
-  searchPlaceholder: string;
-  search: (row: T) => string[];
-  empty: string;
-  action?: ReactNode;
-  pagination?: AdminTablePagination | null;
-  isPending?: boolean;
-  onPageChange?: (page: number) => void;
-  renderTable: (rows: T[]) => ReactNode;
-}) {
-  const [query, setQuery] = useState('');
-  const [page, setPage] = useState(0);
-  const normalizedQuery = query.trim().toLowerCase();
-  const filteredRows = useMemo(
-    () =>
-      normalizedQuery
-        ? rows.filter((row) =>
-            search(row).some((value) => value.toLowerCase().includes(normalizedQuery)),
-          )
-        : rows,
-    [normalizedQuery, rows, search],
-  );
-  const usesServerPagination = Boolean(pagination && !normalizedQuery);
-  const pageCount = usesServerPagination
-    ? Math.max(1, pagination?.pages || 1)
-    : Math.max(1, Math.ceil(filteredRows.length / pageSize));
-  const safePage = usesServerPagination
-    ? Math.max(0, Math.min((pagination?.page || 1) - 1, pageCount - 1))
-    : Math.min(page, pageCount - 1);
-  const visibleRows = usesServerPagination
-    ? filteredRows
-    : filteredRows.slice(safePage * pageSize, safePage * pageSize + pageSize);
-  const totalResults = usesServerPagination ? pagination?.total || 0 : filteredRows.length;
-  const pageItems = getPaginationItems({ count: pageCount, page: safePage + 1 });
-
-  function selectPage(nextPage: number) {
-    if (usesServerPagination && onPageChange) {
-      onPageChange(nextPage);
-      return;
-    }
-    setPage(nextPage - 1);
-  }
-
-  return (
-    <section className="admin-panel">
-      <div className="admin-panel-title">
-        <div>
-          <small>{eyebrow}</small>
-          <h2>{title}</h2>
-        </div>
-        <div className="admin-panel-title-actions">
-          {action}
-          <span>{count}</span>
-        </div>
-      </div>
-      <p className="admin-panel-note">{note}</p>
-      <div className="admin-table-tools">
-        <label className="admin-search">
-          <Search aria-hidden="true" />
-          <input
-            value={query}
-            onChange={(event) => {
-              setQuery(event.target.value);
-              setPage(0);
-            }}
-            placeholder={searchPlaceholder}
-          />
-        </label>
-        <span>
-          {totalResults} result{totalResults === 1 ? '' : 's'}
-        </span>
-      </div>
-      <div className="admin-table-wrap">
-        {visibleRows.length ? (
-          renderTable(visibleRows)
-        ) : (
-          <div className="admin-empty-state">
-            <span className="project-table-empty">{empty}</span>
-          </div>
-        )}
-      </div>
-      <div className="admin-pagination">
-        <span>
-          Page {safePage + 1} of {pageCount}
-        </span>
-        <div>
-          <button
-            type="button"
-            disabled={isPending || safePage === 0}
-            onClick={() => selectPage(safePage)}
-          >
-            Previous
-          </button>
-          {pageItems.map((item) =>
-            typeof item === 'number' ? (
-              <button
-                key={item}
-                className={safePage + 1 === item ? 'active' : ''}
-                type="button"
-                disabled={isPending}
-                onClick={() => selectPage(item)}
-              >
-                {item}
-              </button>
-            ) : (
-              <span className="admin-pagination-ellipsis" key={item} aria-hidden="true">
-                ...
-              </span>
-            ),
-          )}
-          <button
-            type="button"
-            disabled={isPending || safePage >= pageCount - 1}
-            onClick={() => selectPage(safePage + 2)}
-          >
-            Next
-          </button>
-        </div>
-      </div>
-    </section>
-  );
-}
-
 function BoostAction({ row, popover }: { row: AdminCoinRow; popover: PopoverController }) {
   const [tier, setTier] = useState(row.boost?.tier || 50);
   const [startDate, setStartDate] = useState(row.boost?.startDate || '');
@@ -2123,14 +1761,6 @@ function ActionGroup({ children }: { children: ReactNode }) {
   return <div className="admin-icon-actions">{children}</div>;
 }
 
-function SummaryCard({ label, value }: { label: string; value: number }) {
-  return (
-    <div>
-      <strong>{value}</strong>
-      <span>{label}</span>
-    </div>
-  );
-}
 
 function StatusPill({
   children,

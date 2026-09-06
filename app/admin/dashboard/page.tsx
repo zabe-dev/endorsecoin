@@ -5,8 +5,10 @@ import type {
   AdminCoinRow,
   AdminSubmissionRow,
   AdminSummary,
+  AdminTab,
+  AdminTablePagination,
   AdminUserRow,
-} from '@/app/admin/dashboard/admin-dashboard-client';
+} from '@/app/admin/dashboard/types';
 import { SiteFooter } from '@/components/layout/site-footer';
 import { SiteHeader } from '@/components/layout/site-header';
 import { bannerPlacementLabels, normalizeBannerPlacement } from '@/features/ads/types';
@@ -35,7 +37,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-const adminTabs = [
+const adminTabs: AdminTab[] = [
   'overview',
   'submissions',
   'airdrops',
@@ -44,9 +46,7 @@ const adminTabs = [
   'banners',
   'users',
   'reports',
-] as const;
-
-type AdminTab = (typeof adminTabs)[number];
+];
 
 type AdminTabData = {
   pendingSubmissions: AdminSubmissionRow[];
@@ -56,13 +56,6 @@ type AdminTabData = {
   bannerAds: AdminBannerRow[];
   users: AdminUserRow[];
   pagination: AdminTablePagination | null;
-};
-
-type AdminTablePagination = {
-  page: number;
-  pageSize: number;
-  total: number;
-  pages: number;
 };
 
 const adminPageSize = 10;
