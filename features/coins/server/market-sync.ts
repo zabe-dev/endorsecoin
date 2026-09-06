@@ -2,7 +2,7 @@ import 'server-only';
 
 import type { NetworkId } from '@/features/coins/types';
 import { db } from '@/lib/db/client';
-import { coins, marketSnapshots, marketSources } from '@/lib/db/schema';
+import { coinBoosts, coinPromotions, coinWatchlists, coins, marketSnapshots, marketSources } from '@/lib/db/schema';
 import { withRedisLock } from '@/lib/cache/redis-lock';
 import { recordMetric, timeAsync } from '@/lib/observability/metrics';
 import { sql } from 'drizzle-orm';
@@ -458,6 +458,29 @@ async function selectStaleSyncCoins(limit: number): Promise<MarketSyncCoin[]> {
       order by ms.recorded_at desc
       limit 1
     ) latest_snapshot on true
+    left join lateral (
+      select 1 as active
+      from ${coinPromotions} promotion
+      where promotion.coin_id = c.id
+        and promotion.status in ('active', 'scheduled')
+        and promotion.starts_at <= ${nowIso}::timestamptz
+        and promotion.expires_at > ${nowIso}::timestamptz
+      limit 1
+    ) active_promotion on true
+    left join lateral (
+      select 1 as active
+      from ${coinBoosts} boost
+      where boost.coin_id = c.id
+        and boost.status in ('active', 'scheduled')
+        and boost.starts_at <= ${nowIso}::timestamptz
+        and boost.expires_at > ${nowIso}::timestamptz
+      limit 1
+    ) active_boost on true
+    left join lateral (
+      select count(*)::int as count
+      from ${coinWatchlists} watchlist
+      where watchlist.coin_id = c.id
+    ) watch_count on true
     where c.listing_status = 'active'
       and c.contract_address is not null
       and btrim(c.contract_address) <> ''
@@ -491,7 +514,16 @@ async function selectStaleSyncCoins(limit: number): Promise<MarketSyncCoin[]> {
         latest_snapshot.recorded_at is null
         or latest_snapshot.recorded_at < ${staleBeforeIso}::timestamptz
       )
-    order by latest_snapshot.recorded_at asc nulls first, c.id asc
+    order by
+      case
+        when active_promotion.active is not null then 0
+        when active_boost.active is not null then 1
+        when coalesce(watch_count.count, 0) > 0 then 2
+        else 3
+      end asc,
+      coalesce(watch_count.count, 0) desc,
+      latest_snapshot.recorded_at asc nulls first,
+      c.id asc
     limit ${limit}
   `);
 }
