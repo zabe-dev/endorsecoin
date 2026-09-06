@@ -5,8 +5,6 @@ import type { AccountTablePage } from '@/features/account/types';
 import { PremiumAdBanner } from '@/features/ads/components/ad-banners';
 import { getActiveBannerAds } from '@/features/ads/server/banner-ads';
 import { getPublicCoinListItemsByIds } from '@/features/coins/server/coin-list';
-import { processExpiredCoinDeletionRequests } from '@/features/coins/server/delete-requests';
-import { processExpiredPresales } from '@/features/coins/server/presale-expiry';
 import { getCurrentSession } from '@/lib/auth/session';
 import { db } from '@/lib/db/client';
 import { coinSubmissions } from '@/lib/db/schema';
@@ -32,10 +30,11 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const session = await getCurrentSession();
   if (!session) redirect('/');
 
-  await processExpiredPresales();
-  await processExpiredCoinDeletionRequests();
-
-  const requestedPage = normalizePositiveInteger(readParam(params?.page), 1, Number.MAX_SAFE_INTEGER);
+  const requestedPage = normalizePositiveInteger(
+    readParam(params?.page),
+    1,
+    Number.MAX_SAFE_INTEGER,
+  );
   const ownSubmissionWhere = and(
     eq(coinSubmissions.requesterEmail, session.user.email),
     eq(coinSubmissions.submissionType, 'new-coin'),
@@ -97,7 +96,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     new Set(
       submissions
         .map((submission) => submission.coinId)
-      .filter((coinId): coinId is number => typeof coinId === 'number'),
+        .filter((coinId): coinId is number => typeof coinId === 'number'),
     ),
   );
   const listedCoinRows = await getPublicCoinListItemsByIds(listedCoinIds, session.user.id);

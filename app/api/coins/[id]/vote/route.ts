@@ -1,4 +1,4 @@
-import { invalidateCoinInteractionCache } from '@/features/coins/server/cache-invalidation';
+import { invalidateCoinVoteCache } from '@/features/coins/server/cache-invalidation';
 import { recordCoinVote } from '@/features/coins/server/interactions';
 import { apiError, apiSuccess } from '@/lib/api/responses';
 import { rateLimitError } from '@/lib/api/rate-limit-response';
@@ -48,7 +48,7 @@ export async function POST(_request: Request, { params }: RouteContext) {
       });
     }
 
-    await invalidateCoinInteractionCache(coinId);
+    await invalidateCoinVoteCache(coinId);
 
     return apiSuccess(
       {

@@ -7,8 +7,6 @@ import {
 import { PremiumAdBanner } from '@/features/ads/components/ad-banners';
 import { getActiveBannerAds } from '@/features/ads/server/banner-ads';
 import { getWatchlistTablePage } from '@/features/account/server/watchlist';
-import { processExpiredCoinDeletionRequests } from '@/features/coins/server/delete-requests';
-import { processExpiredPresales } from '@/features/coins/server/presale-expiry';
 import { db } from '@/lib/db/client';
 import { users } from '@/lib/db/schema';
 import { getCurrentSession } from '@/lib/auth/session';
@@ -32,8 +30,6 @@ export default async function PublicWatchlistPage({ params, searchParams }: Watc
   const { userId } = await params;
   const query = await searchParams;
   const session = await getCurrentSession();
-  await processExpiredPresales();
-  await processExpiredCoinDeletionRequests();
 
   const [owner] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
   if (!owner) notFound();

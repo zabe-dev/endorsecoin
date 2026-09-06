@@ -14,13 +14,16 @@ export async function invalidateCoinDiscoveryCache(coinId?: number | null) {
   );
 }
 
-export async function invalidateCoinInteractionCache(coinId?: number | null) {
+export async function invalidateCoinVoteCache(coinId?: number | null) {
   void coinId;
-  await bumpCacheVersion(
-    'topbar-summary',
-    'public-coins',
-    'leaderboard',
-    'coin-interactions',
-    'public-watchlists',
-  );
+  await bumpCacheVersion('topbar-summary', 'leaderboard', 'coin-interactions');
+}
+
+export async function invalidateCoinWatchlistCache(coinId?: number | null) {
+  void coinId;
+  await bumpCacheVersion('topbar-summary', 'leaderboard', 'coin-interactions', 'public-watchlists');
+}
+
+export async function invalidateCoinInteractionCache(coinId?: number | null) {
+  await invalidateCoinWatchlistCache(coinId);
 }

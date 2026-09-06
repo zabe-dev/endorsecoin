@@ -10,8 +10,6 @@ import { SiteFooter } from '@/components/layout/site-footer';
 import { SiteHeader } from '@/components/layout/site-header';
 import { NETWORKS } from '@/features/coins/networks';
 import { bannerPlacementLabels, normalizeBannerPlacement } from '@/features/ads/types';
-import { processExpiredCoinDeletionRequests } from '@/features/coins/server/delete-requests';
-import { processExpiredPresales } from '@/features/coins/server/presale-expiry';
 import { hasAdminAccess } from '@/lib/auth/roles';
 import { getCurrentSession } from '@/lib/auth/session';
 import { db } from '@/lib/db/client';
@@ -45,9 +43,6 @@ export default async function AdminDashboardPage({
   const session = await getCurrentSession();
   if (!session) redirect('/');
   if (!hasAdminAccess(session.user.role)) notFound();
-
-  await processExpiredPresales();
-  await processExpiredCoinDeletionRequests();
 
   const now = new Date();
   const nowIso = now.toISOString();

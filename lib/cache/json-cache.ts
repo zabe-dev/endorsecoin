@@ -7,6 +7,10 @@ type CacheOptions = {
   ttlSeconds: number;
 };
 
+const cacheState = globalThis as typeof globalThis & {
+  endorsecoinJsonCacheLoads?: Map<string, Promise<unknown>>;
+};
+
 export async function rememberJson<T>(
   key: string,
   options: CacheOptions,
@@ -21,8 +25,20 @@ export async function rememberJson<T>(
 
   logCache('MISS', key);
   recordCacheEvent('miss', key);
-  const value = await timeAsync('cache.loader', { namespace: cacheNamespace(key) }, loader);
-  void writeJson(key, value, options.ttlSeconds);
+  const inFlight = getCacheLoads().get(key) as Promise<T> | undefined;
+  if (inFlight) {
+    recordCacheEvent('dedupe_wait', key);
+    return inFlight;
+  }
+
+  const load = timeAsync('cache.loader', { namespace: cacheNamespace(key) }, loader)
+    .then((value) => {
+      void writeJson(key, value, options.ttlSeconds);
+      return value;
+    })
+    .finally(() => getCacheLoads().delete(key));
+  getCacheLoads().set(key, load);
+  const value = await load;
 
   return value;
 }
@@ -89,6 +105,11 @@ async function writeJson(key: string, value: unknown, ttlSeconds: number) {
 
 function recordCacheEvent(event: string, key: string, fields: Record<string, number> = {}) {
   recordMetric('redis.cache', { event, namespace: cacheNamespace(key), ...fields });
+}
+
+function getCacheLoads() {
+  cacheState.endorsecoinJsonCacheLoads ||= new Map<string, Promise<unknown>>();
+  return cacheState.endorsecoinJsonCacheLoads;
 }
 
 function cacheNamespace(key: string) {

@@ -4,8 +4,6 @@ import { WatchlistPanel } from '@/features/account/components/account-panel';
 import { PremiumAdBanner } from '@/features/ads/components/ad-banners';
 import { getActiveBannerAds } from '@/features/ads/server/banner-ads';
 import { getWatchlistTablePage } from '@/features/account/server/watchlist';
-import { processExpiredCoinDeletionRequests } from '@/features/coins/server/delete-requests';
-import { processExpiredPresales } from '@/features/coins/server/presale-expiry';
 import { getCurrentSession } from '@/lib/auth/session';
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
@@ -26,8 +24,6 @@ export default async function WatchlistPage({ searchParams }: WatchlistPageProps
   const session = await getCurrentSession();
   if (!session) redirect('/');
 
-  await processExpiredPresales();
-  await processExpiredCoinDeletionRequests();
   const [watchlistPage, bannerAds] = await Promise.all([
     getWatchlistTablePage(session.user.id, session.user.id, { page: readParam(params?.page) }),
     getActiveBannerAds(),

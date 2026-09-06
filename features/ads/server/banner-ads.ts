@@ -30,7 +30,6 @@ export async function getActiveBannerAds(): Promise<BannerAdMap> {
 }
 
 async function readActiveBannerAds(): Promise<BannerAdMap> {
-  await syncBannerAdStatuses();
   const nowIso = new Date().toISOString();
   const rows = await db
     .select()
@@ -69,7 +68,6 @@ async function readActiveBannerAds(): Promise<BannerAdMap> {
 }
 
 export async function getAdminBannerAds() {
-  await syncBannerAdStatuses();
   return db.select().from(bannerAds).orderBy(asc(bannerAds.placement), asc(bannerAds.priority));
 }
 
@@ -77,7 +75,7 @@ export function isBannerPlacement(value: string): value is BannerPlacement {
   return bannerPlacements.includes(value as BannerPlacement);
 }
 
-async function syncBannerAdStatuses() {
+export async function syncBannerAdStatuses() {
   const nowIso = new Date().toISOString();
   await Promise.all([
     db

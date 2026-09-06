@@ -1,9 +1,7 @@
 import 'server-only';
 
 import { NETWORKS } from '@/features/coins/networks';
-import { processExpiredCoinDeletionRequests } from '@/features/coins/server/delete-requests';
 import { getCoinInteractionSummaries } from '@/features/coins/server/interactions';
-import { processExpiredPresales } from '@/features/coins/server/presale-expiry';
 import type {
   BoostMultiplier,
   Coin,
@@ -72,9 +70,6 @@ export async function getPublicCoinListItemsByIds(
       const uniqueIds = Array.from(new Set(coinIds));
       if (!uniqueIds.length) return [];
 
-      await processExpiredPresales();
-      await processExpiredCoinDeletionRequests();
-
       const coinRecords = await readPublicCoinRecords(undefined, userId, undefined, uniqueIds);
       const coinsById = new Map(coinRecords.map((coin) => [coin.id, coin]));
 
@@ -108,9 +103,6 @@ async function getPublicCoinRecords(
   userId?: string | null,
   priorityCoinId?: number,
 ): Promise<Coin[]> {
-  await processExpiredPresales();
-  await processExpiredCoinDeletionRequests();
-
   if (!coinId && !userId) {
     const version = await getCacheVersion('public-coins');
     return rememberJson(
