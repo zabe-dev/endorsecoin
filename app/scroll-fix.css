@@ -1,0 +1,305 @@
+.category-strip {
+  overflow: hidden;
+}
+
+.table-wrap {
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x pan-y;
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
+}
+.public-watchlist-frame,
+.public-watchlist-table-wrap {
+  overflow: visible;
+}
+.public-watchlist-table {
+  min-width: 0;
+}
+@media (max-width: 1050px) {
+  .public-watchlist-frame {
+    overflow: hidden;
+  }
+  .public-watchlist-table-wrap {
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-gutter: stable;
+  }
+  .public-watchlist-table {
+    min-width: 1020px;
+  }
+}
+.category-strip .category-scroll {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x;
+  padding-inline: 42px;
+}
+.category-scroll-hint {
+  border: 0;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.category-scroll-hint.category-scroll-left {
+  left: 0;
+  right: auto;
+  background: linear-gradient(270deg, transparent, var(--surface) 65%);
+}
+.category-scroll-hint.category-scroll-right {
+  right: 0;
+  left: auto;
+}
+.watch-btn.just-watched {
+  animation: vote-pop 0.32s cubic-bezier(0.2, 1.7, 0.4, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .watch-btn.just-watched {
+    animation: none;
+  }
+}
+.submit-coin-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid var(--lime);
+  border-radius: 8px;
+  padding: 10px 14px;
+  background: var(--lime);
+  color: #0a0d0d;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    transform 0.16s ease,
+    background 0.16s ease;
+}
+.submit-coin-btn svg {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
+  stroke-width: 2.8;
+}
+.submit-coin-btn:hover {
+  transform: translateY(-1px);
+  background: #dcff82;
+}
+.submit-coin-btn:active {
+  transform: scale(0.96);
+}
+.hotspots-shell {
+  margin-top: 18px;
+}
+.hotspots-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.hotspots-bar > div {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+}
+.hotspots-bar b {
+  font-size: 11px;
+}
+.hotspots-bar span {
+  font-size: 8px;
+  color: var(--sub);
+}
+.hotspots-toggle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  background: transparent;
+  color: var(--sub);
+  font-size: 8px;
+  cursor: pointer;
+}
+.hotspots-toggle > span {
+  position: relative;
+  width: 28px;
+  height: 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface2);
+}
+.hotspots-toggle > span:after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #626b72;
+  transition:
+    transform 0.2s,
+    background 0.2s;
+}
+.hotspots-toggle.on > span:after {
+  transform: translateX(12px);
+  background: var(--lime);
+}
+.hotspots-viewport {
+  overflow: visible;
+}
+.hotspots-shell .discovery-grid {
+  margin-top: 0;
+}
+.hotspot-controls {
+  display: none;
+}
+@media (max-width: 620px) {
+  .filter-row {
+    grid-template-columns: 120px minmax(0, 1fr);
+  }
+  .filter-row > .search-box {
+    grid-column: 1/-1;
+    grid-row: 1;
+  }
+  .filter-row .styled-select {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .filter-row .category-strip {
+    grid-column: 2;
+    grid-row: 2;
+  }
+  .hotspots-viewport {
+    overflow: hidden;
+    touch-action: pan-y;
+  }
+  .hotspots-shell .discovery-grid {
+    display: flex;
+    gap: 0;
+    transform: translateX(calc(var(--hotspot-slide) * -100%));
+    transition: transform 0.6s cubic-bezier(0.22, 0.75, 0.2, 1);
+  }
+  .hotspots-shell .discovery-card {
+    min-width: 100%;
+  }
+  .hotspot-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-top: 12px;
+  }
+  .hotspot-dots {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .hotspot-dots button {
+    width: 5px;
+    height: 5px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: #3d454b;
+  }
+  .hotspot-dots button.active {
+    width: 15px;
+    border-radius: 5px;
+    background: var(--lime);
+  }
+  .submit-coin-btn {
+    padding: 9px 10px;
+    font-size: 9px;
+  }
+  .navbar .wallet-btn:not(.auth-icon-btn) {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hotspots-shell .discovery-grid {
+    transition: none;
+  }
+}
+.action-burst {
+  transform: translate(-50%, -50%);
+}
+.action-burst i {
+  left: 0;
+  top: 0;
+  width: 7px;
+  height: 2px;
+  transform-origin: 0 1px;
+  transform: rotate(var(--ray)) translateX(8px) scaleX(0.2);
+}
+.just-voted .action-burst i,
+.just-watched .action-burst i {
+  animation-name: centered-line-pop;
+}
+@keyframes centered-line-pop {
+  0% {
+    opacity: 0;
+    transform: rotate(var(--ray)) translateX(6px) scaleX(0.2);
+  }
+  28% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(var(--ray)) translateX(22px) scaleX(1);
+  }
+}
+.section-subtitle {
+  max-width: 650px;
+  margin: 7px 0 0;
+  color: var(--sub);
+  font-size: 9px;
+  line-height: 1.55;
+}
+@media (max-width: 620px) {
+  .promoted-section .section-title > span {
+    align-self: flex-end;
+    text-align: right;
+  }
+  .coins-table th:first-child,
+  .coins-table td:first-child {
+    position: sticky;
+    left: 0;
+    width: 42px;
+    min-width: 42px;
+    max-width: 42px;
+    background: var(--surface);
+    z-index: 3;
+  }
+  .coins-table th:nth-child(2),
+  .coins-table td:nth-child(2) {
+    position: sticky;
+    left: 42px;
+    width: 185px;
+    min-width: 185px;
+    max-width: 185px;
+    background: var(--surface);
+    z-index: 3;
+    box-shadow: 8px 0 12px -12px rgba(0, 0, 0, 0.95);
+  }
+  .coins-table thead th:first-child,
+  .coins-table thead th:nth-child(2) {
+    background: var(--surface2);
+    z-index: 5;
+  }
+  .coins-table tbody tr:hover td {
+    background-color: #12171a;
+  }
+  .coins-table td:nth-child(2) .coin-cell {
+    min-width: 0;
+  }
+  .coins-table td:nth-child(2) .coin-cell > div:last-child {
+    min-width: 0;
+  }
+  .coins-table td:nth-child(2) .coin-cell b,
+  .coins-table td:nth-child(2) .coin-cell span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 120px;
+  }
+}

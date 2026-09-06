@@ -1,0 +1,1 @@
+ALTER TABLE "accounts" ALTER COLUMN "issuer" SET DEFAULT 'local:credential';

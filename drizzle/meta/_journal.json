@@ -1,0 +1,104 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1787963981425,
+      "tag": "0000_gigantic_changeling",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1787982097419,
+      "tag": "0001_add_account_issuer",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787983116791,
+      "tag": "0002_set_account_issuer_default",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1788114476312,
+      "tag": "0003_vengeful_jetstream",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788132625951,
+      "tag": "0004_smart_luckman",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1788159600000,
+      "tag": "0005_persistent_votes_watchlists",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788277200000,
+      "tag": "0006_market_snapshot_mobula_fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1788415638000,
+      "tag": "0007_banner_ads",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1788523402000,
+      "tag": "0008_clean_banner_placements",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1788566400000,
+      "tag": "0009_market_source_errors",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1788652800000,
+      "tag": "0010_mailing_list_subscribers",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1788739200000,
+      "tag": "0011_rate_limits",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1788637383148,
+      "tag": "0012_add_public_read_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1788641649000,
+      "tag": "0013_speed_query_indexes",
+      "breakpoints": true
+    }
+  ]
+}
