@@ -13,7 +13,9 @@ export function AuthProviderButtons({
         <GoogleIcon /> Continue with Google
       </button>
       {!googleAvailable && (
-        <p className="auth-provider-note">Google sign-in is temporarily unavailable. Continue with email for now.</p>
+        <p className="auth-provider-note">
+          Google sign-in is temporarily unavailable. Continue with email for now.
+        </p>
       )}
     </div>
   );

@@ -113,7 +113,6 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
     onClose();
   }, [onClose, resetFlow]);
 
-
   useEffect(() => {
     if (!open) return;
     let active = true;
