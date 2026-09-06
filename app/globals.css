@@ -1749,7 +1749,7 @@ tbody tr:hover td {
   padding: 30px 0 38px;
   display: grid;
   grid-template-columns: minmax(220px, 1fr) auto;
-  align-items: start;
+  align-items: end;
   gap: 36px;
   color: #68727a;
   font-size: 10px;
@@ -1776,7 +1776,7 @@ tbody tr:hover td {
 }
 .site-footer-meta {
   color: #68727a;
-  font-size: 9px;
+  font-size: 10px;
 }
 .site-footer-columns {
   display: grid;
@@ -1788,6 +1788,7 @@ tbody tr:hover td {
   display: flex;
   max-width: 640px;
   flex-wrap: wrap;
+  align-self: end;
   align-items: center;
   justify-content: flex-end;
   gap: 10px 18px;
@@ -1829,7 +1830,6 @@ tbody tr:hover td {
   white-space: nowrap;
 }
 .site-footer-inner a:not(.brand) {
-  position: relative;
   display: inline-flex;
   width: fit-content;
   min-height: 20px;
@@ -1837,41 +1837,26 @@ tbody tr:hover td {
   color: #9aa4ab;
   font-size: 11px;
   outline: none;
-  transition:
-    color 0.16s ease,
-    opacity 0.16s ease;
 }
-.site-footer-inner a:not(.brand)::after {
-  content: '';
-  position: absolute;
-  right: 0;
-  bottom: 1px;
-  left: 0;
-  height: 1px;
-  background: var(--lime);
-  opacity: 0;
-  transform: scaleX(0.6);
-  transform-origin: left;
-  transition:
-    opacity 0.16s ease,
-    transform 0.16s ease;
+.site-footer-inner .site-footer-meta a:not(.brand) {
+  min-height: auto;
+  color: inherit;
+  font-size: inherit;
 }
 .site-footer-inner .brand,
 .site-footer-inner .brand span {
   color: var(--copy);
 }
-.site-footer-inner a:not(.brand):hover,
-.site-footer-inner a:not(.brand):focus-visible {
-  color: var(--lime);
-}
-.site-footer-inner a:not(.brand):hover::after,
-.site-footer-inner a:not(.brand):focus-visible::after {
-  opacity: 0.7;
-  transform: scaleX(1);
-}
 .site-footer-inner a:not(.brand):focus-visible {
   border-radius: 3px;
   box-shadow: 0 0 0 3px rgba(203, 255, 74, 0.14);
+}
+@media (min-width: 1051px) {
+  .site-footer-links a:not(.brand):hover,
+  .site-footer-links a:not(.brand):focus-visible {
+    color: #f4f6f8;
+    text-shadow: 0 0 16px rgba(203, 255, 74, 0.1);
+  }
 }
 @media (max-width: 1050px) {
   .hero {
@@ -2146,6 +2131,7 @@ tbody tr:hover td {
   }
   .site-footer-inner {
     grid-template-columns: 1fr;
+    align-items: start;
     text-align: left;
     gap: 28px;
   }
@@ -2172,6 +2158,7 @@ tbody tr:hover td {
     gap: 24px 18px;
   }
   .site-footer-links {
+    align-self: start;
     justify-content: flex-start;
   }
   .site-footer-column {
