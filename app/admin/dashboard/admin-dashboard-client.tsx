@@ -42,7 +42,7 @@ import {
   X,
   Zap,
 } from 'lucide-react';
-import { usePathname, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import {
   useEffect,
   useLayoutEffect,
@@ -232,8 +232,6 @@ export function AdminDashboardClient({
     ? (initialTab as AdminTab)
     : 'overview';
   const [activeTab, setActiveTab] = useState<AdminTab>(safeInitialTab);
-  const pathname = usePathname();
-  const router = useRouter();
   const popover = { activePopoverId, setActivePopoverId };
   const counts = tabCounts(summary);
   const promotedRows = useMemo(
@@ -251,7 +249,11 @@ export function AdminDashboardClient({
       params.set('tab', nextTab);
     }
     const query = params.toString();
-    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    window.history.replaceState(
+      null,
+      '',
+      query ? `${window.location.pathname}?${query}` : window.location.pathname,
+    );
   }
 
   return (
@@ -958,6 +960,7 @@ function PromotionsTable({ rows, popover }: { rows: AdminCoinRow[]; popover: Pop
         <table className="admin-table admin-promotions-table">
           <thead>
             <tr>
+              <th>Logo</th>
               <th>Project Name</th>
               <th>Symbol</th>
               <th>Chain</th>
@@ -970,6 +973,9 @@ function PromotionsTable({ rows, popover }: { rows: AdminCoinRow[]; popover: Pop
           <tbody>
             {visibleRows.map((row) => (
               <tr key={row.id}>
+                <td>
+                  <LogoUrlAction logoUrl={row.logoUrl} name={row.name} />
+                </td>
                 <td>
                   <strong>{row.name}</strong>
                   <span className="admin-row-subtext">{row.category}</span>

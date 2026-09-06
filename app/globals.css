@@ -2608,7 +2608,7 @@ body.modal-open {
   width: 420px;
 }
 .admin-dashboard {
-  width: min(1540px, calc(100% - 40px));
+  width: min(1320px, calc(100% - 40px));
   min-height: calc(100dvh - 120px);
   padding-block: 64px 100px;
 }
@@ -3172,7 +3172,39 @@ img.admin-project-logo {
   width: 190px;
 }
 .admin-promotions-table {
-  min-width: 1080px;
+  min-width: 980px;
+  table-layout: fixed;
+}
+.admin-promotions-table th:nth-child(1),
+.admin-promotions-table td:nth-child(1) {
+  width: 64px;
+}
+.admin-promotions-table th:nth-child(2),
+.admin-promotions-table td:nth-child(2) {
+  width: 220px;
+}
+.admin-promotions-table th:nth-child(3),
+.admin-promotions-table td:nth-child(3) {
+  width: 90px;
+}
+.admin-promotions-table th:nth-child(4),
+.admin-promotions-table td:nth-child(4),
+.admin-promotions-table th:nth-child(5),
+.admin-promotions-table td:nth-child(5) {
+  width: 110px;
+}
+.admin-promotions-table th:nth-child(6),
+.admin-promotions-table td:nth-child(6),
+.admin-promotions-table th:nth-child(7),
+.admin-promotions-table td:nth-child(7) {
+  width: 150px;
+}
+.admin-promotions-table th:nth-child(8),
+.admin-promotions-table td:nth-child(8) {
+  width: 190px;
+}
+.admin-promotions-table .admin-icon-actions {
+  min-width: 0;
 }
 .admin-banner-preview-actions {
   display: inline-flex !important;
