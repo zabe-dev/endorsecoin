@@ -6,7 +6,7 @@ export function Brand() {
     <Link className="brand" href="/" aria-label="EndorseCoin home">
       <span className="brand-mark">
         <Image
-          src="https://assets.endorsecoin.com/site/logo.svg"
+          src="https://assets.endorsecoin.com/site/logo.png"
           alt="EndorseCoin logo"
           width={40}
           height={40}
