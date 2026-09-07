@@ -2,7 +2,14 @@ import 'server-only';
 
 import type { NetworkId } from '@/features/coins/types';
 import { db } from '@/lib/db/client';
-import { coinBoosts, coinPromotions, coinWatchlists, coins, marketSnapshots, marketSources } from '@/lib/db/schema';
+import {
+  coinBoosts,
+  coinPromotions,
+  coinWatchlists,
+  coins,
+  marketSnapshots,
+  marketSources,
+} from '@/lib/db/schema';
 import { withRedisLock } from '@/lib/cache/redis-lock';
 import { recordMetric, timeAsync } from '@/lib/observability/metrics';
 import { sql } from 'drizzle-orm';
@@ -88,6 +95,9 @@ const maxSyncLimit = Number(
   process.env.MARKET_SYNC_MAX_LIMIT || process.env.MARKET_DATA_MAX_SYNC_LIMIT || 120,
 );
 const requestSpacingMs = Math.max(1_050, Number(process.env.MOBULA_REQUEST_SPACING_MS || 1_050));
+const maxSyncedPriceUsd = 1_000_000;
+const maxSyncedMarketCapUsd = 1_000_000_000_000;
+const maxSyncedFdvUsd = 1_000_000_000_000;
 const syncLockTtlMs = Number(
   process.env.MARKET_SYNC_LOCK_TTL_MS || process.env.MOBULA_SYNC_LOCK_TTL_MS || 120_000,
 );
@@ -301,6 +311,16 @@ async function syncCoinMarketData(coinRows: MarketSyncCoin[]) {
     }
 
     const details = result.details;
+    const suspiciousReason = getSuspiciousMarketDetailsReason(details);
+    if (suspiciousReason) {
+      recordMetric('market.sync', { event: 'coin_skipped', reason: 'suspicious_market_data' });
+      await recordMarketSourceError(coin, externalId, 'suspicious-market-data', suspiciousReason);
+      console.warn(
+        `${LOG_TAG} coin ${coin.id}: skipped suspicious Mobula market data — ${suspiciousReason}`,
+      );
+      continue;
+    }
+
     const [snapshot] = await db
       .insert(marketSnapshots)
       .values({
@@ -701,6 +721,35 @@ function firstByCoinId<T extends { coinId: number }>(rows: T[]) {
     if (!map.has(row.coinId)) map.set(row.coinId, row);
   });
   return map;
+}
+
+function getSuspiciousMarketDetailsReason(details: MobulaTokenDetails) {
+  const price = readFiniteNumber(details.priceUSD);
+  const marketCap = readFiniteNumber(details.marketCapUSD);
+  const fdv = readFiniteNumber(details.marketCapDilutedUSD);
+  const volume = readFiniteNumber(details.volume24hUSD);
+  const rank = toInteger(details.rank);
+
+  const hasThinOrUnrankedSignal = (volume === null || volume === 0) && rank === null;
+
+  if (price !== null && price > maxSyncedPriceUsd && hasThinOrUnrankedSignal) {
+    return `price ${price} is above sanity limit with no volume/rank signal`;
+  }
+
+  if (marketCap !== null && marketCap > maxSyncedMarketCapUsd && hasThinOrUnrankedSignal) {
+    return `market cap ${marketCap} is above sanity limit with no volume/rank signal`;
+  }
+
+  if (fdv !== null && fdv > maxSyncedFdvUsd && hasThinOrUnrankedSignal) {
+    return `FDV ${fdv} is above sanity limit with no volume/rank signal`;
+  }
+
+  return '';
+}
+
+function readFiniteNumber(value: unknown) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
 }
 
 function toDbNumber(value: unknown) {

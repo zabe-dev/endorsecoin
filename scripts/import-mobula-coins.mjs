@@ -64,6 +64,10 @@ const EXCLUDE_TOP_RANK = readPositiveInteger(
 );
 const SKIP_R2_LOGO_UPLOAD = args.includes('--skip-r2-logo-upload');
 const R2_IMAGE_CACHE_CONTROL = 'public, max-age=31536000, immutable';
+const MAX_IMPORT_PRICE_USD = 1_000_000;
+const MAX_IMPORT_MARKET_CAP_USD = 1_000_000_000_000;
+const MAX_IMPORT_FDV_USD = 1_000_000_000_000;
+const MAX_MARKET_DETAIL_PRICE_RATIO = 100;
 
 if (!DATABASE_URL && !DRY_RUN) {
   throw new Error('DATABASE_URL is required for a real import. Use --dry-run to preview only.');
@@ -908,16 +912,28 @@ function applyMobulaMarketDetails(token, details) {
     token.dexUrl = '';
   }
 
-  token.price = pickNumber(details, ['priceUSD', 'price_usd']) ?? token.price;
-  token.marketCap =
+  token.price = pickSaneMarketDetailNumber(
+    token,
+    'price',
+    pickNumber(details, ['priceUSD', 'price_usd']),
+  );
+  token.marketCap = pickSaneMarketDetailNumber(
+    token,
+    'marketCap',
     pickNumber(details, ['marketCapUSD', 'market_cap_usd']) ??
-    pickNumber(details.base || {}, ['marketCapUSD', 'market_cap_usd']) ??
-    token.marketCap;
-  token.fdv =
+      pickNumber(details.base || {}, ['marketCapUSD', 'market_cap_usd']),
+  );
+  token.fdv = pickSaneMarketDetailNumber(
+    token,
+    'fdv',
     pickNumber(details, ['marketCapDilutedUSD', 'market_cap_diluted_usd']) ??
-    pickNumber(details.base || {}, ['marketCapDilutedUSD', 'market_cap_diluted_usd']) ??
-    token.fdv;
-  token.volume = pickNumber(details, ['volume24hUSD', 'volume_24h_usd']) ?? token.volume;
+      pickNumber(details.base || {}, ['marketCapDilutedUSD', 'market_cap_diluted_usd']),
+  );
+  token.volume = pickSaneMarketDetailNumber(
+    token,
+    'volume',
+    pickNumber(details, ['volume24hUSD', 'volume_24h_usd']),
+  );
   token.change24h =
     pickNumber(details, ['priceChange24hPercentage', 'price_change_24h_percentage']) ??
     token.change24h;
@@ -1095,6 +1111,44 @@ function applyMobulaAssetDetails(token, detail) {
   return (
     (!hadLaunchDate && Boolean(nextLaunchDate)) || before !== JSON.stringify(token.projectLinks)
   );
+}
+
+function pickSaneMarketDetailNumber(token, field, candidate) {
+  if (candidate === null || candidate === undefined) return token[field];
+  if (!Number.isFinite(candidate)) return token[field];
+  if (candidate < 0) return token[field];
+
+  if (field === 'price' && candidate > MAX_IMPORT_PRICE_USD) return token[field];
+  if (field === 'marketCap' && candidate > MAX_IMPORT_MARKET_CAP_USD) return token[field];
+  if (field === 'fdv' && candidate > MAX_IMPORT_FDV_USD) return token[field];
+
+  const current = token[field];
+  if (field === 'price' && Number.isFinite(current) && current > 0 && candidate > 0) {
+    const ratio = candidate / current;
+    if (ratio > MAX_MARKET_DETAIL_PRICE_RATIO || ratio < 1 / MAX_MARKET_DETAIL_PRICE_RATIO) {
+      return token[field];
+    }
+  }
+
+  return candidate;
+}
+
+function hasSaneImportMarketValues(token) {
+  if (!Number.isFinite(token.price) || token.price <= 0 || token.price > MAX_IMPORT_PRICE_USD) {
+    return false;
+  }
+
+  if (
+    !Number.isFinite(token.marketCap) ||
+    token.marketCap <= 0 ||
+    token.marketCap > MAX_IMPORT_MARKET_CAP_USD
+  ) {
+    return false;
+  }
+
+  if (Number.isFinite(token.fdv) && token.fdv > MAX_IMPORT_FDV_USD) return false;
+
+  return true;
 }
 
 function applyMobulaMetadata(token, metadata) {
@@ -2120,15 +2174,32 @@ async function main() {
   await enrichTokensWithMobulaDetails(tokens);
   await enrichTokensWithMobulaMetadata(tokens);
   await enrichTokensWithMobulaMarketDetails(tokens);
-  tokens.forEach((token) => {
+
+  const saneTokens = tokens.filter(hasSaneImportMarketValues);
+  const suspiciousTokens = tokens.filter((token) => !hasSaneImportMarketValues(token));
+  if (suspiciousTokens.length) {
+    console.warn(
+      `[+${formatDuration(Date.now() - scriptStartTime)}] ⚠ Skipping ${suspiciousTokens.length} suspicious token(s) with impossible market values: ${suspiciousTokens
+        .slice(0, 12)
+        .map(
+          (token) =>
+            `${token.symbol} (${token.name}, price=${token.price}, marketCap=${token.marketCap})`,
+        )
+        .join('; ')}${suspiciousTokens.length > 12 ? '; …' : ''}`,
+    );
+  }
+
+  saneTokens.forEach((token) => {
     token.category = inferCoinCategory(token);
   });
-  logCategorySummary(tokens);
+  logCategorySummary(saneTokens);
 
   if (DRY_RUN) {
-    logSection(`Dry run: previewing ${tokens.length} enriched token(s) — no rows will be written`);
+    logSection(
+      `Dry run: previewing ${saneTokens.length} enriched token(s) — no rows will be written`,
+    );
     console.table(
-      tokens.map((token) => ({
+      saneTokens.map((token) => ({
         mobulaId: token.mobulaId,
         chain: token.contract.chain,
         symbol: token.symbol,
@@ -2163,7 +2234,7 @@ async function main() {
     return;
   }
 
-  logSection(`Writing ${tokens.length} token(s) to the database`);
+  logSection(`Writing ${saneTokens.length} token(s) to the database`);
   const existingSlugs = existingState.slugs;
 
   let success = 0;
@@ -2171,7 +2242,7 @@ async function main() {
   let current = 0;
   const writePhaseStartedAt = Date.now();
 
-  for (const token of tokens) {
+  for (const token of saneTokens) {
     current += 1;
     try {
       const slug = uniqueSlug(slugify(`${token.symbol}-${token.name}`), existingSlugs);
@@ -2186,11 +2257,11 @@ async function main() {
       );
     }
 
-    logImportProgress(current, tokens.length, writePhaseStartedAt);
+    logImportProgress(current, saneTokens.length, writePhaseStartedAt);
   }
 
   logSection(
-    `Import finished: ${success} imported/updated, ${failed} failed, out of ${tokens.length} total. ` +
+    `Import finished: ${success} imported/updated, ${failed} failed, ${suspiciousTokens.length} suspicious skipped, out of ${tokens.length} total. ` +
       `Total run time: ${formatDuration(Date.now() - scriptStartTime)}.`,
   );
 }
