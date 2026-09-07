@@ -48,6 +48,10 @@ export const metadata: Metadata = {
   other: {
     title: homeTitle,
   },
+  appleWebApp: {
+    title: 'EndorseCoin',
+    capable: true,
+  },
   keywords: [
     'new crypto projects',
     'crypto voting',
@@ -103,7 +107,7 @@ export const metadata: Metadata = {
   },
   manifest: '/site.webmanifest',
   icons: {
-    apple: [{ url: summaryImage, sizes: '256x256', type: 'image/png' }],
+    apple: [{ url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
     icon: [
       { url: '/favicon.ico', type: 'image/x-icon' },
       { url: summaryImage, type: 'image/png', sizes: '256x256' },
