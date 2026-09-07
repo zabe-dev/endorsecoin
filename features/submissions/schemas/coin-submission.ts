@@ -119,21 +119,26 @@ const timeText = z
   .transform((value) => value || '')
   .refine((value) => !value || /^([01]\d|2[0-3]):[0-5]\d$/.test(value), 'Use a valid time.');
 
-const logoSchema = z.object({
-  name: z.string().trim().min(1, 'Choose a logo file.'),
-  mimeType: z.enum(['image/png', 'image/jpeg', 'image/webp']),
-  width: z.number().int().min(100, 'Logo must be at least 100px by 100px.'),
-  height: z.number().int().min(100, 'Logo must be at least 100px by 100px.'),
-  dataUrl: z
-    .string()
-    .trim()
-    .min(1, 'Choose a logo file.')
-    .max(2_800_000, 'Logo file is too large.')
-    .refine(
-      (value) => /^data:image\/(png|jpeg|webp);base64,[a-z0-9+/=]+$/i.test(value),
-      'Upload a PNG, JPG, JPEG, or WEBP logo.',
-    ),
-});
+const logoSchema = z
+  .object({
+    name: z.string().trim().min(1, 'Choose a logo file.'),
+    mimeType: z.enum(['image/png', 'image/jpeg', 'image/webp']),
+    width: z.number().int().min(100, 'Logo must be at least 100px by 100px.'),
+    height: z.number().int().min(100, 'Logo must be at least 100px by 100px.'),
+    dataUrl: z
+      .string()
+      .trim()
+      .min(1, 'Choose a logo file.')
+      .max(2_800_000, 'Logo file is too large.')
+      .refine(
+        (value) => /^data:image\/(png|jpeg|webp);base64,[a-z0-9+/=]+$/i.test(value),
+        'Upload a PNG, JPG, JPEG, or WEBP logo.',
+      ),
+  })
+  .refine((value) => value.dataUrl.startsWith(`data:${value.mimeType};base64,`), {
+    message: 'Upload a PNG, JPG, JPEG, or WEBP logo.',
+    path: ['dataUrl'],
+  });
 
 const contactSchema = z.object({
   email: z.string().trim().email('Use a valid contact email.'),
