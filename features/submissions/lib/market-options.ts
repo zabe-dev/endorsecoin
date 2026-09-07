@@ -50,7 +50,11 @@ export function providerOptions(kind: 'chart' | 'dex', chain: SubmissionNetwork)
       { value: 'dexscreener', label: 'DexScreener' },
       { value: 'custom', label: 'Custom Link' },
     ],
-    tron: [...commonNone, { value: 'custom', label: 'Custom Link' }],
+    tron: [
+      ...commonNone,
+      { value: 'dexscreener', label: 'DexScreener' },
+      { value: 'geckoterminal', label: 'GeckoTerminal' },
+    ],
     fantom: [
       ...commonNone,
       { value: 'dexscreener', label: 'DexScreener' },
@@ -113,7 +117,11 @@ export function providerOptions(kind: 'chart' | 'dex', chain: SubmissionNetwork)
     ],
     optimism: [...commonNone, { value: 'custom', label: 'Custom Link' }],
     dogecoin: [...commonNone, { value: 'custom', label: 'Custom Link' }],
-    tron: [...commonNone, { value: 'custom', label: 'Custom Link' }],
+    tron: [
+      ...commonNone,
+      { value: 'rubic', label: 'Rubic' },
+      { value: 'custom', label: 'Custom Link' },
+    ],
     fantom: [...commonNone, { value: 'custom', label: 'Custom Link' }],
     kcc: [
       ...commonNone,

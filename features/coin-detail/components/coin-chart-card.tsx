@@ -84,6 +84,7 @@ function dexProviderName(provider: string, network: CanonicalCoin['network']) {
   if (provider === 'quickswap') return 'QuickSwap';
   if (provider === 'mojitoswap') return 'MojitoSwap';
   if (provider === 'cetus') return 'Cetus';
+  if (provider === 'rubic') return 'Rubic';
   if (network === 'ethereum' || network === 'arbitrum' || network === 'base' || network === 'hood')
     return 'Uniswap';
   if (network === 'bsc') return 'PancakeSwap';
@@ -91,5 +92,6 @@ function dexProviderName(provider: string, network: CanonicalCoin['network']) {
   if (network === 'polygon') return 'QuickSwap';
   if (network === 'kcc') return 'MojitoSwap';
   if (network === 'sui') return 'Cetus';
+  if (network === 'tron') return 'Rubic';
   return 'DEX';
 }

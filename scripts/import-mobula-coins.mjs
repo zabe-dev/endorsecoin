@@ -165,7 +165,8 @@ const dexSwapUrlBuilders = {
   base: (address) => `https://app.uniswap.org/swap?outputCurrency=${address}&chain=base`,
   bsc: (address) => `https://pancakeswap.finance/swap?outputCurrency=${address}`,
   polygon: (address) => `https://dapp.quickswap.exchange/swap?type=best&to=${address}`,
-  tron: (address) => `https://sun.io/#/v2/swap?to=${address}`,
+  tron: (_address, token) =>
+    `https://app.rubic.exchange/?from=TRX&fromChain=TRON&to=${encodeURIComponent(token.symbol)}&toChain=TRON`,
 };
 
 const chartUrlBuilders = {
@@ -175,7 +176,11 @@ const chartUrlBuilders = {
   arbitrum: (address) => `https://dexscreener.com/arbitrum/${address}`,
   base: (address) => `https://dexscreener.com/base/${address}`,
   solana: (address) => `https://dexscreener.com/solana/${address}`,
-  tron: (address) => `https://www.geckoterminal.com/tron/tokens/${address}`,
+  tron: (address) => `https://dexscreener.com/tron/${address}`,
+};
+
+const geckoTerminalChartUrlBuilders = {
+  tron: (poolAddress) => `https://www.geckoterminal.com/tron/pools/${poolAddress}`,
 };
 
 const supportedExchangeMatchers = {
@@ -185,7 +190,7 @@ const supportedExchangeMatchers = {
   bsc: [/pancakeswap/i],
   polygon: [/quickswap/i],
   solana: [/raydium/i],
-  tron: [/sunswap/i, /sun\.io/i, /sunpump/i],
+  tron: [/rubic/i],
 };
 
 const categoryKeywordMap = {
@@ -1094,11 +1099,13 @@ function applyGeckoTerminalMarketDetails(token, details) {
   token.launchDate = pickDate(poolAttributes, ['pool_created_at']) || token.launchDate;
   token.marketExchangeName = 'GeckoTerminal';
   token.marketExchangeSupported = true;
-  token.dexUrl = dexSwapUrlBuilders.tron(token.contract.address);
+  token.dexUrl = buildDexSwapUrl(token);
 
   if (poolAddress) {
     token.chartPairAddress = poolAddress;
-    token.chartUrl = `https://www.geckoterminal.com/tron/pools/${poolAddress}`;
+    if (!isDexScreenerChartUrl(token.chartUrl)) {
+      token.chartUrl = geckoTerminalChartUrlBuilders.tron(poolAddress);
+    }
   } else if (!token.chartUrl) {
     token.chartUrl = chartUrlBuilders.tron(token.contract.address);
   }
@@ -1343,7 +1350,7 @@ function applyMobulaMarketDetails(token, details) {
   }
 
   if (exchangeIsSupported && dexSwapUrlBuilders[token.contract.chain]) {
-    token.dexUrl = dexSwapUrlBuilders[token.contract.chain](token.contract.address);
+    token.dexUrl = buildDexSwapUrl(token);
   } else if (knownUnsupportedExchange && customDexUrl) {
     token.dexUrl = customDexUrl;
   } else {
@@ -1697,7 +1704,7 @@ function buildGeckoTerminalTronToken(row) {
       chain: 'tron',
     },
     chartUrl: chartUrlBuilders.tron(address.trim()),
-    dexUrl: dexSwapUrlBuilders.tron(address.trim()),
+    dexUrl: buildDexSwapUrl({ symbol, contract: { address: address.trim(), chain: 'tron' } }),
     launchDate: null,
     projectLinks: extractGeckoTerminalProjectLinks(attributes),
   };
@@ -2188,6 +2195,15 @@ function findMatchingDetailToken(detail, address) {
       return tokenAddress?.toLowerCase() === normalizedAddress;
     }) || tokens[0]
   );
+}
+
+function buildDexSwapUrl(token) {
+  const builder = dexSwapUrlBuilders[token.contract.chain];
+  return builder ? builder(token.contract.address, token) : '';
+}
+
+function isDexScreenerChartUrl(url) {
+  return typeof url === 'string' && url.includes('dexscreener.com');
 }
 
 function isSupportedExchange(chain, exchangeName) {

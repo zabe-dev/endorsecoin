@@ -57,6 +57,7 @@ export type DexConfig =
         | 'quickswap'
         | 'mojitoswap'
         | 'cetus'
+        | 'rubic'
         | 'custom';
       url: string;
       pairAddress?: string;

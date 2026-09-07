@@ -314,7 +314,7 @@ function mapDbCoinToCoin({
     submittedAt: coin.submittedAt.toISOString(),
     populatedAt: coin.updatedAt.toISOString(),
     chart: buildChartConfig(links, submission, network, coin.contractAddress || ''),
-    dex: buildDexConfig(dexLink, submission, network, coin.contractAddress || ''),
+    dex: buildDexConfig(dexLink, submission, network, coin.contractAddress || '', coin.symbol),
     links: buildProjectLinks(links),
     security: {
       kycUrl: links.get('kyc')?.url || null,
@@ -669,13 +669,14 @@ function buildDexConfig(
   submission: DbCoinSubmissionPayload | null,
   network: NetworkId,
   contractAddress: string,
+  symbol: string,
 ): DexConfig {
   // Submitted coins: unchanged from original — always trust the submission's
   // chosen provider (including a genuine 'custom' choice) when one exists.
   if (submission) {
     const provider = readSubmissionDexProvider(submission.coinData);
     if (dexLink?.url) return { available: true, provider, url: dexLink.url };
-    return buildDefaultDexConfig(network, contractAddress);
+    return buildDefaultDexConfig(network, contractAddress, symbol);
   }
 
   // Imported coins (no submission row): infer provider from chain, since
@@ -683,11 +684,15 @@ function buildDexConfig(
   if (dexLink?.url) {
     return { available: true, provider: inferDexProviderFromNetwork(network), url: dexLink.url };
   }
-  return buildDefaultDexConfig(network, contractAddress);
+  return buildDefaultDexConfig(network, contractAddress, symbol);
 }
 
-function buildDefaultDexConfig(network: NetworkId, contractAddress: string): DexConfig {
-  const url = buildDefaultDexUrl(network, contractAddress);
+function buildDefaultDexConfig(
+  network: NetworkId,
+  contractAddress: string,
+  symbol: string,
+): DexConfig {
+  const url = buildDefaultDexUrl(network, contractAddress, symbol);
   if (!url) return { available: false };
 
   return {
@@ -697,7 +702,7 @@ function buildDefaultDexConfig(network: NetworkId, contractAddress: string): Dex
   };
 }
 
-function buildDefaultDexUrl(network: NetworkId, contractAddress: string) {
+function buildDefaultDexUrl(network: NetworkId, contractAddress: string, symbol: string) {
   if (!contractAddress) return '';
 
   if (network === 'solana') {
@@ -728,6 +733,11 @@ function buildDefaultDexUrl(network: NetworkId, contractAddress: string) {
     return `https://dapp.quickswap.exchange/swap?type=best&to=${encodeURIComponent(contractAddress)}`;
   }
 
+  if (network === 'tron') {
+    const outputToken = symbol.trim() || contractAddress;
+    return `https://app.rubic.exchange/?from=TRX&fromChain=TRON&to=${encodeURIComponent(outputToken)}&toChain=TRON`;
+  }
+
   if (network === 'kcc') {
     return `https://app.mojitoswap.finance/swap?outputCurrency=${encodeURIComponent(contractAddress)}`;
   }
@@ -749,6 +759,7 @@ function inferDexProviderFromNetwork(network: NetworkId): DexProvider {
   if (network === 'polygon') return 'quickswap';
   if (network === 'kcc') return 'mojitoswap';
   if (network === 'sui') return 'cetus';
+  if (network === 'tron') return 'rubic';
   return 'custom';
 }
 
@@ -764,6 +775,7 @@ function readSubmissionDexProvider(value: unknown): DexProvider {
     provider === 'quickswap' ||
     provider === 'mojitoswap' ||
     provider === 'cetus' ||
+    provider === 'rubic' ||
     provider === 'custom'
   ) {
     return provider;
