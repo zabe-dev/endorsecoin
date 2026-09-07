@@ -86,7 +86,7 @@ export function ListedCoinsTable({
                   <td>
                     <strong>{row.name}</strong>
                   </td>
-                  <td>${row.symbol}</td>
+                  <td>{row.symbol}</td>
                   <td>{row.chain || '—'}</td>
                   <td>{row.submittedBy || '—'}</td>
                   <td>{row.contactEmail || '—'}</td>
@@ -118,6 +118,8 @@ export function ListedCoinsTable({
                   <td>
                     <ActionGroup>
                       <CoinPageLinkAction coinId={row.id} name={row.name} />
+                      <BoostAction row={row} popover={popover} />
+                      <PromoteAction row={row} popover={popover} />
                       <ConfirmAction
                         popover={popover}
                         popoverId={`coin-status-${row.id}`}
@@ -212,7 +214,7 @@ export function PromotionsTable({
                   <strong>{row.name}</strong>
                   <span className="admin-row-subtext">{row.category}</span>
                 </td>
-                <td>${row.symbol}</td>
+                <td>{row.symbol}</td>
                 <td>{row.chain || '—'}</td>
                 <td>
                   <StatusPill tone={row.status === 'active' ? 'lime' : 'danger'}>

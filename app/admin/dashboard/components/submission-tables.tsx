@@ -79,7 +79,7 @@ export function PendingSubmissionsTable({
                   <td>
                     <strong>{row.name}</strong>
                   </td>
-                  <td>{row.symbol ? `$${row.symbol}` : '—'}</td>
+                  <td>{row.symbol || '—'}</td>
                   <td>{row.chain || '—'}</td>
                   <td>{row.submittedBy || '—'}</td>
                   <td>{row.contactEmail || '—'}</td>
@@ -208,7 +208,7 @@ export function PendingAirdropsTable({
                     <strong>{row.name}</strong>
                   </td>
                   <td>{row.chain || '—'}</td>
-                  <td>{row.symbol ? `$${row.symbol}` : '—'}</td>
+                  <td>{row.symbol || '—'}</td>
                   <td>{row.submittedBy || '—'}</td>
                   <td>{row.contactEmail || '—'}</td>
                   <td>{row.submittedAt}</td>

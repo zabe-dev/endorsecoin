@@ -677,6 +677,8 @@ async function countTableRows<TTable>(table: TTable, where?: ReturnType<typeof s
 function normalizeAdminSearch(value: string | null | undefined) {
   return String(value || '')
     .trim()
+    .replace(/^[#$]+/, '')
+    .trim()
     .slice(0, 120);
 }
 

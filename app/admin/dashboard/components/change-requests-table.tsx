@@ -73,9 +73,7 @@ export function ChangeRequestsTable({
                 <tr key={row.id}>
                   <td>
                     <strong>{row.coinName}</strong>
-                    <span className="admin-row-subtext">
-                      {row.coinSymbol ? `$${row.coinSymbol}` : `#${row.coinId}`}
-                    </span>
+                    <span className="admin-row-subtext">{row.coinSymbol || `#${row.coinId}`}</span>
                   </td>
                   <td>{row.requesterEmail}</td>
                   <td>{row.requesterTelegram || '—'}</td>

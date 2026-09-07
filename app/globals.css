@@ -2721,7 +2721,7 @@ body.modal-open {
   height: 15px;
 }
 .admin-tabs b {
-  min-width: 18px;
+  min-width: 24px;
   height: 18px;
   display: inline-grid;
   place-items: center;
@@ -2729,7 +2729,10 @@ body.modal-open {
   background: rgba(255, 255, 255, 0.075);
   color: #eef1f2;
   font-size: 8px;
+  font-variant-numeric: tabular-nums;
   line-height: 1;
+  padding: 0 6px;
+  white-space: nowrap;
 }
 .admin-tab-panel {
   margin-top: 18px;
