@@ -125,6 +125,7 @@ async function getAdminSummary(nowIso: string): Promise<AdminSummary> {
     coinCountRows,
     activeBoostCoinCountRows,
     activePromotionCoinCountRows,
+    visibilityCoinCountRows,
     pendingSubmissionCount,
     pendingAirdropSubmissionCount,
     pendingChangeRequestCount,
@@ -153,6 +154,7 @@ async function getAdminSummary(nowIso: string): Promise<AdminSummary> {
           sql`${coinPromotions.expiresAt} > ${nowIso}::timestamptz`,
         ),
       ),
+    countActiveVisibilityCoins(nowIso),
     db
       .select({ count: sql<number>`count(*)::int` })
       .from(coinSubmissions)
@@ -197,11 +199,46 @@ async function getAdminSummary(nowIso: string): Promise<AdminSummary> {
       .catch(() => [{ count: 0 }]),
   ]);
 
+  async function countActiveVisibilityCoins(nowIso: string) {
+    const [boostRows, promotionRows] = await Promise.all([
+      db
+        .select({ coinId: coinBoosts.coinId })
+        .from(coinBoosts)
+        .where(
+          and(
+            sql`${coinBoosts.status} in ('active', 'scheduled')`,
+            sql`${coinBoosts.startsAt} <= ${nowIso}::timestamptz`,
+            sql`${coinBoosts.expiresAt} > ${nowIso}::timestamptz`,
+          ),
+        ),
+      db
+        .select({ coinId: coinPromotions.coinId })
+        .from(coinPromotions)
+        .where(
+          and(
+            sql`${coinPromotions.status} in ('active', 'scheduled')`,
+            sql`${coinPromotions.startsAt} <= ${nowIso}::timestamptz`,
+            sql`${coinPromotions.expiresAt} > ${nowIso}::timestamptz`,
+          ),
+        ),
+    ]);
+
+    return [
+      {
+        count: new Set([
+          ...boostRows.map((row) => row.coinId),
+          ...promotionRows.map((row) => row.coinId),
+        ]).size,
+      },
+    ];
+  }
+
   return {
     users: readCount(userCountRows),
     coins: readCount(coinCountRows),
     activeBoosts: readCount(activeBoostCoinCountRows),
     promotedCoins: readCount(activePromotionCoinCountRows),
+    visibilityCoins: readCount(visibilityCoinCountRows),
     activeBanners: readCount(activeBannerCountRows),
     scheduledBanners: readCount(scheduledBannerCountRows),
     pendingSubmissions: readCount(pendingSubmissionCount),

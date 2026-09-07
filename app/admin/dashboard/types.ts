@@ -10,6 +10,7 @@ export type AdminSummary = {
   coins: number;
   activeBoosts: number;
   promotedCoins: number;
+  visibilityCoins: number;
   activeBanners: number;
   scheduledBanners: number;
   pendingSubmissions: number;

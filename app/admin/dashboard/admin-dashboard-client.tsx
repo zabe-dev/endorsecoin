@@ -37,7 +37,7 @@ const tabCounts = (summary: AdminSummary) =>
     submissions: summary.pendingSubmissions,
     airdrops: summary.pendingAirdrops,
     coins: summary.coins,
-    promotions: summary.activeBoosts + summary.promotedCoins,
+    promotions: summary.visibilityCoins,
     banners: summary.activeBanners,
     users: summary.users,
     reports: summary.changeRequests,

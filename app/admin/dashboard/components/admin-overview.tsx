@@ -56,7 +56,7 @@ export function AdminOverview({
       <div className="admin-overview-shortcuts">
         <button type="button" onClick={() => onSelectTab('promotions')}>
           <span>Promotion desk</span>
-          <b>{summary.activeBoosts + summary.promotedCoins}</b>
+          <b>{summary.visibilityCoins}</b>
           <small>coins with active visibility</small>
         </button>
         <button type="button" onClick={() => onSelectTab('banners')}>
