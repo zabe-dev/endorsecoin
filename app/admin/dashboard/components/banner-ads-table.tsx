@@ -222,11 +222,11 @@ function BannerEditAction({ row, popover }: { row?: AdminBannerRow; popover: Pop
                 <input
                   name="durationDays"
                   type="number"
-                  min={1}
+                  min={0}
                   max={365}
                   value={durationDays}
                   onChange={(event) =>
-                    setDurationDays(Math.max(1, Number(event.target.value) || 1))
+                    setDurationDays(Math.max(0, Number(event.target.value) || 0))
                   }
                   required
                 />

@@ -37,6 +37,37 @@ export type SubmissionCategory = (typeof submissionCategories)[number]['value'];
 export type SubmissionNetwork = (typeof submissionNetworks)[number];
 export type SubmissionPaymentToken = (typeof submissionPaymentTokens)[number];
 
+const contractAddressError = 'Enter a valid contract address.';
+const evmSubmissionNetworks = new Set<SubmissionNetwork>([
+  'ethereum',
+  'bsc',
+  'polygon',
+  'avalanche',
+  'arbitrum',
+  'base',
+  'optimism',
+  'fantom',
+  'kcc',
+  'hood',
+]);
+const evmAddressPattern = /^0x[a-fA-F0-9]{40}$/;
+const solanaAddressPattern = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+const tronAddressPattern = /^T[1-9A-HJ-NP-Za-km-z]{33}$/;
+
+export function isValidContractAddress(chain: SubmissionNetwork | '', address: string) {
+  const value = address.trim();
+  if (!value) return false;
+  if (!chain || chain === 'other') return true;
+  if (evmSubmissionNetworks.has(chain)) return evmAddressPattern.test(value);
+  if (chain === 'solana') return solanaAddressPattern.test(value);
+  if (chain === 'tron') return tronAddressPattern.test(value);
+  return true;
+}
+
+export function contractAddressValidationMessage() {
+  return contractAddressError;
+}
+
 const optionalUrl = z
   .string()
   .trim()
@@ -251,10 +282,20 @@ export const coinSubmissionSchema = z
         });
       }
 
-      if (!value.isPresale && !contract.address?.trim()) {
+      const address = contract.address?.trim() || '';
+      if (!value.isPresale && !address) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: 'Contract address is required.',
+          path: ['contracts', index, 'address'],
+        });
+        return;
+      }
+
+      if (address && !isValidContractAddress(contract.chain, address)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: contractAddressError,
           path: ['contracts', index, 'address'],
         });
       }

@@ -547,9 +547,8 @@ export async function updateBannerAd(formData: FormData) {
     expiresAt = addHours(startsAt, durationDays * 24);
   } else {
     const extensionDays = readBoundedNumber(formData, 'extensionDays', 0, 365);
-    if (extensionDays > 0) {
-      expiresAt = addHours(existing.expiresAt || new Date(), extensionDays * 24);
-    }
+    if (extensionDays < 1) throw new Error('Add at least 1 day to extend an active banner.');
+    expiresAt = addHours(existing.expiresAt || new Date(), extensionDays * 24);
   }
 
   const status = getScheduleStatus(startsAt, expiresAt);

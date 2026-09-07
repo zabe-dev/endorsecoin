@@ -315,11 +315,11 @@ function BoostAction({ row, popover }: { row: AdminCoinRow; popover: PopoverCont
                 <input
                   name="extensionDays"
                   type="number"
-                  min={1}
+                  min={0}
                   max={365}
                   value={extensionDays}
                   onChange={(event) =>
-                    setExtensionDays(Math.max(1, Number(event.target.value) || 1))
+                    setExtensionDays(Math.max(0, Number(event.target.value) || 0))
                   }
                   required
                 />
@@ -405,11 +405,11 @@ function PromoteAction({ row, popover }: { row: AdminCoinRow; popover: PopoverCo
                 <input
                   name="extensionDays"
                   type="number"
-                  min={1}
+                  min={0}
                   max={365}
                   value={extensionDays}
                   onChange={(event) =>
-                    setExtensionDays(Math.max(1, Number(event.target.value) || 1))
+                    setExtensionDays(Math.max(0, Number(event.target.value) || 0))
                   }
                   required
                 />
@@ -432,10 +432,10 @@ function PromoteAction({ row, popover }: { row: AdminCoinRow; popover: PopoverCo
                 <input
                   name="durationDays"
                   type="number"
-                  min={1}
+                  min={0}
                   max={365}
                   value={days}
-                  onChange={(event) => setDays(Math.max(1, Number(event.target.value) || 1))}
+                  onChange={(event) => setDays(Math.max(0, Number(event.target.value) || 0))}
                   required
                 />
               </label>

@@ -2,6 +2,8 @@ import {
   submissionBasicsSchema,
   submissionContactSchema,
   submissionLinksSchema,
+  contractAddressValidationMessage,
+  isValidContractAddress,
   submissionMarketSchema,
   submissionSecuritySchema,
   type CoinSubmissionValues,
@@ -105,8 +107,13 @@ export function validateStep(
       if (!contract.chain) {
         errors[`contracts.${index}.chain`] = 'Chain is required.';
       }
-      if (!values.isPresale && !contract.address?.trim()) {
+      const address = contract.address?.trim() || '';
+      if (!values.isPresale && !address) {
         errors[`contracts.${index}.address`] = 'Contract address is required.';
+        return;
+      }
+      if (address && !isValidContractAddress(contract.chain, address)) {
+        errors[`contracts.${index}.address`] = contractAddressValidationMessage();
       }
     });
     if (!values.isPresale) {
