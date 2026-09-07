@@ -2473,6 +2473,19 @@ body.modal-open {
     800 18px var(--font-space-grotesk),
     sans-serif;
 }
+.auth-message-slot {
+  min-height: 87px;
+  margin-bottom: 13px;
+}
+
+.auth-message-slot.is-empty {
+  visibility: hidden;
+}
+
+.auth-message-slot .auth-message {
+  margin: 0;
+}
+
 .auth-message {
   display: grid;
   grid-template-columns: 24px 1fr;
@@ -3721,6 +3734,8 @@ img.admin-project-logo {
   animation: admin-button-spin 0.75s linear infinite;
 }
 .admin-confirm-feedback {
+  display: block;
+  min-height: 31px;
   border-radius: 9px;
   padding: 8px 9px;
   background: rgba(255, 255, 255, 0.035);
@@ -3735,6 +3750,9 @@ img.admin-project-logo {
 .admin-confirm-feedback.error {
   background: rgba(255, 91, 91, 0.1);
   color: #ffb4b4;
+}
+.admin-confirm-feedback.is-empty {
+  visibility: hidden;
 }
 @keyframes admin-button-spin {
   to {
@@ -4054,6 +4072,9 @@ img.admin-project-logo {
   background: rgba(55, 217, 255, 0.07);
   color: #bceeff;
 }
+.inline-feedback.is-empty {
+  visibility: hidden;
+}
 .account-confirm-modal .inline-feedback {
   margin: 14px 0 0;
 }
@@ -4199,6 +4220,7 @@ img.admin-project-logo {
 }
 .settings-form-notice {
   display: flex;
+  min-height: 14px;
   align-items: center;
   gap: 6px;
   margin: 0;
@@ -4215,6 +4237,9 @@ img.admin-project-logo {
 }
 .settings-form-notice.error {
   color: #ff9d9d;
+}
+.settings-form-notice.is-empty {
+  visibility: hidden;
 }
 @keyframes settings-spin {
   to {

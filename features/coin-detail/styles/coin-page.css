@@ -573,6 +573,7 @@
   line-height: 1.5;
 }
 .change-form-feedback {
+  min-height: 39px;
   margin: 0;
   padding: 10px 12px;
   border: 1px solid rgba(230, 110, 115, 0.35);
@@ -581,6 +582,10 @@
   color: #ffaaa9;
   font-size: 10px;
   line-height: 1.45;
+}
+
+.change-form-feedback.is-empty {
+  visibility: hidden;
 }
 .change-form-actions {
   display: grid;

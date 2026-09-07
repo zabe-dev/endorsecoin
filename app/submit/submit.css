@@ -130,6 +130,7 @@
 }
 
 .submission-alert {
+  min-height: 43px;
   margin: 0 0 16px;
   border: 1px solid rgba(255, 91, 91, 0.28);
   border-radius: 14px;
@@ -137,6 +138,10 @@
   padding: 12px 14px;
   color: #ffd4d4;
   font-size: 12px;
+}
+
+.submission-alert.is-empty {
+  visibility: hidden;
 }
 
 .submission-note {
@@ -554,9 +559,16 @@
 }
 
 .submission-inline-error {
+  display: block;
+  min-height: 13px;
+  overflow: hidden;
   color: #ff9c9c !important;
   font-size: 9px !important;
   font-weight: 700 !important;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
 }
 
 .submission-chip-grid {

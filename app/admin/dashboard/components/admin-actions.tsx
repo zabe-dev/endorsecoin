@@ -149,7 +149,14 @@ export function ConfirmAction({
                 Cancel
               </button>
             </div>
-            {feedback && <small className={`admin-confirm-feedback ${status}`}>{feedback}</small>}
+            <small
+              className={`admin-confirm-feedback ${feedback ? status : 'is-empty'}`}
+              role={status === 'error' ? 'alert' : 'status'}
+              aria-live="polite"
+              aria-hidden={feedback ? undefined : true}
+            >
+              {feedback || '\u00a0'}
+            </small>
           </form>,
           document.body,
         )}
