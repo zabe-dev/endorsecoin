@@ -99,9 +99,11 @@ export default async function AirdropsPage({ searchParams }: AirdropsPageProps) 
 
       <PremiumAdBanner ads={bannerAds.premium} />
 
-      <section className="container promoted-section airdrops-promoted-section">
-        <PromotedCoinsTable coins={promotedCoins} isSignedIn={Boolean(session?.user)} />
-      </section>
+      {promotedCoins.length > 0 && (
+        <section className="container promoted-section airdrops-promoted-section">
+          <PromotedCoinsTable coins={promotedCoins} isSignedIn={Boolean(session?.user)} />
+        </section>
+      )}
       <SiteFooter />
     </main>
   );

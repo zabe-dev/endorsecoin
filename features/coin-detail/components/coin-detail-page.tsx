@@ -449,20 +449,21 @@ export function CoinDetailPage({
         />
       </div>
 
-      <section className="promoted-section coin-promoted-section">
-        <CoinTable
-          className="promoted-table"
-          coins={promotedRows}
-          watchlist={promotedWatched}
-          watchAnimating={promotedWatchAnimating}
-          voted={promotedVoted}
-          animating={promotedVoteAnimating}
-          watch={togglePromotedWatch}
-          vote={votePromoted}
-          coinLinks={false}
-          emptyMessage="There is currently no projects available to display."
-        />
-      </section>
+      {promotedRows.length > 0 && (
+        <section className="promoted-section coin-promoted-section">
+          <CoinTable
+            className="promoted-table"
+            coins={promotedRows}
+            watchlist={promotedWatched}
+            watchAnimating={promotedWatchAnimating}
+            voted={promotedVoted}
+            animating={promotedVoteAnimating}
+            watch={togglePromotedWatch}
+            vote={votePromoted}
+            coinLinks={false}
+          />
+        </section>
+      )}
 
       <ChangeRequestModal
         coinId={coin.coinId}

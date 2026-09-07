@@ -206,6 +206,8 @@ export function PromotedCoinsTable({
     });
   }
 
+  if (rows.length === 0) return null;
+
   return (
     <>
       {notice && (

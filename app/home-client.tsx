@@ -481,24 +481,26 @@ export function HomeClient({
           {interactionNotice}
         </div>
       )}
-      <section className="container promoted-section" id="promoted">
-        <Title
-          kicker="SPONSORED PLACEMENTS"
-          title="Promoted coins"
-          subtitle="Sponsored coins with active visibility packages. Promotion does not guarantee rank or endorsement."
-        />
-        <SimpleTable
-          className="promoted-table"
-          coins={rankCoins([...promotedCoins].sort(sortByVotes))}
-          watchlist={watchlist}
-          watchAnimating={watchAnimating}
-          voted={voted}
-          animating={animating}
-          watch={watch}
-          vote={vote}
-          coinLinks={false}
-        />
-      </section>
+      {promotedCoins.length > 0 && (
+        <section className="container promoted-section" id="promoted">
+          <Title
+            kicker="SPONSORED PLACEMENTS"
+            title="Promoted coins"
+            subtitle="Sponsored coins with active visibility packages. Promotion does not guarantee rank or endorsement."
+          />
+          <SimpleTable
+            className="promoted-table"
+            coins={rankCoins([...promotedCoins].sort(sortByVotes))}
+            watchlist={watchlist}
+            watchAnimating={watchAnimating}
+            voted={voted}
+            animating={animating}
+            watch={watch}
+            vote={vote}
+            coinLinks={false}
+          />
+        </section>
+      )}
       <PremiumAdBanner ads={bannerAds.premium} />
       <section className="container leaderboard" id="leaderboard">
         <div className="section-title">
