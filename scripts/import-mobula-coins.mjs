@@ -68,6 +68,7 @@ const MAX_IMPORT_PRICE_USD = 1_000_000;
 const MAX_IMPORT_MARKET_CAP_USD = 1_000_000_000_000;
 const MAX_IMPORT_FDV_USD = 1_000_000_000_000;
 const MAX_MARKET_DETAIL_PRICE_RATIO = 100;
+const IMPORT_SUBMITTED_AT_START = new Date('2026-01-01T00:00:00.000Z');
 
 if (!DATABASE_URL && !DRY_RUN) {
   throw new Error('DATABASE_URL is required for a real import. Use --dry-run to preview only.');
@@ -1276,6 +1277,7 @@ async function upsertToken(token, slug) {
     `;
     const coinId = existing[0]?.id || (await readNextCoinId(tx));
     const now = new Date();
+    const submittedAt = randomSubmittedAt(now);
 
     await tx`
       insert into coins (
@@ -1285,7 +1287,7 @@ async function upsertToken(token, slug) {
       values (
         ${coinId}, ${slug}, ${token.name}, ${token.symbol}, ${logoUrl}, ${token.description},
         ${token.category}, ${token.contract.chain}, ${token.contract.address}, ${token.launchDate},
-        'imported', 'active', false, ${now}, ${now}, ${now}
+        'imported', 'active', false, ${submittedAt}, ${now}, ${now}
       )
       on conflict (id) do update set
         name = excluded.name,
@@ -1339,6 +1341,15 @@ async function resolveLogoUrl(token) {
       }`,
     );
   }
+}
+
+function randomSubmittedAt(now) {
+  const earliest = Math.min(IMPORT_SUBMITTED_AT_START.getTime(), now.getTime());
+  const latest = now.getTime();
+
+  if (earliest >= latest) return new Date(latest);
+
+  return new Date(earliest + Math.floor(Math.random() * (latest - earliest)));
 }
 
 async function readNextCoinId(tx) {
