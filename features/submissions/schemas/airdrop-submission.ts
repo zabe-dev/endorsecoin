@@ -128,37 +128,37 @@ export const airdropSocialLinkFields = [
     key: 'telegram' as const,
     icon: 'akar-icons:telegram-fill',
     label: 'Telegram',
-    placeholder: 'https://t.me/project',
+    placeholder: 'https://t.me/example',
   },
   {
     key: 'x' as const,
     icon: 'akar-icons:x-fill',
     label: 'X / Twitter',
-    placeholder: 'https://x.com/project',
+    placeholder: 'https://x.com/example',
   },
   {
     key: 'reddit' as const,
     icon: 'akar-icons:reddit-fill',
     label: 'Reddit',
-    placeholder: 'https://reddit.com/r/project',
+    placeholder: 'https://reddit.com/r/example',
   },
   {
     key: 'discord' as const,
     icon: 'akar-icons:discord-fill',
     label: 'Discord',
-    placeholder: 'https://discord.gg/project',
+    placeholder: 'https://discord.gg/example',
   },
   {
     key: 'youtube' as const,
     icon: 'akar-icons:youtube-fill',
     label: 'YouTube',
-    placeholder: 'https://youtube.com/@project',
+    placeholder: 'https://youtube.com/@example',
   },
   {
     key: 'facebook' as const,
     icon: 'akar-icons:facebook-fill',
     label: 'Facebook',
-    placeholder: 'https://facebook.com/project',
+    placeholder: 'https://facebook.com/example',
   },
 ] satisfies Array<{
   key: keyof AirdropSubmissionValues['socialLinks'];

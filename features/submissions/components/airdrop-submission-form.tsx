@@ -1,9 +1,5 @@
 'use client';
 
-import {
-  airdropSocialLinkFields,
-  airdropSubmissionPayloadSchema,
-} from '@/features/submissions/schemas/airdrop-submission';
 import type { ApprovedProjectOption } from '@/features/airdrops/types';
 import {
   DateInput,
@@ -15,6 +11,10 @@ import {
   TurnstileSlot,
   type TurnstileSlotHandle,
 } from '@/features/submissions/components/submission-fields';
+import {
+  airdropSocialLinkFields,
+  airdropSubmissionPayloadSchema,
+} from '@/features/submissions/schemas/airdrop-submission';
 import { showRateLimitToast } from '@/lib/api/rate-limit-toast';
 import { Check, Home, Loader2, PartyPopper, Search, Send } from 'lucide-react';
 import Link from 'next/link';
@@ -425,7 +425,7 @@ export function AirdropSubmissionForm({
                   label="Claim Rewards URL"
                   value={values.claimRewardsUrl}
                   error={errors.claimRewardsUrl}
-                  placeholder="https://example.com/claim"
+                  placeholder="https://example.com"
                   onChange={(value) => update('claimRewardsUrl', value)}
                 />
                 <LinkField
@@ -434,7 +434,7 @@ export function AirdropSubmissionForm({
                   label="Website"
                   value={values.website}
                   error={errors.website}
-                  placeholder="https://project.com"
+                  placeholder="https://example.com"
                   onChange={(value) => update('website', value)}
                 />
                 <div className="submission-airdrop-social-grid">
