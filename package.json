@@ -19,7 +19,8 @@
     "db:reset:dev": "node --env-file=.env.local scripts/reset-dev-data.mjs",
     "import:mobula": "node --env-file=.env.local scripts/import-mobula-coins.mjs",
     "redis:flush": "NODE_EXTRA_CA_CERTS=.certs/coolify-ca.crt node --env-file=.env.local scripts/flush-redis.mjs",
-    "db:seed:dummy": "node --env-file=.env.local scripts/seed-dummy-data.mjs"
+    "db:seed:dummy": "node --env-file=.env.local scripts/seed-dummy-data.mjs",
+    "backfill:tron": "node --env-file=.env.local scripts/backfill-tron-geckoterminal.mjs"
   },
   "dependencies": {
     "@emnapi/core": "1.11.3",
