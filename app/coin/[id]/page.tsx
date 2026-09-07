@@ -1,16 +1,16 @@
-import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
 import { SiteHeader } from '@/components/layout/site-header';
 import { JsonLd } from '@/components/seo/json-ld';
-import { CoinDetailPage } from '@/features/coin-detail/components/coin-detail-page';
 import { getActiveBannerAds } from '@/features/ads/server/banner-ads';
+import { CoinDetailPage } from '@/features/coin-detail/components/coin-detail-page';
 import { getPublicCoinById } from '@/features/coins/server/coin-list';
 import { getPromotedCoinItems } from '@/features/coins/server/discovery';
 import type { Coin } from '@/features/coins/types';
 import { getCurrentSession } from '@/lib/auth/session';
 import { createPublicPageMetadata, siteUrl } from '@/lib/seo/metadata';
-import '../../market.css';
+import type { Metadata } from 'next';
+import { notFound } from 'next/navigation';
 import '../../../features/coin-detail/styles/coin-page.css';
+import '../../market.css';
 
 type CoinPageParams = { params: Promise<{ id: string }> };
 
@@ -78,55 +78,31 @@ export default async function CoinPage({ params }: CoinPageParams) {
 
 function buildCoinMetadataCopy(coin: Coin) {
   const displayName = `${coin.name} (${coin.symbol})`;
-  const hasPrice = typeof coin.market.priceUsd === 'number';
-  const hasChart = coin.chart.source !== 'unavailable';
-  const hasBuyLink = coin.dex.available || Boolean(coin.presale.websiteUrl);
   const hasContract = Boolean(coin.contractAddress);
   const hasOfficialLinks = coin.links.length > 0;
-
-  if (hasPrice && hasChart && hasBuyLink) {
-    return {
-      title: `${displayName} Price, Chart & Where to Buy`,
-      description:
-        [
-          `Check ${displayName} price and chart`,
-          'explore where to buy',
-          hasContract ? 'find the contract address' : '',
-          hasOfficialLinks ? 'official links' : '',
-        ]
-          .filter(Boolean)
-          .join(', ')
-          .replace(/, ([^,]*)$/, ', and $1') + '.',
-    };
-  }
-
-  if (hasPrice && hasChart) {
-    return {
-      title: `${displayName} Price & Chart`,
-      description:
-        [
-          `Check ${displayName} price and chart`,
-          hasContract ? 'find the contract address' : '',
-          hasOfficialLinks ? 'official links' : '',
-          'community activity',
-        ]
-          .filter(Boolean)
-          .join(', ')
-          .replace(/, ([^,]*)$/, ', and $1') + '.',
-    };
-  }
+  const hasBuyLink = coin.dex.available || Boolean(coin.presale.websiteUrl);
+  const details = [
+    hasBuyLink ? 'where to buy' : 'available trading details',
+    hasContract ? 'contract address' : '',
+    hasOfficialLinks ? 'official links' : '',
+    'community votes',
+    'watchlist signals',
+  ]
+    .filter(Boolean)
+    .join(', ')
+    .replace(/, ([^,]*)$/, ', and $1');
 
   return {
-    title: `${displayName} Token Details & Official Links`,
-    description:
-      [
-        `Learn about ${displayName}`,
-        hasContract ? 'find the contract address' : '',
-        hasOfficialLinks ? 'official links' : '',
-        'community activity',
-      ]
-        .filter(Boolean)
-        .join(', ')
-        .replace(/, ([^,]*)$/, ', and $1') + '.',
+    title: `${displayName} Live Price, Chart & Where To Buy`,
+    description: trimMetaDescription(`Track ${displayName} live price and chart, plus ${details}.`),
   };
+}
+
+function trimMetaDescription(description: string) {
+  const maxLength = 155;
+  if (description.length <= maxLength) return description;
+
+  const trimmed = description.slice(0, maxLength - 1);
+  const lastSpace = trimmed.lastIndexOf(' ');
+  return `${trimmed.slice(0, lastSpace > 120 ? lastSpace : trimmed.length).replace(/[,.]$/, '')}.`;
 }
