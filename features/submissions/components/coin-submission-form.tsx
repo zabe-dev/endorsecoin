@@ -431,13 +431,7 @@ export function CoinSubmissionForm({
             ))}
           </div>
 
-          <div
-            className={`submission-alert ${errors.form ? '' : 'is-empty'}`}
-            role={errors.form ? 'alert' : undefined}
-            aria-hidden={errors.form ? undefined : true}
-          >
-            {errors.form || '\u00a0'}
-          </div>
+          {errors.form && <div className="submission-alert">{errors.form}</div>}
 
           {stepIndex === 0 && (
             <section className="submission-basics">
@@ -787,12 +781,12 @@ export function CoinSubmissionForm({
                     <RequiredMark />
                   </span>
                 </label>
-                <small className="submission-inline-error" aria-live="polite">
-                  {errors.agreedToTerms || '\u00a0'}
-                </small>
-                <small className="submission-inline-error" aria-live="polite">
-                  {errors.turnstileToken || '\u00a0'}
-                </small>
+                {errors.agreedToTerms && (
+                  <small className="submission-inline-error">{errors.agreedToTerms}</small>
+                )}
+                {errors.turnstileToken && (
+                  <small className="submission-inline-error">{errors.turnstileToken}</small>
+                )}
 
                 <TurnstileSlot
                   ref={turnstileRef}

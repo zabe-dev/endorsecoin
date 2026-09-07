@@ -144,14 +144,11 @@ export function ChangeRequestModal({
               <p className="change-form-note">
                 Submitting a request does not guarantee that the listing will be changed.
               </p>
-              <p
-                className={`change-form-feedback ${feedback ? '' : 'is-empty'}`}
-                role="alert"
-                aria-live="polite"
-                aria-hidden={feedback ? undefined : true}
-              >
-                {feedback || '\u00a0'}
-              </p>
+              {feedback && (
+                <p className="change-form-feedback" role="alert">
+                  {feedback}
+                </p>
+              )}
               <div className="change-form-actions">
                 <button type="button" onClick={close} disabled={saving}>
                   Cancel

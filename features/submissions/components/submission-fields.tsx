@@ -77,9 +77,7 @@ export function Field({
         {hint && <small>{hint}</small>}
       </span>
       {children}
-      <small className="submission-inline-error" aria-live="polite">
-        {error || '\u00a0'}
-      </small>
+      {error && <small className="submission-inline-error">{error}</small>}
     </label>
   );
 }
@@ -167,9 +165,9 @@ export function LogoField({
           }}
         />
       </div>
-      <small className="submission-inline-error" aria-live="polite">
-        {error || draftError || '\u00a0'}
-      </small>
+      {(error || draftError) && (
+        <small className="submission-inline-error">{error || draftError}</small>
+      )}
     </div>
   );
 }
@@ -209,9 +207,7 @@ export function CategoryField({
           );
         })}
       </div>
-      <small className="submission-inline-error" aria-live="polite">
-        {error || '\u00a0'}
-      </small>
+      {error && <small className="submission-inline-error">{error}</small>}
     </div>
   );
 }
@@ -240,9 +236,7 @@ export function PresaleToggle({
           Yes
         </button>
       </div>
-      <small className="submission-inline-error" aria-live="polite">
-        {error || '\u00a0'}
-      </small>
+      {error && <small className="submission-inline-error">{error}</small>}
     </div>
   );
 }
@@ -665,9 +659,7 @@ function ChainPicker({
           </div>
         )}
       </div>
-      <small className="submission-inline-error" aria-live="polite">
-        {error || '\u00a0'}
-      </small>
+      {error && <small className="submission-inline-error">{error}</small>}
     </div>
   );
 }

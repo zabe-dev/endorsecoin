@@ -483,9 +483,7 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
           </>
         )}
 
-        <div className={`auth-message-slot ${feedback ? '' : 'is-empty'}`}>
-          {feedback ? <AuthFeedbackMessage feedback={feedback} /> : null}
-        </div>
+        {feedback && <AuthFeedbackMessage feedback={feedback} />}
 
         <form className="auth-form" onSubmit={submit}>
           {isCodeStep ? (

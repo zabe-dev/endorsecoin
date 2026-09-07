@@ -476,14 +476,11 @@ export function HomeClient({
           </div>
         )}
       </section>
-      <div
-        className={`container interaction-notice ${interactionNotice ? '' : 'is-empty'}`}
-        role="status"
-        aria-live="polite"
-        aria-hidden={interactionNotice ? undefined : true}
-      >
-        {interactionNotice || '\u00a0'}
-      </div>
+      {interactionNotice && (
+        <div className="container interaction-notice" role="status">
+          {interactionNotice}
+        </div>
+      )}
       <section className="container promoted-section" id="promoted">
         <Title
           kicker="SPONSORED PLACEMENTS"

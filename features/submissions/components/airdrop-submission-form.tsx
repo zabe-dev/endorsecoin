@@ -344,13 +344,7 @@ export function AirdropSubmissionForm({
 
       <form className="submission-form" onSubmit={submit}>
         <section className="submission-card">
-          <div
-            className={`submission-alert ${errors.form ? '' : 'is-empty'}`}
-            role={errors.form ? 'alert' : undefined}
-            aria-hidden={errors.form ? undefined : true}
-          >
-            {errors.form || '\u00a0'}
-          </div>
+          {errors.form && <div className="submission-alert">{errors.form}</div>}
           <div className="submission-section-stack">
             <SectionCard>
               <div className="submission-grid">
@@ -530,12 +524,12 @@ export function AirdropSubmissionForm({
                   <RequiredMark />
                 </span>
               </label>
-              <small className="submission-inline-error" aria-live="polite">
-                {errors.agreedToTerms || '\u00a0'}
-              </small>
-              <small className="submission-inline-error" aria-live="polite">
-                {errors.turnstileToken || '\u00a0'}
-              </small>
+              {errors.agreedToTerms && (
+                <small className="submission-inline-error">{errors.agreedToTerms}</small>
+              )}
+              {errors.turnstileToken && (
+                <small className="submission-inline-error">{errors.turnstileToken}</small>
+              )}
               <TurnstileSlot
                 ref={turnstileRef}
                 token={values.turnstileToken || ''}

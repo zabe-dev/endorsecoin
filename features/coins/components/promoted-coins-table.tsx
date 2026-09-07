@@ -208,14 +208,11 @@ export function PromotedCoinsTable({
 
   return (
     <>
-      <div
-        className={`interaction-notice ${notice ? '' : 'is-empty'}`}
-        role="status"
-        aria-live="polite"
-        aria-hidden={notice ? undefined : true}
-      >
-        {notice || '\u00a0'}
-      </div>
+      {notice && (
+        <div className="interaction-notice" role="status">
+          {notice}
+        </div>
+      )}
       <CoinTable
         className={className}
         coins={rows}

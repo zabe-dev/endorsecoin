@@ -423,14 +423,11 @@ export function CoinDetailPage({
         </div>
       )}
 
-      <div
-        className={`container interaction-notice ${notice ? '' : 'is-empty'}`}
-        role="status"
-        aria-live="polite"
-        aria-hidden={notice ? undefined : true}
-      >
-        {notice || '\u00a0'}
-      </div>
+      {notice && (
+        <div className="container interaction-notice" role="status">
+          {notice}
+        </div>
+      )}
 
       <PremiumAdBanner ads={premiumBannerAds} />
 

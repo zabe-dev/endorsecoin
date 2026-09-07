@@ -90,14 +90,11 @@ export function MailingListSignup() {
           )}
           <span>{status === 'loading' ? 'Subscribing...' : 'Subscribe'}</span>
         </button>
-        <small
-          className={`mailing-list-feedback ${status === 'idle' ? 'is-empty' : status}`}
-          role="status"
-          aria-live="polite"
-          aria-hidden={message ? undefined : true}
-        >
-          {message || '\u00a0'}
-        </small>
+        {message && (
+          <small className={`mailing-list-feedback ${status}`} role="status">
+            {message}
+          </small>
+        )}
       </form>
     </section>
   );

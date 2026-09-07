@@ -326,16 +326,15 @@ export function SettingsPanel({ user }: { user: { name: string; email: string } 
 type Notice = { type: 'success' | 'error'; message: string };
 
 function FormNotice({ notice }: { notice: Notice | null }) {
-  const Icon = notice?.type === 'success' ? CheckCircle2 : XCircle;
+  if (!notice) return null;
   return (
-    <p
-      className={`settings-form-notice ${notice?.type || 'is-empty'}`}
-      role="status"
-      aria-live="polite"
-      aria-hidden={notice ? undefined : true}
-    >
-      <Icon aria-hidden="true" />
-      {notice?.message || '\u00a0'}
+    <p className={`settings-form-notice ${notice.type}`} role="status" aria-live="polite">
+      {notice.type === 'success' ? (
+        <CheckCircle2 aria-hidden="true" />
+      ) : (
+        <XCircle aria-hidden="true" />
+      )}
+      {notice.message}
     </p>
   );
 }

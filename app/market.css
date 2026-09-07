@@ -657,7 +657,6 @@
   line-height: 0;
 }
 .interaction-notice {
-  min-height: 41px;
   margin-top: 18px;
   border: 1px solid rgba(203, 255, 74, 0.18);
   border-radius: 14px;
@@ -1226,9 +1225,6 @@
 }
 .mailing-list-feedback.error {
   color: #ff9999;
-}
-.mailing-list-feedback.is-empty {
-  visibility: hidden;
 }
 .legal-shell {
   width: min(100% - 36px, 980px);
@@ -2458,8 +2454,4 @@
   .leaderboard .week-chip small {
     justify-self: end;
   }
-}
-
-.interaction-notice.is-empty {
-  visibility: hidden;
 }

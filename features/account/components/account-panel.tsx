@@ -188,17 +188,18 @@ export function AccountPanel({
 }
 
 function InlineFeedback({ notice }: { notice: InlineNotice | null }) {
-  const Icon = notice?.tone === 'success' ? CheckCircle2 : AlertCircle;
+  if (!notice) return null;
+
+  const Icon = notice.tone === 'success' ? CheckCircle2 : AlertCircle;
 
   return (
     <p
-      className={`inline-feedback ${notice?.tone || 'is-empty'}`}
-      role={notice?.tone === 'error' ? 'alert' : 'status'}
+      className={`inline-feedback ${notice.tone}`}
+      role={notice.tone === 'error' ? 'alert' : 'status'}
       aria-live="polite"
-      aria-hidden={notice ? undefined : true}
     >
       <Icon aria-hidden="true" />
-      {notice?.message || '\u00a0'}
+      {notice.message}
     </p>
   );
 }
