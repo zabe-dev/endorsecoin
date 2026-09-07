@@ -1,14 +1,18 @@
 import Image from 'next/image';
 import Link from 'next/link';
 
-export function Brand({ beta = false }: { beta?: boolean }) {
+export function Brand() {
   return (
     <Link className="brand" href="/" aria-label="EndorseCoin home">
       <span className="brand-mark">
-        <Image src="https://assets.endorsecoin.com/logo.svg" alt="EndorseCoin logo" width={40} height={40} />
+        <Image
+          src="https://assets.endorsecoin.com/site/logo.svg"
+          alt="EndorseCoin logo"
+          width={40}
+          height={40}
+        />
       </span>
       <span>endorsecoin</span>
-      {beta && <em>beta</em>}
     </Link>
   );
 }
