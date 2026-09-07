@@ -33,6 +33,8 @@ const GECKOTERMINAL_API_BASE_URL = trimTrailingSlash(
   process.env.GECKOTERMINAL_API_BASE_URL || 'https://api.geckoterminal.com',
 );
 const GECKOTERMINAL_TRON_NETWORK = 'tron';
+const GECKOTERMINAL_TRON_FALLBACK_MIN = 3;
+const GECKOTERMINAL_TRON_FALLBACK_MAX = 5;
 const GECKOTERMINAL_TOKEN_BATCH_SIZE = Math.min(
   readPositiveInteger(
     process.argv
@@ -535,6 +537,76 @@ function logImportProgress(current, total, phaseStartedAt) {
     `Import progress: token ${current}/${total} (${pct}%)` +
       (isLast ? ` — done in ${formatDuration(elapsedMs)}` : ` — ETA ${formatDuration(etaMs)}`),
   );
+}
+
+async function fetchGeckoTerminalTronFallbackTokens(existingState, existingCandidates = []) {
+  const desiredCount = randomInteger(
+    GECKOTERMINAL_TRON_FALLBACK_MIN,
+    GECKOTERMINAL_TRON_FALLBACK_MAX,
+  );
+  log(
+    `Requesting ${desiredCount} fallback TRON token candidate(s) from GeckoTerminal recently updated tokens...`,
+  );
+
+  await waitForGeckoTerminalSlot();
+
+  const url = new URL('/api/v2/tokens/info_recently_updated', GECKOTERMINAL_API_BASE_URL);
+  url.searchParams.set('include', 'network');
+  url.searchParams.set('network', GECKOTERMINAL_TRON_NETWORK);
+
+  try {
+    const response = await fetch(url, {
+      headers: { accept: 'application/json;version=20230203' },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      console.warn(
+        `GeckoTerminal TRON fallback request failed: ${response.status} ${response.statusText}${
+          errorText ? ` — ${errorText.slice(0, 500)}` : ''
+        }`,
+      );
+      return [];
+    }
+
+    const json = await response.json();
+    const rows = Array.isArray(json?.data) ? json.data : [];
+    const candidateState = {
+      contracts: new Set(
+        existingCandidates
+          .map((token) => contractKey(token.contract.chain, token.contract.address))
+          .filter(Boolean),
+      ),
+      marketSourceIds: new Set(
+        existingCandidates.map((token) => marketSourceExternalId(token)).filter(Boolean),
+      ),
+    };
+    const fallbackTokens = [];
+
+    for (const row of RANDOMIZE ? shuffle(rows) : rows) {
+      if (fallbackTokens.length >= desiredCount) break;
+      const token = buildGeckoTerminalTronToken(row);
+      if (!token) continue;
+      if (isExistingTokenCandidate(token, existingState, candidateState)) continue;
+
+      fallbackTokens.push(token);
+      const key = contractKey(token.contract.chain, token.contract.address);
+      const sourceId = marketSourceExternalId(token);
+      if (key) candidateState.contracts.add(key);
+      if (sourceId) candidateState.marketSourceIds.add(sourceId);
+    }
+
+    log(
+      `GeckoTerminal TRON fallback added ${fallbackTokens.length}/${desiredCount} token candidate(s).`,
+    );
+    return fallbackTokens;
+  } catch (error) {
+    console.warn(
+      `GeckoTerminal TRON fallback request threw: ${error instanceof Error ? error.message : 'unknown error'}`,
+    );
+    if (DEBUG) console.warn(error);
+    return [];
+  }
 }
 
 async function fetchMobulaAssets() {
@@ -1587,6 +1659,50 @@ function findTargetContract(item) {
   return null;
 }
 
+function buildGeckoTerminalTronToken(row) {
+  const attributes = row?.attributes;
+  if (!attributes || typeof attributes !== 'object') return null;
+
+  const address = pickString(attributes, ['address']);
+  if (!address || !/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(address.trim())) return null;
+
+  const symbol = pickString(attributes, ['symbol']) || '???';
+  if (symbolDenylist.has(symbol.toUpperCase())) return null;
+
+  return {
+    mobulaId: null,
+    geckoTerminalId: typeof row?.id === 'string' ? row.id : null,
+    name: pickString(attributes, ['name']) || 'Unknown',
+    symbol,
+    logo: pickGeckoTerminalImageUrl(attributes),
+    description: sanitizePlainText(pickString(attributes, ['description'])),
+    classificationTerms: [
+      ...extractClassificationTerms(attributes),
+      ...pickStringArray(attributes, ['gt_categories_id']),
+      ...pickStringArray(attributes, ['gt_category_ids']),
+    ],
+    category: 'Other',
+    price: null,
+    marketCap: null,
+    fdv: null,
+    volume: null,
+    change24h: null,
+    liquidity: null,
+    totalSupply: null,
+    holdersCount: pickInteger(attributes.holders || {}, ['count']),
+    rank: null,
+    contract: {
+      blockchain: GECKOTERMINAL_TRON_NETWORK,
+      address: address.trim(),
+      chain: 'tron',
+    },
+    chartUrl: chartUrlBuilders.tron(address.trim()),
+    dexUrl: dexSwapUrlBuilders.tron(address.trim()),
+    launchDate: null,
+    projectLinks: extractGeckoTerminalProjectLinks(attributes),
+  };
+}
+
 function buildToken(item) {
   const contract = findTargetContract(item);
   if (!contract) return null;
@@ -1794,6 +1910,22 @@ async function loadExistingImportState() {
   };
 }
 
+function isExistingTokenCandidate(
+  token,
+  existingState,
+  candidateState = { contracts: new Set(), marketSourceIds: new Set() },
+) {
+  const key = contractKey(token.contract.chain, token.contract.address);
+  const sourceId = marketSourceExternalId(token);
+
+  return Boolean(
+    (key && (existingState.contracts.has(key) || candidateState.contracts.has(key))) ||
+    (sourceId &&
+      (existingState.marketSourceIds.has(sourceId) ||
+        candidateState.marketSourceIds.has(sourceId))),
+  );
+}
+
 function filterNewTokens(tokens, existingState) {
   const seenContracts = new Set();
   const seenSources = new Set();
@@ -1912,6 +2044,10 @@ function shuffle(items) {
 
 function randomItem(items) {
   return items[Math.floor(Math.random() * items.length)];
+}
+
+function randomInteger(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
 function logCategorySummary(tokens) {
@@ -2502,12 +2638,38 @@ async function main() {
   }
 
   const raw = await fetchMobulaAssets();
-  const matchedAll = raw.map(buildToken).filter(Boolean);
-  const {
-    freshTokens: matchedFresh,
-    skippedExisting,
-    skippedBatchDuplicate,
-  } = filterNewTokens(matchedAll, existingState);
+  const mobulaCandidates = raw.map(buildToken).filter(Boolean);
+  const mobulaFreshResult = filterNewTokens(mobulaCandidates, existingState);
+  let matchedFresh = mobulaFreshResult.freshTokens;
+  let skippedExisting = mobulaFreshResult.skippedExisting;
+  let skippedBatchDuplicate = mobulaFreshResult.skippedBatchDuplicate;
+  let geckoTerminalTronFallbackCandidates = [];
+
+  const freshTronCount = matchedFresh.filter((token) => token.contract.chain === 'tron').length;
+  if (freshTronCount < GECKOTERMINAL_TRON_FALLBACK_MIN) {
+    geckoTerminalTronFallbackCandidates = await fetchGeckoTerminalTronFallbackTokens(
+      existingState,
+      mobulaCandidates,
+    );
+    const geckoFreshResult = filterNewTokens(geckoTerminalTronFallbackCandidates, {
+      ...existingState,
+      contracts: new Set([
+        ...existingState.contracts,
+        ...matchedFresh
+          .map((token) => contractKey(token.contract.chain, token.contract.address))
+          .filter(Boolean),
+      ]),
+      marketSourceIds: new Set([
+        ...existingState.marketSourceIds,
+        ...matchedFresh.map((token) => marketSourceExternalId(token)).filter(Boolean),
+      ]),
+    });
+    matchedFresh = [...matchedFresh, ...geckoFreshResult.freshTokens];
+    skippedExisting += geckoFreshResult.skippedExisting;
+    skippedBatchDuplicate += geckoFreshResult.skippedBatchDuplicate;
+  }
+
+  const matchedAll = [...mobulaCandidates, ...geckoTerminalTronFallbackCandidates];
 
   const byChain = Object.fromEntries(chainKeys.map((chain) => [chain, []]));
   for (const token of matchedFresh) byChain[token.contract.chain].push(token);
