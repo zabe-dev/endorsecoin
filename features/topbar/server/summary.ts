@@ -3,6 +3,7 @@ import 'server-only';
 import { db } from '@/lib/db/client';
 import { coinBoosts, coinVotes, coinWatchlists, coins, users } from '@/lib/db/schema';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { getCurrentVoteWeekStart } from '@/features/coins/server/interactions';
 import { getCachedTopbarPrices } from './market-prices';
 import type { TopbarCoinLink, TopbarSummary } from '@/features/topbar/types';
 import { getCacheVersion } from '@/lib/cache/cache-version';
@@ -167,62 +168,66 @@ async function readTrendingCoin(dayAgoIso: string): Promise<TopbarCoinLink> {
 async function readTopVotedCoin(): Promise<TopbarCoinLink> {
   try {
     const nowIso = new Date().toISOString();
-    const coinRows = await db
-      .select({
-        id: coins.id,
-        name: coins.name,
-        symbol: coins.symbol,
-        logoUrl: coins.logoUrl,
-      })
-      .from(coins)
-      .where(eq(coins.listingStatus, 'active'))
-      .limit(500);
+    const weekStartIso = getCurrentVoteWeekStart().toISOString();
+    const rows = await db.execute<{
+      id: number;
+      name: string;
+      symbol: string;
+      logoUrl: string | null;
+      boost: number | null;
+      boostedVotes: number | string;
+    }>(sql`
+      with weekly_votes as (
+        select ${coinVotes.coinId} as coin_id, count(*)::int as count
+        from ${coinVotes}
+        where ${coinVotes.weekStartsAt} = ${weekStartIso}::timestamptz
+        group by ${coinVotes.coinId}
+      ),
+      active_boosts as (
+        select distinct on (${coinBoosts.coinId})
+          ${coinBoosts.coinId} as coin_id,
+          ${coinBoosts.multiplier} as multiplier
+        from ${coinBoosts}
+        where ${coinBoosts.status} in ('active', 'scheduled')
+          and ${coinBoosts.startsAt} <= ${nowIso}::timestamptz
+          and ${coinBoosts.expiresAt} > ${nowIso}::timestamptz
+        order by ${coinBoosts.coinId}, ${coinBoosts.expiresAt} desc
+      ),
+      ranked as (
+        select
+          ${coins.id} as id,
+          ${coins.name} as name,
+          ${coins.symbol} as symbol,
+          ${coins.logoUrl} as "logoUrl",
+          active_boosts.multiplier as boost,
+          (coalesce(weekly_votes.count, 0) * case
+            when active_boosts.multiplier in (10, 30) then 2
+            when active_boosts.multiplier in (50, 100) then 3
+            when active_boosts.multiplier = 500 then 5
+            else 1
+          end) as "boostedVotes"
+        from ${coins}
+        left join weekly_votes on weekly_votes.coin_id = ${coins.id}
+        left join active_boosts on active_boosts.coin_id = ${coins.id}
+        where ${coins.listingStatus} = 'active'
+      )
+      select id, name, symbol, "logoUrl", boost, "boostedVotes"
+      from ranked
+      where "boostedVotes" > 0
+      order by "boostedVotes" desc, name asc, id asc
+      limit 1
+    `);
 
-    const activeCoinIds = coinRows.map((coin) => coin.id);
-    if (!activeCoinIds.length) return null;
+    const topCoin = rows[0];
+    if (!topCoin) return null;
 
-    const [voteRows, boostRows] = await Promise.all([
-      db
-        .select({
-          coinId: coinVotes.coinId,
-          count: sql<number>`count(*)::int`,
-        })
-        .from(coinVotes)
-        .where(inArray(coinVotes.coinId, activeCoinIds))
-        .groupBy(coinVotes.coinId),
-      db
-        .select({
-          coinId: coinBoosts.coinId,
-          multiplier: coinBoosts.multiplier,
-        })
-        .from(coinBoosts)
-        .where(
-          and(
-            inArray(coinBoosts.coinId, activeCoinIds),
-            sql`${coinBoosts.status} in ('active', 'scheduled')`,
-            sql`${coinBoosts.startsAt} <= ${nowIso}::timestamptz`,
-            sql`${coinBoosts.expiresAt} > ${nowIso}::timestamptz`,
-          ),
-        )
-        .catch((error) => {
-          if (isMissingBoostTableError(error)) return [];
-          throw error;
-        }),
-    ]);
-
-    const votesByCoin = new Map(voteRows.map((row) => [row.coinId, row.count]));
-    const boostByCoin = new Map(boostRows.map((row) => [row.coinId, row.multiplier]));
-    const topCoin = coinRows
-      .map((coin) => ({
-        ...coin,
-        boost: boostByCoin.get(coin.id) || null,
-        effectiveVotes:
-          (votesByCoin.get(coin.id) || 0) * getBoostVoteFactor(boostByCoin.get(coin.id)),
-      }))
-      .filter((coin) => coin.effectiveVotes > 0)
-      .sort((a, b) => b.effectiveVotes - a.effectiveVotes || a.name.localeCompare(b.name))[0];
-
-    return topCoin || null;
+    return {
+      id: topCoin.id,
+      name: topCoin.name,
+      symbol: topCoin.symbol,
+      logoUrl: topCoin.logoUrl,
+      boost: topCoin.boost || null,
+    };
   } catch (error) {
     if (isMissingInteractionTableError(error) || isMissingBoostTableError(error)) return null;
     throw error;
@@ -254,13 +259,6 @@ async function readActiveBoosts(coinIds: number[]) {
     if (isMissingBoostTableError(error)) return new Map<number, number>();
     throw error;
   }
-}
-
-function getBoostVoteFactor(boostPackage: number | null | undefined) {
-  if (boostPackage === 10 || boostPackage === 30) return 2;
-  if (boostPackage === 50 || boostPackage === 100) return 3;
-  if (boostPackage === 500) return 5;
-  return 1;
 }
 
 function readCount(rows: Array<{ count: number }>) {
