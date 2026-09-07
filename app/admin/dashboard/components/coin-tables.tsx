@@ -279,6 +279,36 @@ export function PromotionsTable({
   );
 }
 
+function validateBoostAction(formData: FormData) {
+  const extensionDays = formData.get('extensionDays');
+
+  if (typeof extensionDays === 'string' && !isNumberInRange(extensionDays, 1, 365)) {
+    return 'Add at least 1 day to extend this boost.';
+  }
+
+  return null;
+}
+
+function validatePromoteAction(formData: FormData) {
+  const durationDays = formData.get('durationDays');
+  const extensionDays = formData.get('extensionDays');
+
+  if (typeof durationDays === 'string' && !isNumberInRange(durationDays, 1, 365)) {
+    return 'Duration must be between 1 and 365 days.';
+  }
+
+  if (typeof extensionDays === 'string' && !isNumberInRange(extensionDays, 1, 365)) {
+    return 'Add at least 1 day to extend this promotion.';
+  }
+
+  return null;
+}
+
+function isNumberInRange(value: string, min: number, max: number) {
+  const number = Number(value);
+  return Number.isFinite(number) && number >= min && number <= max;
+}
+
 function BoostAction({ row, popover }: { row: AdminCoinRow; popover: PopoverController }) {
   const [tier, setTier] = useState(row.boost?.tier || 50);
   const [startDate, setStartDate] = useState(row.boost?.startDate || '');
@@ -302,6 +332,7 @@ function BoostAction({ row, popover }: { row: AdminCoinRow; popover: PopoverCont
       tone="boost"
       message={message}
       fields={{ coinId: row.id, multiplier: tier }}
+      validate={validateBoostAction}
       extra={
         <div className="admin-schedule-form">
           {active ? (
@@ -392,6 +423,7 @@ function PromoteAction({ row, popover }: { row: AdminCoinRow; popover: PopoverCo
       tone="boost"
       message={message}
       fields={{ coinId: row.id, durationDays: days, priority: row.promotion?.priority || 1 }}
+      validate={validatePromoteAction}
       extra={
         <div className="admin-schedule-form">
           {active ? (

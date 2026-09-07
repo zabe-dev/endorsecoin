@@ -1,6 +1,7 @@
 'use client';
 
 import { createBannerAd, deleteBannerAd, updateBannerAd } from '@/app/admin/dashboard/actions';
+import { bannerImageAssetOrigin, isAllowedBannerImageUrl } from '@/features/ads/banner-image-url';
 import {
   bannerPlacementLabels,
   bannerPlacements,
@@ -156,6 +157,7 @@ function BannerEditAction({ row, popover }: { row?: AdminBannerRow; popover: Pop
       fields={editing && row ? { bannerId: row.id } : {}}
       disabled={inactive}
       triggerClassName={!editing ? 'admin-create-button' : undefined}
+      validate={validateBannerImageUrls}
       extra={
         <div className="admin-banner-form">
           <label>
@@ -239,7 +241,7 @@ function BannerEditAction({ row, popover }: { row?: AdminBannerRow; popover: Pop
               name="desktopImageUrl"
               value={desktopImageUrl}
               onChange={(event) => setDesktopImageUrl(event.target.value)}
-              placeholder="https://assets.endorsecoin.com/..."
+              placeholder={`${bannerImageAssetOrigin}/...`}
               required
             />
           </label>
@@ -249,13 +251,13 @@ function BannerEditAction({ row, popover }: { row?: AdminBannerRow; popover: Pop
               name="mobileImageUrl"
               value={mobileImageUrl}
               onChange={(event) => setMobileImageUrl(event.target.value)}
-              placeholder="https://assets.endorsecoin.com/..."
+              placeholder={`${bannerImageAssetOrigin}/...`}
               required
             />
           </label>
           <small className="admin-banner-form-wide">
-            Banner images must be hosted on https://assets.endorsecoin.com. The target URL can point
-            to the advertiser page.
+            Banner images must be hosted on {bannerImageAssetOrigin}. The target URL can point to
+            the advertiser page.
           </small>
           <label className="admin-banner-form-wide">
             Target URL
@@ -292,6 +294,50 @@ function BannerEditAction({ row, popover }: { row?: AdminBannerRow; popover: Pop
       )}
     </ConfirmAction>
   );
+}
+
+function validateBannerImageUrls(formData: FormData) {
+  const desktopImageUrl = formData.get('desktopImageUrl');
+  const mobileImageUrl = formData.get('mobileImageUrl');
+  const targetUrl = formData.get('targetUrl');
+  const durationDays = formData.get('durationDays');
+  const extensionDays = formData.get('extensionDays');
+
+  if (typeof desktopImageUrl !== 'string' || !isAllowedBannerImageUrl(desktopImageUrl)) {
+    return `Desktop image URL must be hosted on ${bannerImageAssetOrigin}.`;
+  }
+
+  if (typeof mobileImageUrl !== 'string' || !isAllowedBannerImageUrl(mobileImageUrl)) {
+    return `Mobile image URL must be hosted on ${bannerImageAssetOrigin}.`;
+  }
+
+  if (typeof targetUrl !== 'string' || !isValidHttpUrl(targetUrl)) {
+    return 'Target URL must be a valid http or https URL.';
+  }
+
+  if (typeof durationDays === 'string' && !isNumberInRange(durationDays, 1, 365)) {
+    return 'Duration must be between 1 and 365 days.';
+  }
+
+  if (typeof extensionDays === 'string' && !isNumberInRange(extensionDays, 1, 365)) {
+    return 'Add at least 1 day to extend this banner.';
+  }
+
+  return null;
+}
+
+function isValidHttpUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+function isNumberInRange(value: string, min: number, max: number) {
+  const number = Number(value);
+  return Number.isFinite(number) && number >= min && number <= max;
 }
 
 function BannerPreviewAction({ row }: { row: AdminBannerRow }) {

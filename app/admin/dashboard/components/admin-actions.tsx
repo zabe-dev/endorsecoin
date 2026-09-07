@@ -28,6 +28,7 @@ export function ConfirmAction({
   extra,
   disabled,
   triggerClassName,
+  validate,
   children,
 }: {
   popover: PopoverController;
@@ -42,6 +43,7 @@ export function ConfirmAction({
   extra?: ReactNode;
   disabled?: boolean;
   triggerClassName?: string;
+  validate?: (formData: FormData) => string | null;
   children: ReactNode;
 }) {
   const open = popover.activePopoverId === popoverId;
@@ -87,6 +89,12 @@ export function ConfirmAction({
             onSubmit={(event) => {
               event.preventDefault();
               const formData = new FormData(event.currentTarget);
+              const validationMessage = validate?.(formData);
+              if (validationMessage) {
+                setStatus('error');
+                setFeedback(validationMessage);
+                return;
+              }
               startTransition(async () => {
                 setStatus('saving');
                 setFeedback('Saving changes...');
