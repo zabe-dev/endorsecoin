@@ -239,7 +239,7 @@ function BannerEditAction({ row, popover }: { row?: AdminBannerRow; popover: Pop
               name="desktopImageUrl"
               value={desktopImageUrl}
               onChange={(event) => setDesktopImageUrl(event.target.value)}
-              placeholder="https://..."
+              placeholder="https://assets.endorsecoin.com/..."
               required
             />
           </label>
@@ -249,10 +249,14 @@ function BannerEditAction({ row, popover }: { row?: AdminBannerRow; popover: Pop
               name="mobileImageUrl"
               value={mobileImageUrl}
               onChange={(event) => setMobileImageUrl(event.target.value)}
-              placeholder="https://..."
+              placeholder="https://assets.endorsecoin.com/..."
               required
             />
           </label>
+          <small className="admin-banner-form-wide">
+            Banner images must be hosted on https://assets.endorsecoin.com. The target URL can point
+            to the advertiser page.
+          </small>
           <label className="admin-banner-form-wide">
             Target URL
             <input

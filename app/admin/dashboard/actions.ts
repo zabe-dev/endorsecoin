@@ -1,5 +1,6 @@
 'use server';
 
+import { assertAllowedBannerImageUrl } from '@/features/ads/banner-image-url';
 import { invalidateBannerAdCache } from '@/features/ads/server/cache-invalidation';
 import { bannerPlacementLabels, bannerPlacements } from '@/features/ads/types';
 import { invalidateCoinDiscoveryCache } from '@/features/coins/server/cache-invalidation';
@@ -478,8 +479,8 @@ export async function updateChangeRequestStatus(formData: FormData) {
 export async function createBannerAd(formData: FormData) {
   const adminUser = await requireAdmin();
   const placement = readEnum(formData, 'placement', bannerPlacements);
-  const desktopImageUrl = readUrl(formData, 'desktopImageUrl');
-  const mobileImageUrl = readUrl(formData, 'mobileImageUrl');
+  const desktopImageUrl = readBannerImageUrl(formData, 'desktopImageUrl');
+  const mobileImageUrl = readBannerImageUrl(formData, 'mobileImageUrl');
   const targetUrl = readUrl(formData, 'targetUrl');
   const priority = readBoundedNumber(formData, 'priority', 1, 999);
   const durationDays = readBoundedNumber(formData, 'durationDays', 1, 365);
@@ -532,8 +533,8 @@ export async function updateBannerAd(formData: FormData) {
   }
 
   const placement = readEnum(formData, 'placement', bannerPlacements);
-  const desktopImageUrl = readUrl(formData, 'desktopImageUrl');
-  const mobileImageUrl = readUrl(formData, 'mobileImageUrl');
+  const desktopImageUrl = readBannerImageUrl(formData, 'desktopImageUrl');
+  const mobileImageUrl = readBannerImageUrl(formData, 'mobileImageUrl');
   const targetUrl = readUrl(formData, 'targetUrl');
   const priority = readBoundedNumber(formData, 'priority', 1, 999);
   const notes = readOptional(formData, 'notes');
@@ -837,6 +838,12 @@ function readEnum<T extends readonly string[]>(formData: FormData, key: string, 
 function readUrl(formData: FormData, key: string) {
   const value = readRequired(formData, key);
   assertUrl(value, key);
+  return value;
+}
+
+function readBannerImageUrl(formData: FormData, key: string) {
+  const value = readUrl(formData, key);
+  assertAllowedBannerImageUrl(value, key);
   return value;
 }
 

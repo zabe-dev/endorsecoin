@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { asc, sql } from 'drizzle-orm';
+import { isAllowedBannerImageUrl } from '@/features/ads/banner-image-url';
 import { db } from '@/lib/db/client';
 import { bannerAds } from '@/lib/db/schema';
 import { getCacheVersion } from '@/lib/cache/cache-version';
@@ -53,6 +54,8 @@ async function readActiveBannerAds(): Promise<BannerAdMap> {
   rows.forEach((row) => {
     const placement = normalizeBannerPlacement(row.placement);
     if (!placement) return;
+    if (!isAllowedBannerImageUrl(row.desktopImageUrl)) return;
+    if (!isAllowedBannerImageUrl(row.mobileImageUrl)) return;
     map[placement].push({
       id: row.id,
       placement,
