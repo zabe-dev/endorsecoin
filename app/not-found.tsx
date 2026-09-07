@@ -6,7 +6,7 @@ export default function NotFound() {
     <SystemStatePage
       eyebrow="404"
       title="This page wandered off."
-      description="The page you’re looking for does not exist, moved, or was swallowed by the spooky side of the chain."
+      description="The page you’re looking for does not exist, moved, or was swallowed by the endorsecoin side of the chain."
       icon={<Ghost aria-hidden="true" />}
     />
   );

@@ -135,7 +135,7 @@ export function AuthModal({ open, onClose }: { open: boolean; onClose: () => voi
 
   useEffect(() => {
     if (!open) return;
-    window.dispatchEvent(new Event('spooky-auth-modal-open'));
+    window.dispatchEvent(new Event('endorsecoin-auth-modal-open'));
     const closeOnEscape = (event: globalThis.KeyboardEvent) => {
       if (event.key === 'Escape') closeModal();
     };

@@ -56,8 +56,8 @@ export function Navbar({
       setUserMenuOpen(false);
     };
 
-    window.addEventListener('spooky-auth-modal-open', closeForAuthModal);
-    return () => window.removeEventListener('spooky-auth-modal-open', closeForAuthModal);
+    window.addEventListener('endorsecoin-auth-modal-open', closeForAuthModal);
+    return () => window.removeEventListener('endorsecoin-auth-modal-open', closeForAuthModal);
   }, []);
 
 

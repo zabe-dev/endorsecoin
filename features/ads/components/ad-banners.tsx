@@ -248,7 +248,7 @@ export function FixedFooterBanner({ ads = [], offset = 0 }: BannerProps) {
           <div className="fixed-footer-ad-banner-placeholder">
             <div className="fixed-footer-ad-banner-placeholder-inner">
               <small>AD SPACE</small>
-              <b>SPOOKY</b>
+              <b>endorsecoin</b>
               <span>Reach early project investors.</span>
               <Link href="/advertise">View ad packages ↗</Link>
             </div>
@@ -258,7 +258,7 @@ export function FixedFooterBanner({ ads = [], offset = 0 }: BannerProps) {
           className="fixed-footer-ad-banner-close"
           type="button"
           onClick={() => {
-            window.localStorage.setItem('spooky-fixed-footer-ad-closed', '1');
+            window.localStorage.setItem('endorsecoin-fixed-footer-ad-closed', '1');
             setDismissed(true);
           }}
           aria-label="Close ad"
@@ -278,5 +278,5 @@ function subscribeFixedAdStorage(callback: () => void) {
 
 function getFixedAdSnapshot() {
   if (typeof window === 'undefined') return false;
-  return window.localStorage.getItem('spooky-fixed-footer-ad-closed') !== '1';
+  return window.localStorage.getItem('endorsecoin-fixed-footer-ad-closed') !== '1';
 }

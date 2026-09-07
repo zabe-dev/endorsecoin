@@ -25,7 +25,7 @@ export function showRateLimitToast(value: unknown) {
 
   toast.warning(RATE_LIMIT_MESSAGE, {
     duration: 3600,
-    className: 'spooky-toast',
+    className: 'endorsecoin-toast',
   });
   return true;
 }

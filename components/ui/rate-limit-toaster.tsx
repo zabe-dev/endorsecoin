@@ -17,10 +17,10 @@ export function RateLimitToaster() {
           boxShadow: '0 14px 34px rgba(0, 0, 0, 0.32)',
         },
         classNames: {
-          toast: 'spooky-toast',
-          title: 'spooky-toast-title',
-          description: 'spooky-toast-description',
-          closeButton: 'spooky-toast-close',
+          toast: 'endorsecoin-toast',
+          title: 'endorsecoin-toast-title',
+          description: 'endorsecoin-toast-description',
+          closeButton: 'endorsecoin-toast-close',
         },
       }}
     />
