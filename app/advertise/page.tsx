@@ -17,7 +17,7 @@ import './advertise.css';
 import { SubmitProjectAction } from './submit-project-action';
 
 export const metadata: Metadata = createPublicPageMetadata({
-  title: 'Advertisement and Promotions | EndorseCoin',
+  title: 'Advertisement and Promotions',
   description:
     'Promote your project with EndorseCoin banner ads, promoted placements, and boosts. Compare prices, ad sizes, and available locations.',
   path: '/advertise',
