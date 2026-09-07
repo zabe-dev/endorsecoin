@@ -10,11 +10,11 @@ import {
 import { Icon as IconifyIcon } from '@iconify/react';
 import { ExternalLink, Image as ImageIcon, Pencil, Trash2 } from 'lucide-react';
 import { useState } from 'react';
+import type { AdminBannerRow, AdminTablePagination, PopoverController } from '../types';
+import { formatAdStatus, todayUtcInputDate } from '../utils';
 import { ConfirmAction } from './admin-actions';
 import { AdminPanel } from './admin-panel';
 import { ActionGroup, StatusPill } from './admin-primitives';
-import type { AdminBannerRow, AdminTablePagination, PopoverController } from '../types';
-import { formatAdStatus, todayUtcInputDate } from '../utils';
 
 const emptyTableMessage = 'There is currently no items available to display.';
 
@@ -255,10 +255,6 @@ function BannerEditAction({ row, popover }: { row?: AdminBannerRow; popover: Pop
               required
             />
           </label>
-          <small className="admin-banner-form-wide">
-            Banner images must be hosted on {bannerImageAssetOrigin}. The target URL can point to
-            the advertiser page.
-          </small>
           <label className="admin-banner-form-wide">
             Target URL
             <input
