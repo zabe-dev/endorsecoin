@@ -21,6 +21,7 @@ const googleClientId = process.env.GOOGLE_CLIENT_ID;
 const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
 const resendApiKey = process.env.RESEND_API_KEY;
 const authEmailFrom = process.env.AUTH_EMAIL_FROM || 'EndorseCoin <onboarding@resend.dev>';
+const authCodeTemplateId = process.env.RESEND_AUTH_CODE_TEMPLATE_ID;
 const authSecret =
   process.env.BETTER_AUTH_SECRET ||
   (process.env.NODE_ENV === 'production' ? undefined : 'endorsecoin-local-dev-secret-change-me');
@@ -63,7 +64,24 @@ async function sendAuthCodeEmail({
     from: authEmailFrom,
     to: email,
     subject,
-    text: buildAuthCodeEmailText({ otp, requestDetails }),
+    ...(authCodeTemplateId
+      ? {
+          template: {
+            id: authCodeTemplateId,
+            variables: {
+              otp,
+              type,
+              appName: 'EndorseCoin',
+              requestIp: requestDetails.ip,
+              requestLocation: requestDetails.location,
+              requestDate: requestDetails.date,
+              requestTime: requestDetails.time,
+            },
+          },
+        }
+      : {
+          text: buildAuthCodeEmailText({ otp, requestDetails }),
+        }),
   });
 
   if (error) {
