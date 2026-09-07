@@ -4,8 +4,9 @@ export const siteUrl = 'https://endorsecoin.com';
 export const siteName = 'EndorseCoin';
 export const homeTitle = 'Discover New Crypto Coins, Presales and Airdrops | EndorseCoin';
 export const homeDescription =
-  'Discover new coins, explore token presales, and compare trending projects. Check prices, charts, and community rankings to research your next investment.';
-export const socialImage = '/android-chrome-512x512.png';
+  'Discover new crypto projects, explore presale tokens, and vote on trending coins. Compare community rankings, watchlists, and find your next crypto gem.';
+export const socialImage = '/image-1200x628.png';
+export const summaryImage = '/logo-256x256.png';
 
 type PublicPageMetadataOptions = {
   title: string;
@@ -28,10 +29,14 @@ export function createPublicPageMetadata({
 }: PublicPageMetadataOptions): Metadata {
   const displayTitle = absoluteTitle ? title : `${title} | ${siteName}`;
   const images = image ? [{ url: image }] : [{ url: socialImage }];
+  const twitterImage = image || (twitterCard === 'summary' ? summaryImage : socialImage);
 
   return {
     title: absoluteTitle ? { absolute: title } : title,
     description,
+    other: {
+      title: displayTitle,
+    },
     alternates: {
       canonical: path,
     },
@@ -47,7 +52,7 @@ export function createPublicPageMetadata({
       card: twitterCard,
       title: displayTitle,
       description,
-      images: image ? [image] : [socialImage],
+      images: [twitterImage],
     },
     robots,
   };

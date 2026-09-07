@@ -1,10 +1,17 @@
-import type { Metadata } from 'next';
-import { Suspense } from 'react';
 import { JsonLd } from '@/components/seo/json-ld';
 import { RateLimitToaster } from '@/components/ui/rate-limit-toaster';
 import { FixedFooterBannerLoader } from '@/features/ads/components/fixed-footer-banner-loader';
-import { homeDescription, homeTitle, siteName, siteUrl, socialImage } from '@/lib/seo/metadata';
+import {
+  homeDescription,
+  homeTitle,
+  siteName,
+  siteUrl,
+  socialImage,
+  summaryImage,
+} from '@/lib/seo/metadata';
+import type { Metadata } from 'next';
 import { Fira_Mono, JetBrains_Mono, Poppins, Space_Grotesk } from 'next/font/google';
+import { Suspense } from 'react';
 import './globals.css';
 
 const poppins = Poppins({
@@ -38,6 +45,9 @@ export const metadata: Metadata = {
     template: '%s | EndorseCoin',
   },
   description: homeDescription,
+  other: {
+    title: homeTitle,
+  },
   keywords: [
     'new crypto projects',
     'crypto voting',
@@ -48,18 +58,53 @@ export const metadata: Metadata = {
     'DeFi tokens',
     'community crypto rankings',
     'crypto watchlist',
-    'EndorseCoin',
+    'crypto currency',
+    'crypto trading',
+    'crypto news today',
+    'crypto investments',
+    'crypto coins',
+    'discover crypto',
+    'best crypto coin to buy',
+    'best crypto',
+    'new crypto coins',
+    'all crypto coins',
+    'coin listings',
+    'new cryptocurrency',
+    'new to crypto',
+    'popular crypto coin',
+    'best crypto presale',
+    'presale crypto',
+    'presale coins',
+    'crypto presale',
+    'presale token',
+    'tokens crypto',
+    'best coins',
+    'most promising crypto',
+    'best crypto presales',
+    'upcoming crypto coins',
+    'best new crypto',
+    'new crypto coins coming out',
+    'new crypto presale',
+    'upcoming crypto presales',
+    'crypto coin site',
+    'promising crypto coins',
+    'new crypto listings',
+    'most popular crypto coins',
+    'find new crypto coins',
+    'ai crypto',
+    'pepe crypto',
+    'ai crypto coins',
+    'best ai crypto coins',
+    'crypto ai coins',
+    'endorsecoin',
   ],
   alternates: {
     canonical: '/',
   },
   manifest: '/site.webmanifest',
   icons: {
-    apple: [{ url: '/apple-touch-icon.png', sizes: '180x180' }],
-    icon: [
-      { url: '/favicon-32x32.png', type: 'image/png', sizes: '32x32' },
-      { url: '/favicon-16x16.png', type: 'image/png', sizes: '16x16' },
-    ],
+    apple: [{ url: summaryImage, sizes: '256x256', type: 'image/png' }],
+    icon: [{ url: summaryImage, type: 'image/png', sizes: '256x256' }],
   },
   openGraph: {
     title: homeTitle,
@@ -100,7 +145,7 @@ export default function RootLayout({
                 '@id': `${siteUrl}/#organization`,
                 name: siteName,
                 url: siteUrl,
-                logo: `${siteUrl}/android-chrome-512x512.png`,
+                logo: `${siteUrl}${summaryImage}`,
               },
               {
                 '@type': 'WebSite',
