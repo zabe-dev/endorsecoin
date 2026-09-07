@@ -314,7 +314,7 @@ function mapDbCoinToCoin({
     submittedAt: coin.submittedAt.toISOString(),
     populatedAt: coin.updatedAt.toISOString(),
     chart: buildChartConfig(links, submission, network, coin.contractAddress || ''),
-    dex: buildDexConfig(dexLink, submission, network, coin.contractAddress || '', coin.symbol),
+    dex: buildDexConfig(dexLink, submission, network, coin.contractAddress || ''),
     links: buildProjectLinks(links),
     security: {
       kycUrl: links.get('kyc')?.url || null,
@@ -669,30 +669,29 @@ function buildDexConfig(
   submission: DbCoinSubmissionPayload | null,
   network: NetworkId,
   contractAddress: string,
-  symbol: string,
 ): DexConfig {
   // Submitted coins: unchanged from original — always trust the submission's
   // chosen provider (including a genuine 'custom' choice) when one exists.
   if (submission) {
     const provider = readSubmissionDexProvider(submission.coinData);
     if (dexLink?.url) return { available: true, provider, url: dexLink.url };
-    return buildDefaultDexConfig(network, contractAddress, symbol);
+    return buildDefaultDexConfig(network, contractAddress);
   }
 
   // Imported coins (no submission row): infer provider from chain, since
   // readSubmissionDexProvider would otherwise default to 'custom' for these.
   if (dexLink?.url) {
-    return { available: true, provider: inferDexProviderFromNetwork(network), url: dexLink.url };
+    return {
+      available: true,
+      provider: inferDexProviderFromUrl(dexLink.url) || inferDexProviderFromNetwork(network),
+      url: dexLink.url,
+    };
   }
-  return buildDefaultDexConfig(network, contractAddress, symbol);
+  return buildDefaultDexConfig(network, contractAddress);
 }
 
-function buildDefaultDexConfig(
-  network: NetworkId,
-  contractAddress: string,
-  symbol: string,
-): DexConfig {
-  const url = buildDefaultDexUrl(network, contractAddress, symbol);
+function buildDefaultDexConfig(network: NetworkId, contractAddress: string): DexConfig {
+  const url = buildDefaultDexUrl(network, contractAddress);
   if (!url) return { available: false };
 
   return {
@@ -702,7 +701,7 @@ function buildDefaultDexConfig(
   };
 }
 
-function buildDefaultDexUrl(network: NetworkId, contractAddress: string, symbol: string) {
+function buildDefaultDexUrl(network: NetworkId, contractAddress: string) {
   if (!contractAddress) return '';
 
   if (network === 'solana') {
@@ -733,11 +732,6 @@ function buildDefaultDexUrl(network: NetworkId, contractAddress: string, symbol:
     return `https://dapp.quickswap.exchange/swap?type=best&to=${encodeURIComponent(contractAddress)}`;
   }
 
-  if (network === 'tron') {
-    const outputToken = symbol.trim() || contractAddress;
-    return `https://app.rubic.exchange/?from=TRX&fromChain=TRON&to=${encodeURIComponent(outputToken)}&toChain=TRON`;
-  }
-
   if (network === 'kcc') {
     return `https://app.mojitoswap.finance/swap?outputCurrency=${encodeURIComponent(contractAddress)}`;
   }
@@ -751,6 +745,17 @@ function buildDefaultDexUrl(network: NetworkId, contractAddress: string, symbol:
 
 // Default DEX per chain, mirrored from the import script's DEX_SWAP_URL_BUILDERS.
 // Only used for imported coins, which have no submission to read a provider from.
+function inferDexProviderFromUrl(url: string): DexProvider | '' {
+  if (url.includes('app.rubic.exchange')) return 'rubic';
+  if (url.includes('app.uniswap.org')) return 'uniswap';
+  if (url.includes('pancakeswap.finance')) return 'pancakeswap';
+  if (url.includes('raydium.io')) return 'raydium';
+  if (url.includes('quickswap.exchange')) return 'quickswap';
+  if (url.includes('mojitoswap.finance')) return 'mojitoswap';
+  if (url.includes('cetus.zone')) return 'cetus';
+  return '';
+}
+
 function inferDexProviderFromNetwork(network: NetworkId): DexProvider {
   if (network === 'ethereum' || network === 'arbitrum' || network === 'base' || network === 'hood')
     return 'uniswap';
@@ -759,7 +764,6 @@ function inferDexProviderFromNetwork(network: NetworkId): DexProvider {
   if (network === 'polygon') return 'quickswap';
   if (network === 'kcc') return 'mojitoswap';
   if (network === 'sui') return 'cetus';
-  if (network === 'tron') return 'rubic';
   return 'custom';
 }
 

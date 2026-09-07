@@ -165,8 +165,6 @@ const dexSwapUrlBuilders = {
   base: (address) => `https://app.uniswap.org/swap?outputCurrency=${address}&chain=base`,
   bsc: (address) => `https://pancakeswap.finance/swap?outputCurrency=${address}`,
   polygon: (address) => `https://dapp.quickswap.exchange/swap?type=best&to=${address}`,
-  tron: (_address, token) =>
-    `https://app.rubic.exchange/?from=TRX&fromChain=TRON&to=${encodeURIComponent(token.symbol)}&toChain=TRON`,
 };
 
 const chartUrlBuilders = {
@@ -190,7 +188,7 @@ const supportedExchangeMatchers = {
   bsc: [/pancakeswap/i],
   polygon: [/quickswap/i],
   solana: [/raydium/i],
-  tron: [/rubic/i],
+  tron: [],
 };
 
 const categoryKeywordMap = {
@@ -1099,7 +1097,7 @@ function applyGeckoTerminalMarketDetails(token, details) {
   token.launchDate = pickDate(poolAttributes, ['pool_created_at']) || token.launchDate;
   token.marketExchangeName = 'GeckoTerminal';
   token.marketExchangeSupported = true;
-  token.dexUrl = buildDexSwapUrl(token);
+  token.dexUrl = buildDexSwapUrl(token) || token.dexUrl;
 
   if (poolAddress) {
     token.chartPairAddress = poolAddress;
@@ -1704,7 +1702,7 @@ function buildGeckoTerminalTronToken(row) {
       chain: 'tron',
     },
     chartUrl: chartUrlBuilders.tron(address.trim()),
-    dexUrl: buildDexSwapUrl({ symbol, contract: { address: address.trim(), chain: 'tron' } }),
+    dexUrl: '',
     launchDate: null,
     projectLinks: extractGeckoTerminalProjectLinks(attributes),
   };
