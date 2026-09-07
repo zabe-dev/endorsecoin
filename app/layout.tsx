@@ -104,7 +104,10 @@ export const metadata: Metadata = {
   manifest: '/site.webmanifest',
   icons: {
     apple: [{ url: summaryImage, sizes: '256x256', type: 'image/png' }],
-    icon: [{ url: summaryImage, type: 'image/png', sizes: '256x256' }],
+    icon: [
+      { url: '/favicon.ico', type: 'image/x-icon' },
+      { url: summaryImage, type: 'image/png', sizes: '256x256' },
+    ],
   },
   openGraph: {
     title: homeTitle,

@@ -530,6 +530,19 @@ function inferChartProviderFromUrl(url: string | undefined): string {
   return '';
 }
 
+function extractGeckoTerminalPoolAddress(sourceUrl: string | undefined) {
+  if (!sourceUrl) return '';
+
+  try {
+    const url = new URL(sourceUrl);
+    const parts = url.pathname.split('/').filter(Boolean);
+    const poolIndex = parts.indexOf('pools');
+    return poolIndex >= 0 ? parts[poolIndex + 1] || '' : '';
+  } catch {
+    return '';
+  }
+}
+
 function readSubmissionChartProvider(value: unknown) {
   if (!isRecord(value)) return '';
   const market = isRecord(value.market) ? value.market : {};
@@ -554,12 +567,11 @@ function buildChartEmbedUrl(
   }
 
   if (provider === 'geckoterminal') {
-    if (sourceUrl && !sourceUrl.includes('/pools/')) return '';
-
     const chain = geckoTerminalChainIds[network];
-    return chain
-      ? `https://www.geckoterminal.com/${chain}/pools/${encodedAddress}?embed=1&info=0&swaps=0`
-      : '';
+    if (!chain) return '';
+
+    const poolAddress = extractGeckoTerminalPoolAddress(sourceUrl) || address;
+    return `https://www.geckoterminal.com/${chain}/pools/${encodeURIComponent(poolAddress)}?embed=1&info=0&swaps=0`;
   }
 
   if (provider === 'dextools') {

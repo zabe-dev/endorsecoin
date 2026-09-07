@@ -9,6 +9,7 @@
  *   npm run import:mobula -- --limit=150
  *   npm run import:mobula -- --dry-run
  *   npm run import:mobula -- --dry-run --debug
+ *   npm run import:mobula -- --geckoterminal-batch-size=30
  *
  * This script writes only to tables the app currently reads:
  *   - coins
@@ -28,6 +29,24 @@ const MOBULA_BASE_URL = 'https://api.mobula.io/api/1/all';
 const MOBULA_DETAILS_URL = 'https://api.mobula.io/api/2/asset/details';
 const MOBULA_METADATA_URL = 'https://api.mobula.io/api/1/multi-metadata';
 const MOBULA_MARKET_DETAILS_URL = 'https://api.mobula.io/api/2/market/details';
+const GECKOTERMINAL_API_BASE_URL = trimTrailingSlash(
+  process.env.GECKOTERMINAL_API_BASE_URL || 'https://api.geckoterminal.com',
+);
+const GECKOTERMINAL_TRON_NETWORK = 'tron';
+const GECKOTERMINAL_TOKEN_BATCH_SIZE = Math.min(
+  readPositiveInteger(
+    process.argv
+      .slice(2)
+      .find((arg) => arg.startsWith('--geckoterminal-batch-size='))
+      ?.split('=')[1],
+    30,
+  ),
+  30,
+);
+const GECKOTERMINAL_REQUEST_SPACING_MS = Math.max(
+  6100,
+  readPositiveInteger(process.env.GECKOTERMINAL_REQUEST_SPACING_MS, 6100),
+);
 const DATABASE_URL = process.env.DATABASE_URL;
 let mobulaApiKeyIndex = 0;
 
@@ -64,6 +83,7 @@ const EXCLUDE_TOP_RANK = readPositiveInteger(
 );
 const SKIP_R2_LOGO_UPLOAD = args.includes('--skip-r2-logo-upload');
 const R2_IMAGE_CACHE_CONTROL = 'public, max-age=31536000, immutable';
+let geckoTerminalNextAllowedAt = 0;
 const MAX_IMPORT_PRICE_USD = 1_000_000;
 const MAX_IMPORT_MARKET_CAP_USD = 1_000_000_000_000;
 const MAX_IMPORT_FDV_USD = 1_000_000_000_000;
@@ -678,6 +698,81 @@ async function enrichTokensWithMobulaMetadata(tokens) {
 // imports. If a batch ever comes back malformed (wrong item count, request error),
 // we fall back to the original one-at-a-time calls for just that batch so no data
 // is silently dropped.
+
+async function enrichTokensWithGeckoTerminalInfo(tokens) {
+  const tronTokens = tokens.filter(
+    (token) => token.contract.chain === 'tron' && needsGeckoTerminalInfo(token),
+  );
+  if (!tronTokens.length) return tokens;
+
+  logSection(
+    `TRON enrichment: GeckoTerminal token info — ${tronTokens.length} token(s) missing profile data, 1 request each`,
+  );
+
+  let enrichedCount = 0;
+  const phaseStartedAt = Date.now();
+
+  for (let index = 0; index < tronTokens.length; index += 1) {
+    const token = tronTokens[index];
+    const info = await fetchGeckoTerminalTokenInfo(token.contract.address);
+    if (info && applyGeckoTerminalTokenInfo(token, info)) enrichedCount += 1;
+
+    logBatchProgress(
+      'GeckoTerminal info',
+      index + 1,
+      tronTokens.length,
+      index + 1,
+      tronTokens.length,
+      phaseStartedAt,
+    );
+  }
+
+  log(
+    `TRON enrichment done: applied GeckoTerminal info to ${enrichedCount}/${tronTokens.length} token(s) in ${formatDuration(Date.now() - phaseStartedAt)}.`,
+  );
+  return tokens;
+}
+
+async function enrichTokensWithGeckoTerminalMarketDetails(tokens) {
+  const tronTokens = tokens.filter((token) => token.contract.chain === 'tron');
+  if (!tronTokens.length) return tokens;
+
+  const totalBatches = Math.ceil(tronTokens.length / GECKOTERMINAL_TOKEN_BATCH_SIZE);
+  logSection(
+    `TRON enrichment: GeckoTerminal market data — ${tronTokens.length} token(s), ${totalBatches} batch(es) of ${GECKOTERMINAL_TOKEN_BATCH_SIZE}`,
+  );
+
+  let enrichedCount = 0;
+  let batchNumber = 0;
+  const phaseStartedAt = Date.now();
+
+  for (let index = 0; index < tronTokens.length; index += GECKOTERMINAL_TOKEN_BATCH_SIZE) {
+    batchNumber += 1;
+    const batch = tronTokens.slice(index, index + GECKOTERMINAL_TOKEN_BATCH_SIZE);
+    const details = await fetchGeckoTerminalTokenMarketBatch(batch);
+
+    details.forEach((detail, detailIndex) => {
+      const token = batch[detailIndex];
+      if (!token || !detail) return;
+      if (applyGeckoTerminalMarketDetails(token, detail)) enrichedCount += 1;
+    });
+
+    logBatchProgress(
+      'GeckoTerminal market data',
+      batchNumber,
+      totalBatches,
+      Math.min(index + GECKOTERMINAL_TOKEN_BATCH_SIZE, tronTokens.length),
+      tronTokens.length,
+      phaseStartedAt,
+    );
+  }
+
+  log(
+    `TRON market enrichment done: applied GeckoTerminal market data to ${enrichedCount}/${tronTokens.length} token(s) in ${formatDuration(Date.now() - phaseStartedAt)}.`,
+  );
+  return tokens;
+}
+
 async function enrichTokensWithMobulaMarketDetails(tokens) {
   if (!tokens.length) return tokens;
 
@@ -730,6 +825,269 @@ async function enrichTokensWithMobulaMarketDetails(tokens) {
     )}.`,
   );
   return tokens;
+}
+
+async function fetchGeckoTerminalTokenInfo(address) {
+  await waitForGeckoTerminalSlot();
+
+  const url = new URL(
+    `/api/v2/networks/${GECKOTERMINAL_TRON_NETWORK}/tokens/${encodeURIComponent(address)}/info`,
+    GECKOTERMINAL_API_BASE_URL,
+  );
+
+  try {
+    const response = await fetch(url, {
+      headers: { accept: 'application/json;version=20230203' },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      if (DEBUG) {
+        console.warn(
+          `GeckoTerminal token info failed for ${address}: ${response.status} ${response.statusText}${
+            errorText ? ` — ${errorText.slice(0, 500)}` : ''
+          }`,
+        );
+      }
+      return null;
+    }
+
+    const json = await response.json();
+    return json?.data?.attributes || null;
+  } catch (error) {
+    if (DEBUG) console.warn(`GeckoTerminal token info failed for ${address}:`, error);
+    return null;
+  }
+}
+
+async function fetchGeckoTerminalTokenMarketBatch(tokens) {
+  await waitForGeckoTerminalSlot();
+
+  const addressPath = tokens.map((token) => encodeURIComponent(token.contract.address)).join(',');
+  const url = new URL(
+    `/api/v2/networks/${GECKOTERMINAL_TRON_NETWORK}/tokens/multi/${addressPath}`,
+    GECKOTERMINAL_API_BASE_URL,
+  );
+  url.searchParams.set('include', 'top_pools');
+
+  try {
+    const response = await fetch(url, {
+      headers: { accept: 'application/json;version=20230203' },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      throw new Error(
+        `GeckoTerminal market batch failed: ${response.status} ${response.statusText}${
+          errorText ? ` — ${errorText.slice(0, 500)}` : ''
+        }`,
+      );
+    }
+
+    const json = await response.json();
+    const data = Array.isArray(json?.data) ? json.data : [];
+    const included = Array.isArray(json?.included) ? json.included : [];
+    const tokenByAddress = new Map();
+    const poolById = new Map();
+
+    for (const item of data) {
+      const attributes = item?.attributes;
+      const address = normalizeContractAddress(pickString(attributes || {}, ['address']));
+      if (address) tokenByAddress.set(address, item);
+    }
+
+    for (const item of included) {
+      if (item?.type === 'pool' && typeof item.id === 'string') poolById.set(item.id, item);
+    }
+
+    return tokens.map((token) => {
+      const item = tokenByAddress.get(normalizeContractAddress(token.contract.address));
+      if (!item?.attributes) return null;
+      const topPoolId = item.relationships?.top_pools?.data?.[0]?.id;
+      const topPool = typeof topPoolId === 'string' ? poolById.get(topPoolId) : null;
+      return { token: item.attributes, pool: topPool?.attributes || null };
+    });
+  } catch (error) {
+    console.warn(
+      `[+${formatDuration(Date.now() - scriptStartTime)}] ⚠ GeckoTerminal TRON market batch failed (${
+        error instanceof Error ? error.message : 'unknown error'
+      }). Selected TRON tokens will keep existing market values.`,
+    );
+    if (DEBUG) console.warn(error);
+    return tokens.map(() => null);
+  }
+}
+
+function applyGeckoTerminalTokenInfo(token, attributes) {
+  if (!attributes || typeof attributes !== 'object') return false;
+
+  const before = JSON.stringify({
+    name: token.name,
+    symbol: token.symbol,
+    logo: token.logo,
+    description: token.description,
+    projectLinks: token.projectLinks,
+    holdersCount: token.holdersCount,
+    classificationTerms: token.classificationTerms,
+  });
+
+  token.name = pickString(attributes, ['name']) || token.name;
+  token.symbol = pickString(attributes, ['symbol']) || token.symbol;
+  token.logo = pickGeckoTerminalImageUrl(attributes) || token.logo;
+  token.description =
+    sanitizePlainText(pickString(attributes, ['description'])) || token.description;
+  token.holdersCount = pickInteger(attributes.holders || {}, ['count']) ?? token.holdersCount;
+  token.classificationTerms = [
+    ...token.classificationTerms,
+    ...extractClassificationTerms(attributes),
+    ...pickStringArray(attributes, ['gt_categories_id']),
+  ];
+  token.projectLinks = {
+    ...token.projectLinks,
+    ...extractGeckoTerminalProjectLinks(attributes),
+  };
+
+  return (
+    before !==
+    JSON.stringify({
+      name: token.name,
+      symbol: token.symbol,
+      logo: token.logo,
+      description: token.description,
+      projectLinks: token.projectLinks,
+      holdersCount: token.holdersCount,
+      classificationTerms: token.classificationTerms,
+    })
+  );
+}
+
+function applyGeckoTerminalMarketDetails(token, details) {
+  if (!details || typeof details !== 'object') return false;
+  const tokenAttributes = details.token || {};
+  const poolAttributes = details.pool || {};
+  const poolAddress = pickString(poolAttributes, ['address']);
+  const volumeUsd =
+    tokenAttributes.volume_usd && typeof tokenAttributes.volume_usd === 'object'
+      ? tokenAttributes.volume_usd
+      : {};
+  const priceChange =
+    poolAttributes.price_change_percentage &&
+    typeof poolAttributes.price_change_percentage === 'object'
+      ? poolAttributes.price_change_percentage
+      : {};
+
+  const before = JSON.stringify({
+    chartUrl: token.chartUrl,
+    dexUrl: token.dexUrl,
+    price: token.price,
+    marketCap: token.marketCap,
+    liquidity: token.liquidity,
+    volume: token.volume,
+    change24h: token.change24h,
+    totalSupply: token.totalSupply,
+    holdersCount: token.holdersCount,
+    launchDate: token.launchDate,
+  });
+
+  token.name = pickString(tokenAttributes, ['name']) || token.name;
+  token.symbol = pickString(tokenAttributes, ['symbol']) || token.symbol;
+  token.logo = pickGeckoTerminalImageUrl(tokenAttributes) || token.logo;
+  token.price = pickSaneMarketDetailNumber(
+    token,
+    'price',
+    pickNumber(tokenAttributes, ['price_usd']),
+  );
+  token.marketCap = pickSaneMarketDetailNumber(
+    token,
+    'marketCap',
+    pickNumber(tokenAttributes, ['market_cap_usd']) ??
+      pickNumber(poolAttributes, ['market_cap_usd']),
+  );
+  token.fdv = pickSaneMarketDetailNumber(
+    token,
+    'fdv',
+    pickNumber(tokenAttributes, ['fdv_usd']) ?? pickNumber(poolAttributes, ['fdv_usd']),
+  );
+  token.liquidity =
+    pickNumber(tokenAttributes, ['total_reserve_in_usd']) ??
+    pickNumber(poolAttributes, ['reserve_in_usd']) ??
+    token.liquidity;
+  token.volume =
+    pickNumber(volumeUsd, ['h24']) ??
+    pickNumber(poolAttributes.volume_usd || {}, ['h24']) ??
+    token.volume;
+  token.change24h = pickNumber(priceChange, ['h24']) ?? token.change24h;
+  token.totalSupply =
+    pickNumber(tokenAttributes, ['normalized_total_supply', 'total_supply']) ?? token.totalSupply;
+  token.launchDate = pickDate(poolAttributes, ['pool_created_at']) || token.launchDate;
+  token.marketExchangeName = 'GeckoTerminal';
+  token.marketExchangeSupported = true;
+  token.dexUrl = dexSwapUrlBuilders.tron(token.contract.address);
+
+  if (poolAddress) {
+    token.chartPairAddress = poolAddress;
+    token.chartUrl = `https://www.geckoterminal.com/tron/pools/${poolAddress}`;
+  } else if (!token.chartUrl) {
+    token.chartUrl = chartUrlBuilders.tron(token.contract.address);
+  }
+
+  return (
+    before !==
+    JSON.stringify({
+      chartUrl: token.chartUrl,
+      dexUrl: token.dexUrl,
+      price: token.price,
+      marketCap: token.marketCap,
+      liquidity: token.liquidity,
+      volume: token.volume,
+      change24h: token.change24h,
+      totalSupply: token.totalSupply,
+      holdersCount: token.holdersCount,
+      launchDate: token.launchDate,
+    })
+  );
+}
+
+function needsGeckoTerminalInfo(token) {
+  const links = token.projectLinks || {};
+  return (
+    !token.logo ||
+    !token.description ||
+    !links.website ||
+    !links.telegram ||
+    !links.x ||
+    !links.discord ||
+    !token.holdersCount
+  );
+}
+
+function extractGeckoTerminalProjectLinks(attributes) {
+  if (!attributes || typeof attributes !== 'object') return {};
+
+  return compactObject({
+    website: firstUrl('website', pickStringArray(attributes, ['websites'])),
+    telegram: firstUrl('telegram', [pickString(attributes, ['telegram_handle'])]),
+    x: firstUrl('x', [pickString(attributes, ['twitter_handle'])]),
+    discord: firstUrl('discord', [pickString(attributes, ['discord_url'])]),
+  });
+}
+
+function pickGeckoTerminalImageUrl(attributes) {
+  const image = attributes?.image && typeof attributes.image === 'object' ? attributes.image : {};
+  return (
+    pickString(image, ['large']) ||
+    pickString(attributes || {}, ['image_url']) ||
+    pickString(image, ['small']) ||
+    pickString(image, ['thumb'])
+  );
+}
+
+async function waitForGeckoTerminalSlot() {
+  const now = Date.now();
+  const delay = Math.max(0, geckoTerminalNextAllowedAt - now);
+  geckoTerminalNextAllowedAt =
+    Math.max(now, geckoTerminalNextAllowedAt) + GECKOTERMINAL_REQUEST_SPACING_MS;
+  if (delay > 0) await sleep(delay);
 }
 
 async function fetchMobulaMetadataBatch(tokens) {
@@ -1367,6 +1725,7 @@ async function readNextCoinId(tx) {
 async function upsertMarketSource(tx, coinId, token, now) {
   const externalId = marketSourceExternalId(token);
   if (!externalId) return;
+  const provider = token.contract.chain === 'tron' ? 'geckoterminal' : 'mobula';
 
   await tx`
     insert into market_sources (
@@ -1375,7 +1734,7 @@ async function upsertMarketSource(tx, coinId, token, now) {
       created_at, updated_at
     )
     values (
-      ${coinId}, 'mobula', ${externalId}, ${token.logo || null}, ${now},
+      ${coinId}, ${provider}, ${externalId}, ${token.logo || null}, ${now},
       null, null, null, 0, null, ${now}, ${now}
     )
     on conflict (coin_id, provider) do update set
@@ -1420,9 +1779,9 @@ async function loadExistingImportState() {
       from coins
     `,
     db`
-      select external_id
+      select provider, external_id
       from market_sources
-      where provider = 'mobula'
+      where provider in ('mobula', 'geckoterminal')
     `,
   ]);
 
@@ -2136,7 +2495,7 @@ async function main() {
   const existingState = await loadExistingImportState();
   if (db) {
     log(
-      `Loaded ${existingState.slugs.size} slug(s), ${existingState.contracts.size} contract(s), and ${existingState.marketSourceIds.size} Mobula source key(s) from the database.`,
+      `Loaded ${existingState.slugs.size} slug(s), ${existingState.contracts.size} contract(s), and ${existingState.marketSourceIds.size} market source key(s) from the database.`,
     );
   } else {
     log('No database configured for this dry run, so existing imported coins cannot be filtered.');
@@ -2191,7 +2550,9 @@ async function main() {
 
   await enrichTokensWithMobulaDetails(tokens);
   await enrichTokensWithMobulaMetadata(tokens);
+  await enrichTokensWithGeckoTerminalInfo(tokens);
   await enrichTokensWithMobulaMarketDetails(tokens);
+  await enrichTokensWithGeckoTerminalMarketDetails(tokens);
 
   const saneTokens = tokens.filter(hasSaneImportMarketValues);
   const suspiciousTokens = tokens.filter((token) => !hasSaneImportMarketValues(token));
