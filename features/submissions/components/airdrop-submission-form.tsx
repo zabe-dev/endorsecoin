@@ -370,7 +370,7 @@ export function AirdropSubmissionForm({
                           void resolveProjectQuery();
                         }
                       }}
-                      placeholder="Type exact project name or symbol"
+                      placeholder="NAME (SYMBOL)"
                     />
                   </span>
                   {projectMatchStatus && (
