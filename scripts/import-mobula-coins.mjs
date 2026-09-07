@@ -81,7 +81,7 @@ const db = DATABASE_URL
     })
   : null;
 
-const chainKeys = ['ethereum', 'bsc', 'polygon', 'arbitrum', 'base', 'solana'];
+const chainKeys = ['ethereum', 'bsc', 'polygon', 'arbitrum', 'base', 'solana', 'tron'];
 
 const chainAliases = {
   ethereum: (name) => name === 'ethereum',
@@ -94,6 +94,7 @@ const chainAliases = {
   arbitrum: (name) => name.includes('arbitrum'),
   base: (name) => name === 'base',
   solana: (name) => name === 'solana',
+  tron: (name) => name === 'tron' || name === 'trx',
 };
 
 const mobulaAssetBlockchains = {
@@ -103,6 +104,7 @@ const mobulaAssetBlockchains = {
   arbitrum: 'arbitrum',
   base: 'base',
   solana: 'solana',
+  tron: 'tron',
 };
 
 const mobulaMetadataBlockchains = {
@@ -112,6 +114,7 @@ const mobulaMetadataBlockchains = {
   arbitrum: '42161',
   base: '8453',
   solana: 'solana',
+  tron: 'tron',
 };
 
 const mobulaMarketBlockchains = {
@@ -130,6 +133,7 @@ const mobulaMarketSourceIds = {
   arbitrum: 'evm:42161',
   base: 'evm:8453',
   solana: 'solana:solana',
+  tron: 'tron:728126428',
 };
 
 const dexSwapUrlBuilders = {
@@ -139,6 +143,7 @@ const dexSwapUrlBuilders = {
   base: (address) => `https://app.uniswap.org/swap?outputCurrency=${address}&chain=base`,
   bsc: (address) => `https://pancakeswap.finance/swap?outputCurrency=${address}`,
   polygon: (address) => `https://dapp.quickswap.exchange/swap?type=best&to=${address}`,
+  tron: (address) => `https://sun.io/#/v2/swap?to=${address}`,
 };
 
 const chartUrlBuilders = {
@@ -148,6 +153,7 @@ const chartUrlBuilders = {
   arbitrum: (address) => `https://dexscreener.com/arbitrum/${address}`,
   base: (address) => `https://dexscreener.com/base/${address}`,
   solana: (address) => `https://dexscreener.com/solana/${address}`,
+  tron: (address) => `https://www.geckoterminal.com/tron/tokens/${address}`,
 };
 
 const supportedExchangeMatchers = {
@@ -157,6 +163,7 @@ const supportedExchangeMatchers = {
   bsc: [/pancakeswap/i],
   polygon: [/quickswap/i],
   solana: [/raydium/i],
+  tron: [/sunswap/i, /sun\.io/i, /sunpump/i],
 };
 
 const categoryKeywordMap = {

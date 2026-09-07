@@ -511,7 +511,7 @@ function buildChartConfig(
   const provider = submissionProvider || inferChartProviderFromUrl(chart?.url);
 
   if (provider && isEmbeddableChartProvider(provider)) {
-    const chartUrl = buildChartEmbedUrl(provider, network, contractAddress);
+    const chartUrl = buildChartEmbedUrl(provider, network, contractAddress, chart?.url);
     if (chartUrl) return { source: 'embed', provider, url: chartUrl };
   }
 
@@ -537,7 +537,12 @@ function readSubmissionChartProvider(value: unknown) {
   return typeof chart.provider === 'string' ? chart.provider.trim() : '';
 }
 
-function buildChartEmbedUrl(provider: string, network: NetworkId, address: string) {
+function buildChartEmbedUrl(
+  provider: string,
+  network: NetworkId,
+  address: string,
+  sourceUrl?: string,
+) {
   if (!address) return '';
   const encodedAddress = encodeURIComponent(address);
 
@@ -549,6 +554,8 @@ function buildChartEmbedUrl(provider: string, network: NetworkId, address: strin
   }
 
   if (provider === 'geckoterminal') {
+    if (sourceUrl && !sourceUrl.includes('/pools/')) return '';
+
     const chain = geckoTerminalChainIds[network];
     return chain
       ? `https://www.geckoterminal.com/${chain}/pools/${encodedAddress}?embed=1&info=0&swaps=0`
@@ -616,6 +623,7 @@ const geckoTerminalChainIds: Partial<Record<NetworkId, string>> = {
   optimism: 'optimism',
   fantom: 'ftm',
   kcc: 'kcc',
+  tron: 'tron',
   sui: 'sui-network',
 };
 

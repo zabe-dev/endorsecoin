@@ -57,6 +57,8 @@ For production, prefer using one long random value for `MAINTENANCE_SECRET`, one
 - `MOBULA_API_BASE_URL` — Mobula API base URL. Default: `https://api.mobula.io`.
 - `MOBULA_REQUEST_TIMEOUT_MS` — request timeout. Default: `8000`.
 - `MOBULA_REQUEST_SPACING_MS` — pacing between Mobula requests. Default: `1050`.
+- `GECKOTERMINAL_API_BASE_URL` — GeckoTerminal API base used for TRON market sync. Default: `https://api.geckoterminal.com`.
+- `GECKOTERMINAL_REQUEST_SPACING_MS` — pacing between GeckoTerminal requests. Default: `6100`, matching the public API's lower request limit.
 - `MARKET_SYNC_CACHE_SECONDS` — how old a snapshot must be before it is considered stale. Default: `900`.
 - `MARKET_SYNC_LIMIT` — default number of coins to refresh per sync run. Default: `7`.
 - `MARKET_SYNC_MAX_LIMIT` — hard maximum accepted by the sync worker. Default: `120`.

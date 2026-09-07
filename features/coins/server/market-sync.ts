@@ -26,7 +26,7 @@ type MarketSyncCoin = Pick<
 
 type MarketSnapshotRow = typeof marketSnapshots.$inferSelect;
 
-type MobulaTokenDetails = {
+type MarketTokenDetails = {
   priceUSD?: unknown;
   marketCapUSD?: unknown;
   marketCapDilutedUSD?: unknown;
@@ -38,13 +38,17 @@ type MobulaTokenDetails = {
   rank?: unknown;
 };
 
-type MobulaFetchResult =
-  | { ok: true; details: MobulaTokenDetails }
+type MarketFetchResult =
+  | { ok: true; details: MarketTokenDetails }
   | {
       ok: false;
       code: 'invalid-address-format' | 'request-failed' | 'missing-data' | 'network-error';
       message: string;
     };
+
+const mobulaProvider = 'mobula';
+const geckoTerminalProvider = 'geckoterminal';
+type MarketProvider = typeof mobulaProvider | typeof geckoTerminalProvider;
 
 const mobulaChainIds: Partial<Record<NetworkId, string>> = {
   ethereum: 'evm:1',
@@ -57,9 +61,12 @@ const mobulaChainIds: Partial<Record<NetworkId, string>> = {
   fantom: 'evm:250',
   kcc: 'evm:321',
   hood: 'evm:4663',
-  tron: 'tron:728126428',
   solana: 'solana:solana',
   sui: 'sui:sui',
+};
+
+const geckoTerminalChainIds: Partial<Record<NetworkId, string>> = {
+  tron: 'tron',
 };
 
 const evmNetworks = new Set<NetworkId>([
@@ -80,10 +87,13 @@ const base58AddressPattern = /^[1-9A-HJ-NP-Za-km-z]+$/;
 const syncState = globalThis as typeof globalThis & {
   endorsecoinMobulaInFlight?: Promise<Map<number, MarketSnapshotRow>>;
   endorsecoinMobulaNextAllowedAt?: number;
+  endorsecoinGeckoTerminalNextAllowedAt?: number;
   endorsecoinMobulaKeyIndex?: number;
 };
 
 const apiBaseUrl = process.env.MOBULA_API_BASE_URL || 'https://api.mobula.io';
+const geckoTerminalApiBaseUrl =
+  process.env.GECKOTERMINAL_API_BASE_URL || 'https://api.geckoterminal.com';
 const requestTimeoutMs = Number(process.env.MOBULA_REQUEST_TIMEOUT_MS || 8_000);
 const cacheSeconds = Number(
   process.env.MARKET_SYNC_CACHE_SECONDS || process.env.MARKET_DATA_CACHE_SECONDS || 900,
@@ -95,6 +105,10 @@ const maxSyncLimit = Number(
   process.env.MARKET_SYNC_MAX_LIMIT || process.env.MARKET_DATA_MAX_SYNC_LIMIT || 120,
 );
 const requestSpacingMs = Math.max(1_050, Number(process.env.MOBULA_REQUEST_SPACING_MS || 1_050));
+const geckoTerminalRequestSpacingMs = Math.max(
+  6_100,
+  Number(process.env.GECKOTERMINAL_REQUEST_SPACING_MS || 6_100),
+);
 const maxSyncedPriceUsd = 1_000_000;
 const maxSyncedMarketCapUsd = 1_000_000_000_000;
 const maxSyncedFdvUsd = 1_000_000_000_000;
@@ -103,7 +117,6 @@ const syncLockTtlMs = Number(
 );
 const baseBackoffMs = Number(process.env.MARKET_SYNC_ERROR_BACKOFF_MS || 15 * 60 * 1000);
 const maxBackoffMs = Number(process.env.MARKET_SYNC_MAX_ERROR_BACKOFF_MS || 12 * 60 * 60 * 1000);
-const mobulaProvider = 'mobula';
 const invalidAddressErrorCode = 'invalid-address-format';
 
 // Log tag so these are easy to grep in server logs.
@@ -253,16 +266,9 @@ async function withMobulaSyncLock(fetcher: () => Promise<Map<number, MarketSnaps
 async function syncCoinMarketData(coinRows: MarketSyncCoin[]) {
   const refreshed = new Map<number, MarketSnapshotRow>();
 
-  if (!getMobulaApiKeys().length) {
-    recordMetric('market.sync', { event: 'missing_api_key', skipped: coinRows.length });
-    console.warn(
-      `${LOG_TAG} MOBULA_API_KEY or MOBULA_API_KEYS is not set, skipping all ${coinRows.length} coin(s)`,
-    );
-    return refreshed;
-  }
-
   for (const coin of coinRows) {
-    const chainId = getMobulaChainId(coin.chain);
+    const provider = getMarketProvider(coin.chain);
+    const chainId = getProviderChainId(coin.chain);
     const address = coin.contractAddress?.trim();
 
     if (!chainId) {
@@ -290,6 +296,7 @@ async function syncCoinMarketData(coinRows: MarketSyncCoin[]) {
       recordMetric('market.sync', { event: 'coin_skipped', reason: 'invalid_address_format' });
       await recordMarketSourceError(
         coin,
+        provider,
         externalId,
         invalidAddressErrorCode,
         `Invalid address format for ${coin.chain || 'unknown'} chain.`,
@@ -300,12 +307,12 @@ async function syncCoinMarketData(coinRows: MarketSyncCoin[]) {
       continue;
     }
 
-    const result = await fetchMobulaTokenDetails(chainId, address);
+    const result = await fetchTokenMarketDetails(provider, chainId, address);
     if (!result.ok) {
       recordMetric('market.sync', { event: 'coin_fetch_failed', reason: result.code });
-      await recordMarketSourceError(coin, externalId, result.code, result.message);
+      await recordMarketSourceError(coin, provider, externalId, result.code, result.message);
       console.warn(
-        `${LOG_TAG} coin ${coin.id}: no data returned from Mobula for ${chainId}/${address}`,
+        `${LOG_TAG} coin ${coin.id}: no data returned from ${provider} for ${chainId}/${address}`,
       );
       continue;
     }
@@ -314,7 +321,13 @@ async function syncCoinMarketData(coinRows: MarketSyncCoin[]) {
     const suspiciousReason = getSuspiciousMarketDetailsReason(details);
     if (suspiciousReason) {
       recordMetric('market.sync', { event: 'coin_skipped', reason: 'suspicious_market_data' });
-      await recordMarketSourceError(coin, externalId, 'suspicious-market-data', suspiciousReason);
+      await recordMarketSourceError(
+        coin,
+        provider,
+        externalId,
+        'suspicious-market-data',
+        suspiciousReason,
+      );
       console.warn(
         `${LOG_TAG} coin ${coin.id}: skipped suspicious Mobula market data — ${suspiciousReason}`,
       );
@@ -339,7 +352,7 @@ async function syncCoinMarketData(coinRows: MarketSyncCoin[]) {
 
     if (snapshot) {
       recordMetric('market.sync', { event: 'coin_updated' });
-      await recordMarketSourceSuccess(coin.id, externalId);
+      await recordMarketSourceSuccess(coin.id, provider, externalId);
       refreshed.set(coin.id, snapshot);
       console.log(
         `${LOG_TAG} coin ${coin.id}: snapshot inserted (price=${snapshot.priceUsd ?? 'null'})`,
@@ -352,10 +365,22 @@ async function syncCoinMarketData(coinRows: MarketSyncCoin[]) {
   return refreshed;
 }
 
+async function fetchTokenMarketDetails(
+  provider: MarketProvider,
+  chainId: string,
+  address: string,
+): Promise<MarketFetchResult> {
+  if (provider === geckoTerminalProvider) {
+    return fetchGeckoTerminalTokenDetails(chainId, address);
+  }
+
+  return fetchMobulaTokenDetails(chainId, address);
+}
+
 async function fetchMobulaTokenDetails(
   chainId: string,
   address: string,
-): Promise<MobulaFetchResult> {
+): Promise<MarketFetchResult> {
   const apiKey = getNextMobulaApiKey();
   if (!apiKey) {
     return {
@@ -410,7 +435,7 @@ async function fetchMobulaTokenDetails(
       );
       return { ok: false, code: 'missing-data', message: 'Mobula response did not include data.' };
     }
-    return { ok: true, details: payload.data as MobulaTokenDetails };
+    return { ok: true, details: payload.data as MarketTokenDetails };
   } catch (error) {
     const isAbort = error instanceof Error && error.name === 'AbortError';
     console.warn(
@@ -427,10 +452,94 @@ async function fetchMobulaTokenDetails(
   }
 }
 
+async function fetchGeckoTerminalTokenDetails(
+  chainId: string,
+  address: string,
+): Promise<MarketFetchResult> {
+  await waitForGeckoTerminalSlot();
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
+
+  try {
+    const url = new URL(
+      `/api/v2/networks/${encodeURIComponent(chainId)}/tokens/${encodeURIComponent(address)}`,
+      geckoTerminalApiBaseUrl,
+    );
+    url.searchParams.set('include', 'top_pools');
+
+    const response = await fetch(url, {
+      headers: {
+        accept: 'application/json;version=20230203',
+      },
+      signal: controller.signal,
+      cache: 'no-store',
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      console.warn(
+        `${LOG_TAG} GeckoTerminal request failed: ${response.status} ${response.statusText} for ${chainId}/${address} — ${body.slice(0, 300)}`,
+      );
+      return {
+        ok: false,
+        code: 'request-failed',
+        message: `${response.status} ${response.statusText}`,
+      };
+    }
+
+    const payload = await response.json();
+    const attributes = isRecord(payload?.data?.attributes) ? payload.data.attributes : null;
+    if (!attributes) {
+      console.warn(
+        `${LOG_TAG} GeckoTerminal response missing token attributes for ${chainId}/${address}: ${JSON.stringify(payload).slice(0, 300)}`,
+      );
+      return {
+        ok: false,
+        code: 'missing-data',
+        message: 'GeckoTerminal response did not include token attributes.',
+      };
+    }
+
+    return { ok: true, details: geckoTerminalAttributesToMarketDetails(attributes) };
+  } catch (error) {
+    const isAbort = error instanceof Error && error.name === 'AbortError';
+    console.warn(
+      `${LOG_TAG} GeckoTerminal request ${isAbort ? 'timed out' : 'threw'} for ${chainId}/${address}`,
+      isAbort ? '' : error,
+    );
+    return {
+      ok: false,
+      code: 'network-error',
+      message: isAbort ? 'GeckoTerminal request timed out.' : 'GeckoTerminal request failed.',
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function geckoTerminalAttributesToMarketDetails(
+  attributes: Record<string, unknown>,
+): MarketTokenDetails {
+  const volumeUsd = isRecord(attributes.volume_usd) ? attributes.volume_usd : {};
+  const priceChange = isRecord(attributes.price_change_percentage)
+    ? attributes.price_change_percentage
+    : {};
+
+  return {
+    priceUSD: attributes.price_usd,
+    marketCapUSD: attributes.market_cap_usd,
+    marketCapDilutedUSD: attributes.fdv_usd,
+    volume24hUSD: volumeUsd.h24 ?? attributes.volume_usd,
+    priceChange24hPercentage: priceChange.h24,
+    liquidityUSD: attributes.total_reserve_in_usd,
+  };
+}
+
 function shouldRefreshCoin(coin: MarketSyncCoin, snapshot: MarketSnapshotRow | undefined) {
   if (coin.listingStatus !== 'active') return false;
   if (!coin.contractAddress?.trim()) return false;
-  const chainId = getMobulaChainId(coin.chain);
+  const chainId = getProviderChainId(coin.chain);
   if (!chainId) return false;
   if (!isValidAddressForChain(coin.chain, coin.contractAddress.trim())) return false;
   if (hasActiveBackoff(coin)) return false;
@@ -443,13 +552,20 @@ function shouldRefreshCoin(coin: MarketSyncCoin, snapshot: MarketSnapshotRow | u
   return Date.now() - snapshot.recordedAt.getTime() > cacheSeconds * 1_000;
 }
 
-function getMobulaChainId(chain: string | null) {
-  if (!chain || !(chain in mobulaChainIds)) return '';
-  return mobulaChainIds[chain as NetworkId] || '';
+function getMarketProvider(chain: string | null): MarketProvider {
+  return chain === 'tron' ? geckoTerminalProvider : mobulaProvider;
+}
+
+function getProviderChainId(chain: string | null) {
+  if (!chain) return '';
+  const network = chain as NetworkId;
+  return getMarketProvider(chain) === geckoTerminalProvider
+    ? geckoTerminalChainIds[network] || ''
+    : mobulaChainIds[network] || '';
 }
 
 async function selectStaleSyncCoins(limit: number): Promise<MarketSyncCoin[]> {
-  const supportedChains = Object.keys(mobulaChainIds);
+  const supportedChains = Object.keys({ ...mobulaChainIds, ...geckoTerminalChainIds });
   const nowIso = new Date().toISOString();
   const staleBeforeIso = new Date(Date.now() - cacheSeconds * 1_000).toISOString();
   const supportedChainSql = sql.join(
@@ -470,7 +586,12 @@ async function selectStaleSyncCoins(limit: number): Promise<MarketSyncCoin[]> {
     from ${coins} c
     left join ${marketSources} source
       on source.coin_id = c.id
-     and source.provider = ${mobulaProvider}
+     and source.provider = (
+        case
+          when c.chain = 'tron' then ${geckoTerminalProvider}
+          else ${mobulaProvider}
+        end
+      )
     left join lateral (
       select ms.recorded_at
       from ${marketSnapshots} ms
@@ -523,7 +644,7 @@ async function selectStaleSyncCoins(limit: number): Promise<MarketSyncCoin[]> {
             when 'fantom' then 'evm:250:'
             when 'kcc' then 'evm:321:'
             when 'hood' then 'evm:4663:'
-            when 'tron' then 'tron:728126428:'
+            when 'tron' then 'tron:'
             when 'solana' then 'solana:solana:'
             when 'sui' then 'sui:sui:'
             else ''
@@ -621,6 +742,7 @@ function uniqueStrings(values: string[]) {
 
 async function recordMarketSourceError(
   coin: MarketSyncCoin,
+  provider: MarketProvider,
   externalId: string,
   code: string,
   message: string,
@@ -636,7 +758,7 @@ async function recordMarketSourceError(
     .insert(marketSources)
     .values({
       coinId: coin.id,
-      provider: mobulaProvider,
+      provider,
       externalId,
       lastErrorCode: code,
       lastErrorMessage: message.slice(0, 500),
@@ -657,14 +779,18 @@ async function recordMarketSourceError(
     });
 }
 
-async function recordMarketSourceSuccess(coinId: number, externalId: string) {
+async function recordMarketSourceSuccess(
+  coinId: number,
+  provider: MarketProvider,
+  externalId: string,
+) {
   const now = new Date();
 
   await db
     .insert(marketSources)
     .values({
       coinId,
-      provider: mobulaProvider,
+      provider,
       externalId,
       lastMarketSyncAt: now,
       lastErrorCode: null,
@@ -707,11 +833,22 @@ function cleanErrorMessage(body: string) {
 }
 
 async function waitForMobulaSlot() {
+  await waitForProviderSlot('endorsecoinMobulaNextAllowedAt', requestSpacingMs);
+}
+
+async function waitForGeckoTerminalSlot() {
+  await waitForProviderSlot('endorsecoinGeckoTerminalNextAllowedAt', geckoTerminalRequestSpacingMs);
+}
+
+async function waitForProviderSlot(
+  key: 'endorsecoinMobulaNextAllowedAt' | 'endorsecoinGeckoTerminalNextAllowedAt',
+  spacingMs: number,
+) {
   const now = Date.now();
-  const nextAllowedAt = syncState.endorsecoinMobulaNextAllowedAt || 0;
+  const nextAllowedAt = syncState[key] || 0;
   const delay = Math.max(0, nextAllowedAt - now);
 
-  syncState.endorsecoinMobulaNextAllowedAt = Math.max(now, nextAllowedAt) + requestSpacingMs;
+  syncState[key] = Math.max(now, nextAllowedAt) + spacingMs;
   if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
 }
 
@@ -723,7 +860,7 @@ function firstByCoinId<T extends { coinId: number }>(rows: T[]) {
   return map;
 }
 
-function getSuspiciousMarketDetailsReason(details: MobulaTokenDetails) {
+function getSuspiciousMarketDetailsReason(details: MarketTokenDetails) {
   const price = readFiniteNumber(details.priceUSD);
   const marketCap = readFiniteNumber(details.marketCapUSD);
   const fdv = readFiniteNumber(details.marketCapDilutedUSD);
