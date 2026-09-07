@@ -11,7 +11,7 @@ const defaultSocialImage = 'https://assets.endorsecoin.com/site/image-1200x628.p
 export const socialImage =
   process.env.NEXT_PUBLIC_SOCIAL_IMAGE_URL ||
   (r2PublicUrl ? `${r2PublicUrl}/site/image-1200x628.png` : defaultSocialImage);
-export const summaryImage = '/logo-256x256.png';
+export const summaryImage = '/logo.png';
 
 type PublicPageMetadataOptions = {
   title: string;
