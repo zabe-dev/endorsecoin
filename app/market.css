@@ -1520,7 +1520,7 @@
     color: var(--copy, var(--text));
     text-align: left;
     font-family: var(--font-poppins), sans-serif;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 700;
     letter-spacing: 0;
     cursor: pointer;
@@ -1531,7 +1531,7 @@
   .mobile-menu-account > button,
   .mobile-login-action {
     font-family: var(--font-poppins), sans-serif !important;
-    font-size: 11px !important;
+    font-size: 12px !important;
     font-weight: 700 !important;
     line-height: 1 !important;
     letter-spacing: 0 !important;

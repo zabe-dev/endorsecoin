@@ -1957,7 +1957,7 @@ tbody tr:hover td {
     padding: 0 10px;
     color: #d8dee1;
     font-family: var(--font-poppins), sans-serif;
-    font-size: 10px;
+    font-size: 12px;
     font-weight: 650;
     letter-spacing: 0;
     text-align: left;
@@ -1981,7 +1981,7 @@ tbody tr:hover td {
   .mobile-menu-account > button,
   .mobile-login-action {
     font-family: var(--font-poppins), sans-serif !important;
-    font-size: 10px !important;
+    font-size: 12px !important;
     font-weight: 650 !important;
     line-height: 1 !important;
     letter-spacing: 0 !important;
@@ -2003,7 +2003,7 @@ tbody tr:hover td {
     display: inline !important;
     color: inherit !important;
     font-family: var(--font-poppins), sans-serif !important;
-    font-size: 10px !important;
+    font-size: 12px !important;
     font-weight: 650 !important;
     line-height: 1 !important;
     letter-spacing: 0 !important;
