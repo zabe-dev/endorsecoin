@@ -93,9 +93,9 @@ export default function AdvertisePage() {
             boosts depending on how much reach you want.
           </p>
           <div className="advertise-actions">
-            <a className="advertise-primary" href="https://t.me/EndorseCoinSupport">
+            <a className="advertise-primary" href="https://t.me/EndorseCoinCom">
               <MessageCircle aria-hidden="true" />
-              Contact @EndorseCoinSupport
+              Contact @EndorseCoinCom
             </a>
             <SubmitProjectAction />
           </div>

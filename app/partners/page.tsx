@@ -1,5 +1,6 @@
-import { SiteHeader } from '@/components/layout/site-header';
 import { SiteFooter } from '@/components/layout/site-footer';
+import { SiteHeader } from '@/components/layout/site-header';
+import { createPublicPageMetadata } from '@/lib/seo/metadata';
 import {
   ArrowRight,
   ChartLine,
@@ -8,7 +9,6 @@ import {
   ShieldCheck,
   UsersRound,
 } from 'lucide-react';
-import { createPublicPageMetadata } from '@/lib/seo/metadata';
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import '../market.css';
@@ -38,9 +38,9 @@ export default function PartnersPage() {
               investors looking for an edge in early discovery.
             </p>
             <div className="partners-actions">
-              <a className="partners-primary" href="https://t.me/EndorseCoinSupport">
+              <a className="partners-primary" href="https://t.me/EndorseCoinCom">
                 <MessageCircle aria-hidden="true" />
-                Contact support
+                Contact @EndorseCoinCom
               </a>
               <a className="partners-secondary" href="/advertise">
                 Advertise instead
