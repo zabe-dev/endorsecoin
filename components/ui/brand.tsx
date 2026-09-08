@@ -7,7 +7,7 @@ export function Brand() {
       <span className="brand-mark">
         <Image src="/logo.svg" alt="EndorseCoin logo" width={40} height={40} />
       </span>
-      <span>endorsecoin</span>
+      <span className="brand-name">endorsecoin</span>
     </Link>
   );
 }
