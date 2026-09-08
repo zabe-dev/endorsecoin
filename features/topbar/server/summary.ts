@@ -10,6 +10,8 @@ import { getCacheVersion } from '@/lib/cache/cache-version';
 import { rememberJson } from '@/lib/cache/json-cache';
 
 const summaryCacheSeconds = Number(process.env.TOPBAR_SUMMARY_CACHE_SECONDS || 60);
+const usersDisplayOffset = readEnvInteger('TOPBAR_USERS_DISPLAY_OFFSET', 300);
+const totalVotesDisplayOffset = readEnvInteger('TOPBAR_TOTAL_VOTES_DISPLAY_OFFSET', 5_000);
 
 export async function getTopbarSummary() {
   const version = await getCacheVersion('topbar-summary');
@@ -51,12 +53,17 @@ async function readDatabaseSummary() {
     ]);
 
   return {
-    users: readCount(userCountRows),
+    users: readCount(userCountRows) + usersDisplayOffset,
     projects: readCount(projectCountRows),
-    totalVotes: readCount(voteCountRows),
+    totalVotes: readCount(voteCountRows) + totalVotesDisplayOffset,
     trendingCoin,
     topVotedCoin,
   };
+}
+
+function readEnvInteger(key: string, fallback: number) {
+  const value = Number(process.env[key]);
+  return Number.isSafeInteger(value) ? value : fallback;
 }
 
 async function readTrendingCoin(dayAgoIso: string): Promise<TopbarCoinLink> {
