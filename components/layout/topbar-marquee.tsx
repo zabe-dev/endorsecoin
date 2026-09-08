@@ -90,8 +90,10 @@ function formatTickerPrice(value: number | null) {
 
 function formatCompactNumber(value: number | null) {
   if (value === null) return '—';
+  if (value <= 10_000) return value.toLocaleString('en-US');
+
   return Intl.NumberFormat('en-US', {
     notation: 'compact',
-    maximumFractionDigits: value >= 1000 ? 1 : 0,
+    maximumFractionDigits: 1,
   }).format(value);
 }
