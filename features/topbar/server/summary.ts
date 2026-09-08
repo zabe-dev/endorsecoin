@@ -10,16 +10,11 @@ import { getCacheVersion } from '@/lib/cache/cache-version';
 import { rememberJson } from '@/lib/cache/json-cache';
 
 const summaryCacheSeconds = Number(process.env.TOPBAR_SUMMARY_CACHE_SECONDS || 60);
-const countPaddingEnabled = process.env.TOPBAR_COUNT_PADDING_ENABLED !== 'false';
-const totalVotesPaddingMin = readEnvInteger('TOPBAR_TOTAL_VOTES_PADDING_MIN', 5_000);
-const totalVotesPaddingMax = readEnvInteger('TOPBAR_TOTAL_VOTES_PADDING_MAX', 10_000);
-const usersPaddingMin = readEnvInteger('TOPBAR_USERS_PADDING_MIN', 250);
-const usersPaddingMax = readEnvInteger('TOPBAR_USERS_PADDING_MAX', 350);
 
 export async function getTopbarSummary() {
   const version = await getCacheVersion('topbar-summary');
   return rememberJson(
-    `topbar:summary:${version}:v1`,
+    `topbar:summary:${version}:v2`,
     { ttlSeconds: summaryCacheSeconds },
     readTopbarSummary,
   );
@@ -55,50 +50,13 @@ async function readDatabaseSummary() {
       readTopVotedCoin(),
     ]);
 
-  const usersCount = readCount(userCountRows);
-  const totalVotesCount = readCount(voteCountRows);
-  const padding = getTopbarCountPadding();
-
   return {
-    users: usersCount + padding.users,
+    users: readCount(userCountRows),
     projects: readCount(projectCountRows),
-    totalVotes: totalVotesCount + padding.totalVotes,
+    totalVotes: readCount(voteCountRows),
     trendingCoin,
     topVotedCoin,
   };
-}
-
-function getTopbarCountPadding() {
-  if (!countPaddingEnabled) return { users: 0, totalVotes: 0 };
-
-  const dayKey = new Date().toISOString().slice(0, 10);
-  return {
-    users: deterministicRange(`topbar-users:${dayKey}`, usersPaddingMin, usersPaddingMax),
-    totalVotes: deterministicRange(
-      `topbar-total-votes:${dayKey}`,
-      totalVotesPaddingMin,
-      totalVotesPaddingMax,
-    ),
-  };
-}
-
-function deterministicRange(seed: string, min: number, max: number) {
-  const safeMin = Math.min(min, max);
-  const safeMax = Math.max(min, max);
-  const span = safeMax - safeMin + 1;
-  let hash = 2166136261;
-
-  for (let index = 0; index < seed.length; index += 1) {
-    hash ^= seed.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-
-  return safeMin + (Math.abs(hash) % span);
-}
-
-function readEnvInteger(key: string, fallback: number) {
-  const value = Number(process.env[key]);
-  return Number.isSafeInteger(value) ? value : fallback;
 }
 
 async function readTrendingCoin(dayAgoIso: string): Promise<TopbarCoinLink> {
