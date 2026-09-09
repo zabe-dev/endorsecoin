@@ -92,6 +92,17 @@ export function CoinSidebar({
         <h3>Coin information</h3>
         <Info label="Network" value={coin.chain} />
         <Info label="Category" value={coin.category} />
+        <Info
+          label="Status"
+          value={
+            coin.listingStatus === 'active'
+              ? coin.lifecycle === 'presale'
+                ? 'Presale'
+                : 'Launched'
+              : 'Suspended'
+          }
+        />
+        <Info label="Launched date" value={formatCoinDate(coin.launchTimestamp)} />
         {coin.lifecycle === 'presale' && (
           <>
             <InfoLink label="Presale website" url={coin.presale.websiteUrl} />
@@ -103,16 +114,6 @@ export function CoinSidebar({
           </>
         )}
         <Info label="Submitted" value={coin.age} />
-        <Info
-          label="Status"
-          value={
-            coin.listingStatus === 'active'
-              ? coin.lifecycle === 'presale'
-                ? 'Presale'
-                : 'Launched'
-              : 'Suspended'
-          }
-        />
       </section>
       <section className="detail-card request-change-card">
         <div className="request-change-icon" aria-hidden="true">
@@ -126,6 +127,17 @@ export function CoinSidebar({
       </section>
     </aside>
   );
+}
+
+function formatCoinDate(value: string | null) {
+  if (!value) return '—';
+
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(new Date(value));
 }
 
 function formatPresaleDateTime(value: string | null) {

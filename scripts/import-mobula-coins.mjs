@@ -7,6 +7,8 @@
  *   npm run import:mobula
  *   npm run import:mobula -- 10000
  *   npm run import:mobula -- --limit=150
+ *   npm run import:mobula:random
+ *   npm run import:mobula -- --random --limit=150
  *   npm run import:mobula -- --dry-run
  *   npm run import:mobula -- --dry-run --debug
  *   npm run import:mobula -- --geckoterminal-batch-size=30
@@ -63,7 +65,8 @@ const positionalLimitArg = args.find((arg) => /^\d+$/.test(arg));
 const TARGET_COUNT = readPositiveInteger(limitArg?.split('=')[1] || positionalLimitArg, 250);
 const DRY_RUN = args.includes('--dry-run');
 const DEBUG = args.includes('--debug');
-const RANDOMIZE = !args.includes('--no-random');
+const RANDOM_IMPORT = args.includes('--random');
+const RANDOMIZE = RANDOM_IMPORT && !args.includes('--no-random');
 const DETAILS_BATCH_SIZE = Math.min(
   readPositiveInteger(
     args.find((arg) => arg.startsWith('--details-batch-size='))?.split('=')[1],
@@ -91,6 +94,13 @@ const MAX_IMPORT_MARKET_CAP_USD = 1_000_000_000_000;
 const MAX_IMPORT_FDV_USD = 1_000_000_000_000;
 const MAX_MARKET_DETAIL_PRICE_RATIO = 100;
 const IMPORT_SUBMITTED_AT_START = new Date('2026-01-01T00:00:00.000Z');
+const NEW_POPULAR_ONLY = !RANDOM_IMPORT;
+const NEW_POPULAR_MAX_AGE_DAYS = daysSinceStartOfYear();
+const NEW_POPULAR_EXCLUDE_OLDER_THAN_DAYS = 730;
+const NEW_POPULAR_MAX_RANK = 5_000;
+const NEW_POPULAR_MIN_VOLUME_USD = 10_000;
+const NEW_POPULAR_MIN_LIQUIDITY_USD = 10_000;
+const NEW_POPULAR_OVERSAMPLE_FACTOR = 6;
 
 if (!DATABASE_URL && !DRY_RUN) {
   throw new Error('DATABASE_URL is required for a real import. Use --dry-run to preview only.');
@@ -1713,10 +1723,10 @@ function buildToken(item) {
   if (!contract) return null;
 
   const price = pickNumber(item, ['price']);
-  if (price === null || price <= 0) return null;
+  if (price !== null && price <= 0) return null;
 
   const marketCap = pickNumber(item, ['market_cap', 'marketCap']);
-  if (marketCap === null || marketCap <= 0) return null;
+  if (marketCap !== null && marketCap <= 0) return null;
 
   const symbol = pickString(item, ['symbol']) || '???';
   if (symbolDenylist.has(symbol.toUpperCase())) return null;
@@ -1962,6 +1972,69 @@ function filterNewTokens(tokens, existingState) {
   });
 
   return { freshTokens, skippedExisting, skippedBatchDuplicate };
+}
+
+function selectNewPopularCandidatePool(tokens) {
+  const candidates = tokens.filter(couldBecomeNewPopularToken).sort(compareNewPopularTokens);
+  const maxCandidates = Math.max(TARGET_COUNT, TARGET_COUNT * NEW_POPULAR_OVERSAMPLE_FACTOR);
+  return candidates.slice(0, maxCandidates);
+}
+
+function couldBecomeNewPopularToken(token) {
+  if (!hasPopularitySignal(token)) return false;
+  if (!token.launchDate) return true;
+  return isRecentLaunchDate(token.launchDate);
+}
+
+function isNewPopularToken(token) {
+  return Boolean(
+    token.launchDate && isRecentLaunchDate(token.launchDate) && hasPopularitySignal(token),
+  );
+}
+
+function isRecentLaunchDate(date) {
+  const timestamp = date instanceof Date ? date.getTime() : new Date(date).getTime();
+  if (!Number.isFinite(timestamp)) return false;
+
+  const now = Date.now();
+  if (timestamp > now) return false;
+
+  const ageDays = (now - timestamp) / 86_400_000;
+  return ageDays <= NEW_POPULAR_MAX_AGE_DAYS && ageDays <= NEW_POPULAR_EXCLUDE_OLDER_THAN_DAYS;
+}
+
+function hasPopularitySignal(token) {
+  const rank = Number.isFinite(token.rank) ? token.rank : Infinity;
+  const volume = Number.isFinite(token.volume) ? token.volume : 0;
+  const liquidity = Number.isFinite(token.liquidity) ? token.liquidity : 0;
+
+  return (
+    rank <= NEW_POPULAR_MAX_RANK ||
+    volume >= NEW_POPULAR_MIN_VOLUME_USD ||
+    liquidity >= NEW_POPULAR_MIN_LIQUIDITY_USD
+  );
+}
+
+function compareNewPopularTokens(a, b) {
+  const aDate = a.launchDate instanceof Date ? a.launchDate.getTime() : 0;
+  const bDate = b.launchDate instanceof Date ? b.launchDate.getTime() : 0;
+  if (aDate !== bDate) return bDate - aDate;
+
+  const aRank = Number.isFinite(a.rank) ? a.rank : Infinity;
+  const bRank = Number.isFinite(b.rank) ? b.rank : Infinity;
+  if (aRank !== bRank) return aRank - bRank;
+
+  const aVolume = Number.isFinite(a.volume) ? a.volume : 0;
+  const bVolume = Number.isFinite(b.volume) ? b.volume : 0;
+  if (aVolume !== bVolume) return bVolume - aVolume;
+
+  return a.name.localeCompare(b.name);
+}
+
+function daysSinceStartOfYear() {
+  const now = new Date();
+  const start = Date.UTC(now.getUTCFullYear(), 0, 1);
+  return Math.max(1, Math.ceil((Date.now() - start) / 86_400_000));
 }
 
 function contractKey(chain, address) {
@@ -2636,11 +2709,7 @@ function readPositiveInteger(value, fallback) {
 }
 
 async function main() {
-  logSection(
-    `Mobula import starting — target ${TARGET_COUNT} token(s), ${
-      DRY_RUN ? 'DRY RUN (no writes)' : 'writing to database'
-    }, exclude rank <= ${EXCLUDE_TOP_RANK}`,
-  );
+  log('Mobula import has started');
 
   const existingState = await loadExistingImportState();
   if (db) {
@@ -2685,8 +2754,12 @@ async function main() {
 
   const matchedAll = [...mobulaCandidates, ...geckoTerminalTronFallbackCandidates];
 
+  const candidatePool = NEW_POPULAR_ONLY
+    ? selectNewPopularCandidatePool(matchedFresh)
+    : matchedFresh;
+
   const byChain = Object.fromEntries(chainKeys.map((chain) => [chain, []]));
-  for (const token of matchedFresh) byChain[token.contract.chain].push(token);
+  for (const token of candidatePool) byChain[token.contract.chain].push(token);
 
   const available = Object.fromEntries(chainKeys.map((chain) => [chain, byChain[chain].length]));
   const emptyChains = chainKeys.filter((chain) => available[chain] === 0);
@@ -2697,31 +2770,47 @@ async function main() {
   }
 
   log(
-    `Matched ${matchedAll.length}/${raw.length} raw assets as eligible; ${matchedFresh.length} are new after skipping ${skippedExisting} existing and ${skippedBatchDuplicate} duplicate-in-batch token(s): ${chainKeys
-      .map((chain) => `${chain}=${available[chain]}`)
-      .join(', ')}.`,
+    `Pool: raw ${raw.length} → eligible ${matchedAll.length} → fresh ${matchedFresh.length} → candidates ${candidatePool.length}; skipped existing ${skippedExisting}, batch dupes ${skippedBatchDuplicate}.`,
   );
 
-  const perChainCount = randomSplit(TARGET_COUNT, chainKeys, available);
+  const selectionTarget = NEW_POPULAR_ONLY
+    ? Math.min(
+        candidatePool.length,
+        Math.max(TARGET_COUNT, TARGET_COUNT * NEW_POPULAR_OVERSAMPLE_FACTOR),
+      )
+    : TARGET_COUNT;
+  const perChainCount = randomSplit(selectionTarget, chainKeys, available);
   const selectedByChain = chainKeys.flatMap((chain) => {
-    const pool = RANDOMIZE
-      ? shuffle(byChain[chain])
-      : [...byChain[chain]].sort((a, b) => (a.rank ?? Infinity) - (b.rank ?? Infinity));
+    const pool = NEW_POPULAR_ONLY
+      ? [...byChain[chain]].sort(compareNewPopularTokens)
+      : RANDOMIZE
+        ? shuffle(byChain[chain])
+        : [...byChain[chain]].sort((a, b) => (a.rank ?? Infinity) - (b.rank ?? Infinity));
     return pool.slice(0, perChainCount[chain]);
   });
-  const tokens = RANDOMIZE ? shuffle(selectedByChain) : selectedByChain;
+  let tokens = NEW_POPULAR_ONLY
+    ? selectedByChain.sort(compareNewPopularTokens)
+    : RANDOMIZE
+      ? shuffle(selectedByChain)
+      : selectedByChain;
 
-  if (tokens.length < TARGET_COUNT) {
+  if (tokens.length < selectionTarget) {
     console.warn(
-      `[+${formatDuration(Date.now() - scriptStartTime)}] ⚠ Only ${tokens.length}/${TARGET_COUNT} tokens available — some chains ran out of eligible tokens.`,
+      `[+${formatDuration(Date.now() - scriptStartTime)}] ⚠ Only ${tokens.length}/${selectionTarget} tokens available — some chains ran out of eligible tokens.`,
     );
   }
 
-  log(
-    `Selected ${tokens.length}/${TARGET_COUNT} token(s) to enrich: ${chainKeys
-      .map((chain) => `${chain}=${perChainCount[chain]}`)
-      .join(', ')}.`,
-  );
+  logSection('Import plan');
+  if (NEW_POPULAR_ONLY) {
+    log(
+      `Plan: ${DRY_RUN ? 'preview' : 'write'} up to ${TARGET_COUNT} new-popular tokens after checking ${tokens.length}/${selectionTarget} candidates`,
+    );
+    log(`Filters: this-year age, no >2y, rank > ${EXCLUDE_TOP_RANK}`);
+  } else {
+    log(`Plan: ${DRY_RUN ? 'preview' : 'write'} ${tokens.length}/${selectionTarget} random tokens`);
+    log(`Filters: rank > ${EXCLUDE_TOP_RANK}`);
+  }
+  log(`Chains: ${chainKeys.map((chain) => `${chain}=${perChainCount[chain]}`).join(', ')}`);
   log('Chart and DEX links will be added only when market data confirms a usable route.');
 
   await enrichTokensWithMobulaDetails(tokens);
@@ -2729,6 +2818,14 @@ async function main() {
   await enrichTokensWithGeckoTerminalInfo(tokens);
   await enrichTokensWithMobulaMarketDetails(tokens);
   await enrichTokensWithGeckoTerminalMarketDetails(tokens);
+
+  if (NEW_POPULAR_ONLY) {
+    const enrichedCount = tokens.length;
+    tokens = tokens.filter(isNewPopularToken).sort(compareNewPopularTokens).slice(0, TARGET_COUNT);
+    log(
+      `Final selection: ${tokens.length}/${TARGET_COUNT} tokens kept from ${enrichedCount} checked`,
+    );
+  }
 
   const saneTokens = tokens.filter(hasSaneImportMarketValues);
   const suspiciousTokens = tokens.filter((token) => !hasSaneImportMarketValues(token));
