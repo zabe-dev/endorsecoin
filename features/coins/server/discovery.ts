@@ -178,6 +178,10 @@ async function getStickyTrendingPage(userId?: string | null) {
   return hydrateLeaderboardSelectionFromItems(lastGood, itemsById);
 }
 
+export async function getCurrentTrendingPage(userId?: string | null) {
+  return getStickyTrendingPage(userId);
+}
+
 async function readLastGoodTrendingSelection(selectionKey: LeaderboardSelection) {
   try {
     const redis = await getReadyRedisClient();
