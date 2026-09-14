@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Imports random non-major tokens from Mobula into the current EndorseCoin schema.
+ * Imports new-popular, random, or explicitly requested tokens into EndorseCoin.
  *
  * Usage:
  *   npm run import:mobula
@@ -9,6 +9,10 @@
  *   npm run import:mobula -- --limit=150
  *   npm run import:mobula:random
  *   npm run import:mobula -- --random --limit=150
+ *   npm run import:mobula -- --contract=ethereum:<contract-address>
+ *   npm run import:mobula -- --contracts=ethereum:<address>,bsc:<address>
+ *   npm run import:mobula -- --chain=hood --dry-run
+ *   npm run import:mobula -- --chain=tron --contract=<contract-address>
  *   npm run import:mobula -- --dry-run
  *   npm run import:mobula -- --dry-run --debug
  *   npm run import:mobula -- --geckoterminal-batch-size=30
@@ -28,6 +32,7 @@ import { createHash, createHmac, randomUUID } from 'crypto';
 import postgres from 'postgres';
 
 const MOBULA_BASE_URL = 'https://api.mobula.io/api/1/all';
+const MOBULA_PULSE_URL = 'https://api.mobula.io/api/2/pulse';
 const MOBULA_DETAILS_URL = 'https://api.mobula.io/api/2/asset/details';
 const MOBULA_METADATA_URL = 'https://api.mobula.io/api/1/multi-metadata';
 const MOBULA_MARKET_DETAILS_URL = 'https://api.mobula.io/api/2/market/details';
@@ -62,7 +67,12 @@ const scriptStartTime = Date.now();
 const args = process.argv.slice(2);
 const limitArg = args.find((arg) => arg.startsWith('--limit='));
 const positionalLimitArg = args.find((arg) => /^\d+$/.test(arg));
-const TARGET_COUNT = readPositiveInteger(limitArg?.split('=')[1] || positionalLimitArg, 250);
+const CONTRACT_IMPORT_SPECS = parseContractImportSpecs(args);
+const DIRECT_CONTRACT_IMPORT = CONTRACT_IMPORT_SPECS.length > 0;
+const CHAIN_FILTERS = parseChainFilters(args);
+const TARGET_COUNT = DIRECT_CONTRACT_IMPORT
+  ? CONTRACT_IMPORT_SPECS.length
+  : readPositiveInteger(limitArg?.split('=')[1] || positionalLimitArg, 250);
 const DRY_RUN = args.includes('--dry-run');
 const DEBUG = args.includes('--debug');
 const RANDOM_IMPORT = args.includes('--random');
@@ -94,12 +104,9 @@ const MAX_IMPORT_MARKET_CAP_USD = 1_000_000_000_000;
 const MAX_IMPORT_FDV_USD = 1_000_000_000_000;
 const MAX_MARKET_DETAIL_PRICE_RATIO = 100;
 const IMPORT_SUBMITTED_AT_START = new Date('2026-01-01T00:00:00.000Z');
-const NEW_POPULAR_ONLY = !RANDOM_IMPORT;
+const NEW_POPULAR_ONLY = !RANDOM_IMPORT && !DIRECT_CONTRACT_IMPORT;
 const NEW_POPULAR_MAX_AGE_DAYS = daysSinceStartOfYear();
 const NEW_POPULAR_EXCLUDE_OLDER_THAN_DAYS = 730;
-const NEW_POPULAR_MAX_RANK = 5_000;
-const NEW_POPULAR_MIN_VOLUME_USD = 10_000;
-const NEW_POPULAR_MIN_LIQUIDITY_USD = 10_000;
 const NEW_POPULAR_OVERSAMPLE_FACTOR = 6;
 
 if (!DATABASE_URL && !DRY_RUN) {
@@ -113,7 +120,7 @@ const db = DATABASE_URL
     })
   : null;
 
-const chainKeys = ['ethereum', 'bsc', 'polygon', 'arbitrum', 'base', 'solana', 'tron'];
+const chainKeys = ['ethereum', 'bsc', 'polygon', 'arbitrum', 'base', 'hood', 'solana', 'tron'];
 
 const chainAliases = {
   ethereum: (name) => name === 'ethereum',
@@ -125,6 +132,7 @@ const chainAliases = {
   polygon: (name) => name === 'polygon' || name === 'matic' || name.includes('polygon'),
   arbitrum: (name) => name.includes('arbitrum'),
   base: (name) => name === 'base',
+  hood: (name) => name === 'robinhood chain',
   solana: (name) => name === 'solana',
   tron: (name) => name === 'tron' || name === 'trx',
 };
@@ -135,6 +143,7 @@ const mobulaAssetBlockchains = {
   polygon: 'polygon',
   arbitrum: 'arbitrum',
   base: 'base',
+  hood: 'Robinhood Chain',
   solana: 'solana',
   tron: 'tron',
 };
@@ -145,6 +154,7 @@ const mobulaMetadataBlockchains = {
   polygon: '137',
   arbitrum: '42161',
   base: '8453',
+  hood: '4663',
   solana: 'solana',
   tron: 'tron',
 };
@@ -155,6 +165,7 @@ const mobulaMarketBlockchains = {
   polygon: 'polygon',
   arbitrum: 'arbitrum',
   base: 'base',
+  hood: 'Robinhood Chain',
   solana: 'solana',
 };
 
@@ -164,15 +175,21 @@ const mobulaMarketSourceIds = {
   polygon: 'evm:137',
   arbitrum: 'evm:42161',
   base: 'evm:8453',
+  hood: 'evm:4663',
   solana: 'solana:solana',
   tron: 'tron:728126428',
 };
+
+const chainByMobulaMarketSourceId = Object.fromEntries(
+  Object.entries(mobulaMarketSourceIds).map(([chain, sourceId]) => [sourceId, chain]),
+);
 
 const dexSwapUrlBuilders = {
   solana: (address) => `https://raydium.io/swap/?inputMint=sol&outputMint=${address}`,
   ethereum: (address) => `https://app.uniswap.org/swap?outputCurrency=${address}&chain=mainnet`,
   arbitrum: (address) => `https://app.uniswap.org/swap?outputCurrency=${address}&chain=arbitrum`,
   base: (address) => `https://app.uniswap.org/swap?outputCurrency=${address}&chain=base`,
+  hood: (address) => `https://app.uniswap.org/swap?outputCurrency=${address}`,
   bsc: (address) => `https://pancakeswap.finance/swap?outputCurrency=${address}`,
   polygon: (address) => `https://dapp.quickswap.exchange/swap?type=best&to=${address}`,
 };
@@ -183,6 +200,7 @@ const chartUrlBuilders = {
   polygon: (address) => `https://dexscreener.com/polygon/${address}`,
   arbitrum: (address) => `https://dexscreener.com/arbitrum/${address}`,
   base: (address) => `https://dexscreener.com/base/${address}`,
+  hood: (address) => `https://dexscreener.com/robinhood/${address}`,
   solana: (address) => `https://dexscreener.com/solana/${address}`,
   tron: (address) => `https://dexscreener.com/tron/${address}`,
 };
@@ -195,6 +213,7 @@ const supportedExchangeMatchers = {
   ethereum: [/uniswap/i],
   arbitrum: [/uniswap/i],
   base: [/uniswap/i],
+  hood: [/uniswap/i],
   bsc: [/pancakeswap/i],
   polygon: [/quickswap/i],
   solana: [/raydium/i],
@@ -470,6 +489,184 @@ const symbolDenylist = new Set(
   ].map((symbol) => symbol.toUpperCase()),
 );
 
+function parseContractImportSpecs(values) {
+  const defaultChain = readArgValue(values, '--chain');
+  const specs = [];
+
+  for (const value of readRepeatedArgValues(values, '--contract')) {
+    specs.push(parseContractImportSpec(value, defaultChain));
+  }
+
+  for (const list of readRepeatedArgValues(values, '--contracts')) {
+    list
+      .split(/[\n,]/)
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .forEach((item) => specs.push(parseContractImportSpec(item, defaultChain)));
+  }
+
+  values
+    .filter((arg) => !arg.startsWith('--') && /^[a-z][a-z0-9_-]*:/i.test(arg))
+    .forEach((arg) => specs.push(parseContractImportSpec(arg, defaultChain)));
+
+  const seen = new Set();
+  return specs.filter((spec) => {
+    const key = contractKey(spec.chain, spec.address);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function parseChainFilters(values) {
+  const chains = readRepeatedArgValues(values, '--chain')
+    .flatMap((value) => value.split(','))
+    .map(normalizeImportChain)
+    .filter(Boolean);
+
+  return new Set(
+    chains.filter((chain) =>
+      ['ethereum', 'bsc', 'polygon', 'arbitrum', 'base', 'hood', 'solana', 'tron'].includes(chain),
+    ),
+  );
+}
+
+function parseContractImportSpec(value, defaultChain = '') {
+  const trimmed = String(value || '').trim();
+  if (!trimmed) throw new Error('Contract import value is empty.');
+
+  const chainSeparatorIndex = trimmed.indexOf(':');
+  const hasInlineChain =
+    chainSeparatorIndex > 0 && !trimmed.slice(0, chainSeparatorIndex).includes('/');
+  const chain = hasInlineChain ? trimmed.slice(0, chainSeparatorIndex) : defaultChain;
+  const address = hasInlineChain ? trimmed.slice(chainSeparatorIndex + 1) : trimmed;
+  const normalizedChain = normalizeImportChain(chain);
+  const normalizedAddress = normalizeImportAddress(normalizedChain, address);
+
+  if (!normalizedChain) {
+    throw new Error(
+      `Missing chain for contract ${address}. Use chain:address or --chain=<chain> --contract=<address>.`,
+    );
+  }
+
+  if (!normalizedAddress) {
+    throw new Error(`Invalid ${normalizedChain} contract address: ${address}`);
+  }
+
+  return { chain: normalizedChain, address: normalizedAddress };
+}
+
+function normalizeImportChain(value) {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase();
+  if (!normalized) return '';
+
+  if (normalized === 'eth') return 'ethereum';
+  if (normalized === 'bnb') return 'bsc';
+  if (normalized === 'matic') return 'polygon';
+  if (normalized === 'arb') return 'arbitrum';
+  if (normalized === 'robinhood') return 'hood';
+  if (normalized === 'trx') return 'tron';
+
+  return normalized;
+}
+
+function normalizeImportAddress(chain, value) {
+  const address = String(value || '').trim();
+  if (!address) return '';
+
+  if (['ethereum', 'bsc', 'polygon', 'arbitrum', 'base', 'hood'].includes(chain)) {
+    return /^0x[a-fA-F0-9]{40}$/.test(address) ? address.toLowerCase() : '';
+  }
+
+  if (chain === 'solana') {
+    return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address) ? address : '';
+  }
+
+  if (chain === 'tron') {
+    return /^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(address) ? address : '';
+  }
+
+  return '';
+}
+
+function normalizeChartPairAddress(chain, value) {
+  const address = String(value || '').trim();
+  if (!address) return '';
+
+  if (['ethereum', 'bsc', 'polygon', 'arbitrum', 'base', 'hood'].includes(chain)) {
+    return /^0x[a-fA-F0-9]{40}$/.test(address) ? address.toLowerCase() : '';
+  }
+
+  if (chain === 'solana') {
+    return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address) ? address : '';
+  }
+
+  if (chain === 'tron') {
+    return /^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(address) ? address : '';
+  }
+
+  return '';
+}
+
+function readArgValue(values, name) {
+  const inline = values.find((arg) => arg.startsWith(`${name}=`));
+  if (inline) return inline.slice(name.length + 1);
+
+  const index = values.indexOf(name);
+  return index >= 0 ? values[index + 1] || '' : '';
+}
+
+function readRepeatedArgValues(values, name) {
+  const results = [];
+
+  for (let index = 0; index < values.length; index += 1) {
+    const arg = values[index];
+    if (arg.startsWith(`${name}=`)) {
+      results.push(arg.slice(name.length + 1));
+      continue;
+    }
+    if (arg === name && values[index + 1]) {
+      results.push(values[index + 1]);
+      index += 1;
+    }
+  }
+
+  return results;
+}
+
+function buildContractImportToken(spec) {
+  return {
+    mobulaId: null,
+    geckoTerminalId: null,
+    name: 'Unknown',
+    symbol: '???',
+    logo: '',
+    description: '',
+    classificationTerms: [],
+    category: 'Other',
+    price: null,
+    marketCap: null,
+    fdv: null,
+    volume: null,
+    change24h: null,
+    liquidity: null,
+    totalSupply: null,
+    holdersCount: null,
+    rank: null,
+    contract: {
+      blockchain: mobulaAssetBlockchains[spec.chain] || spec.chain,
+      address: spec.address,
+      chain: spec.chain,
+    },
+    chartUrl: '',
+    dexUrl: '',
+    launchDate: null,
+    projectLinks: {},
+  };
+}
+
 function matchChain(blockchainName) {
   const normalized = blockchainName.toLowerCase().trim();
   return chainKeys.find((chain) => chainAliases[chain](normalized));
@@ -681,6 +878,61 @@ async function fetchMobulaAssets() {
   }
 
   return list;
+}
+
+async function fetchMobulaPulseTokens() {
+  const sourceIds = Object.entries(mobulaMarketSourceIds)
+    .filter(([chain]) => !CHAIN_FILTERS.size || CHAIN_FILTERS.has(chain))
+    .map(([, sourceId]) => sourceId);
+  const tokens = [];
+
+  log(
+    `Requesting newly listed tokens from Mobula Pulse for ${sourceIds.length} chain(s)` +
+      (CHAIN_FILTERS.size ? ` (${Array.from(CHAIN_FILTERS).join(', ')})` : '') +
+      '...',
+  );
+
+  for (const chainId of sourceIds) {
+    const url = new URL(MOBULA_PULSE_URL);
+    url.searchParams.set('assetMode', 'false');
+    url.searchParams.set('chainId', chainId);
+    url.searchParams.set('model', 'default');
+
+    try {
+      const response = await fetch(url, {
+        headers: mobulaAuthHeaders(),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => '');
+        console.warn(
+          `Mobula Pulse request failed for ${chainId}: ${response.status} ${response.statusText}${
+            errorText ? ` — ${errorText.slice(0, 500)}` : ''
+          }`,
+        );
+        continue;
+      }
+
+      const json = await response.json();
+      const rows = Array.isArray(json?.new?.data) ? json.new.data : [];
+      for (const row of rows) {
+        const token = buildPulseToken(row, chainId);
+        if (token) tokens.push(token);
+      }
+
+      log(`Pulse ${chainId}: ${rows.length} row(s), ${tokens.length} total candidate(s).`);
+    } catch (error) {
+      console.warn(
+        `Mobula Pulse request threw for ${chainId}: ${
+          error instanceof Error ? error.message : 'unknown error'
+        }`,
+      );
+      if (DEBUG) console.warn(error);
+    }
+  }
+
+  log(`Mobula Pulse returned ${tokens.length} eligible newly listed candidate(s).`);
+  return tokens;
 }
 
 async function enrichTokensWithMobulaDetails(tokens) {
@@ -1324,7 +1576,10 @@ async function fetchMarketDetailsIndividually(tokens) {
 function applyMobulaMarketDetails(token, details) {
   if (!details || typeof details !== 'object') return false;
 
-  const pairAddress = pickString(details, ['address']);
+  const pairAddress = normalizeChartPairAddress(
+    token.contract.chain,
+    pickString(details, ['address']),
+  );
   const dexscreenerListed = pickOptionalBoolean(details, [
     'dexscreenerListed',
     'dexscreener_listed',
@@ -1587,18 +1842,20 @@ function pickSaneMarketDetailNumber(token, field, candidate) {
 }
 
 function hasSaneImportMarketValues(token) {
-  if (!Number.isFinite(token.price) || token.price <= 0 || token.price > MAX_IMPORT_PRICE_USD) {
+  if (token.price !== null && token.price !== undefined && token.price < 0) return false;
+  if (token.marketCap !== null && token.marketCap !== undefined && token.marketCap < 0) {
+    return false;
+  }
+  if (token.fdv !== null && token.fdv !== undefined && token.fdv < 0) return false;
+  if (token.volume !== null && token.volume !== undefined && token.volume < 0) return false;
+  if (token.liquidity !== null && token.liquidity !== undefined && token.liquidity < 0) {
     return false;
   }
 
-  if (
-    !Number.isFinite(token.marketCap) ||
-    token.marketCap <= 0 ||
-    token.marketCap > MAX_IMPORT_MARKET_CAP_USD
-  ) {
+  if (Number.isFinite(token.price) && token.price > MAX_IMPORT_PRICE_USD) return false;
+  if (Number.isFinite(token.marketCap) && token.marketCap > MAX_IMPORT_MARKET_CAP_USD) {
     return false;
   }
-
   if (Number.isFinite(token.fdv) && token.fdv > MAX_IMPORT_FDV_USD) return false;
 
   return true;
@@ -1718,9 +1975,59 @@ function buildGeckoTerminalTronToken(row) {
   };
 }
 
+function buildPulseToken(item, fallbackChainId = '') {
+  if (!item || typeof item !== 'object') return null;
+
+  const chainId = pickString(item, ['chainId']) || fallbackChainId;
+  const chain = chainByMobulaMarketSourceId[chainId];
+  const address = pickString(item, ['address']) || pickString(item.token || {}, ['address']);
+  if (!chain || !normalizeImportAddress(chain, address)) return null;
+
+  const price = pickNumber(item, ['price', 'latest_price']);
+
+  const marketCap = pickNumber(item, ['marketCap', 'market_cap']);
+
+  const symbol = pickString(item, ['symbol']) || pickString(item.token || {}, ['symbol']) || '???';
+  if (symbolDenylist.has(symbol.toUpperCase())) return null;
+
+  return {
+    mobulaId: pickNumber(item, ['id']),
+    name: pickString(item, ['name']) || pickString(item.token || {}, ['name']) || 'Unknown',
+    symbol,
+    logo: pickString(item, ['logo', 'logoUrl', 'logo_url']) || pickString(item.token || {}, ['logo']),
+    description: sanitizePlainText(pickString(item, ['description'])),
+    classificationTerms: extractClassificationTerms(item),
+    category: 'Other',
+    price,
+    marketCap,
+    fdv: pickNumber(item, ['marketCapDiluted', 'market_cap_diluted']),
+    volume: pickNumber(item, ['volume_24h', 'volume24h', 'volume']),
+    change24h: pickNumber(item, ['price_change_24h', 'priceChange24h']),
+    liquidity: pickNumber(item, ['liquidity', 'approximateReserveUSD']),
+    totalSupply: pickNumber(item, ['totalSupply', 'circulatingSupply']),
+    holdersCount: pickInteger(item, ['holdersCount', 'holders_count']),
+    rank: null,
+    contract: {
+      blockchain: pickString(item, ['blockchain']) || mobulaAssetBlockchains[chain] || chain,
+      address: normalizeImportAddress(chain, address),
+      chain,
+    },
+    chartUrl: '',
+    dexUrl: '',
+    launchDate: pickDate(item, ['createdAt', 'created_at', 'listed_at', 'listedAt']),
+    projectLinks: extractProjectLinks(item),
+    chartPairAddress: normalizeChartPairAddress(
+      chain,
+      pickString(item, ['poolAddress', 'pairAddress']),
+    ),
+    marketExchangeName: pickString(item.exchange || {}, ['name']),
+  };
+}
+
 function buildToken(item) {
   const contract = findTargetContract(item);
   if (!contract) return null;
+  if (CHAIN_FILTERS.size && !CHAIN_FILTERS.has(contract.chain)) return null;
 
   const price = pickNumber(item, ['price']);
   if (price !== null && price <= 0) return null;
@@ -1981,15 +2288,12 @@ function selectNewPopularCandidatePool(tokens) {
 }
 
 function couldBecomeNewPopularToken(token) {
-  if (!hasPopularitySignal(token)) return false;
   if (!token.launchDate) return true;
   return isRecentLaunchDate(token.launchDate);
 }
 
 function isNewPopularToken(token) {
-  return Boolean(
-    token.launchDate && isRecentLaunchDate(token.launchDate) && hasPopularitySignal(token),
-  );
+  return Boolean(token.launchDate && isRecentLaunchDate(token.launchDate));
 }
 
 function isRecentLaunchDate(date) {
@@ -2001,18 +2305,6 @@ function isRecentLaunchDate(date) {
 
   const ageDays = (now - timestamp) / 86_400_000;
   return ageDays <= NEW_POPULAR_MAX_AGE_DAYS && ageDays <= NEW_POPULAR_EXCLUDE_OLDER_THAN_DAYS;
-}
-
-function hasPopularitySignal(token) {
-  const rank = Number.isFinite(token.rank) ? token.rank : Infinity;
-  const volume = Number.isFinite(token.volume) ? token.volume : 0;
-  const liquidity = Number.isFinite(token.liquidity) ? token.liquidity : 0;
-
-  return (
-    rank <= NEW_POPULAR_MAX_RANK ||
-    volume >= NEW_POPULAR_MIN_VOLUME_USD ||
-    liquidity >= NEW_POPULAR_MIN_LIQUIDITY_USD
-  );
 }
 
 function compareNewPopularTokens(a, b) {
@@ -2720,16 +3012,44 @@ async function main() {
     log('No database configured for this dry run, so existing imported coins cannot be filtered.');
   }
 
-  const raw = await fetchMobulaAssets();
-  const mobulaCandidates = raw.map(buildToken).filter(Boolean);
-  const mobulaFreshResult = filterNewTokens(mobulaCandidates, existingState);
-  let matchedFresh = mobulaFreshResult.freshTokens;
-  let skippedExisting = mobulaFreshResult.skippedExisting;
-  let skippedBatchDuplicate = mobulaFreshResult.skippedBatchDuplicate;
+  const directContractTokens = DIRECT_CONTRACT_IMPORT
+    ? CONTRACT_IMPORT_SPECS.map(buildContractImportToken)
+    : [];
+  let raw = [];
+  let mobulaCandidates = [];
+  let importSource = DIRECT_CONTRACT_IMPORT ? 'direct' : NEW_POPULAR_ONLY ? 'pulse' : 'all';
+
+  if (DIRECT_CONTRACT_IMPORT) {
+    mobulaCandidates = [];
+  } else if (NEW_POPULAR_ONLY) {
+    mobulaCandidates = await fetchMobulaPulseTokens();
+    raw = mobulaCandidates;
+    if (!mobulaCandidates.length) {
+      console.warn(
+        `[+${formatDuration(Date.now() - scriptStartTime)}] ⚠ Pulse returned no candidates; falling back to /api/1/all.`,
+      );
+      importSource = 'all';
+      raw = await fetchMobulaAssets();
+      mobulaCandidates = raw.map(buildToken).filter(Boolean);
+    }
+  } else {
+    raw = await fetchMobulaAssets();
+    mobulaCandidates = raw.map(buildToken).filter(Boolean);
+  }
+
+  const importCandidates = DIRECT_CONTRACT_IMPORT ? directContractTokens : mobulaCandidates;
+  const freshResult = filterNewTokens(importCandidates, existingState);
+  let matchedFresh = freshResult.freshTokens;
+  let skippedExisting = freshResult.skippedExisting;
+  let skippedBatchDuplicate = freshResult.skippedBatchDuplicate;
   let geckoTerminalTronFallbackCandidates = [];
 
   const freshTronCount = matchedFresh.filter((token) => token.contract.chain === 'tron').length;
-  if (freshTronCount < GECKOTERMINAL_TRON_FALLBACK_MIN) {
+  if (
+    !DIRECT_CONTRACT_IMPORT &&
+    (!CHAIN_FILTERS.size || CHAIN_FILTERS.has('tron')) &&
+    freshTronCount < GECKOTERMINAL_TRON_FALLBACK_MIN
+  ) {
     geckoTerminalTronFallbackCandidates = await fetchGeckoTerminalTronFallbackTokens(
       existingState,
       mobulaCandidates,
@@ -2752,17 +3072,24 @@ async function main() {
     skippedBatchDuplicate += geckoFreshResult.skippedBatchDuplicate;
   }
 
-  const matchedAll = [...mobulaCandidates, ...geckoTerminalTronFallbackCandidates];
+  const matchedAll = DIRECT_CONTRACT_IMPORT
+    ? directContractTokens
+    : [...mobulaCandidates, ...geckoTerminalTronFallbackCandidates];
 
   const candidatePool = NEW_POPULAR_ONLY
     ? selectNewPopularCandidatePool(matchedFresh)
     : matchedFresh;
 
-  const byChain = Object.fromEntries(chainKeys.map((chain) => [chain, []]));
+  const activeChainKeys = CHAIN_FILTERS.size
+    ? chainKeys.filter((chain) => CHAIN_FILTERS.has(chain))
+    : chainKeys;
+  const byChain = Object.fromEntries(activeChainKeys.map((chain) => [chain, []]));
   for (const token of candidatePool) byChain[token.contract.chain].push(token);
 
-  const available = Object.fromEntries(chainKeys.map((chain) => [chain, byChain[chain].length]));
-  const emptyChains = chainKeys.filter((chain) => available[chain] === 0);
+  const available = Object.fromEntries(
+    activeChainKeys.map((chain) => [chain, byChain[chain].length]),
+  );
+  const emptyChains = activeChainKeys.filter((chain) => available[chain] === 0);
   if (emptyChains.length) {
     console.warn(
       `[+${formatDuration(Date.now() - scriptStartTime)}] ⚠ No eligible tokens found for: ${emptyChains.join(', ')}`,
@@ -2770,7 +3097,9 @@ async function main() {
   }
 
   log(
-    `Pool: raw ${raw.length} → eligible ${matchedAll.length} → fresh ${matchedFresh.length} → candidates ${candidatePool.length}; skipped existing ${skippedExisting}, batch dupes ${skippedBatchDuplicate}.`,
+    DIRECT_CONTRACT_IMPORT
+      ? `Direct contracts: ${CONTRACT_IMPORT_SPECS.length} requested → ${matchedFresh.length} fresh → ${candidatePool.length} candidates; skipped existing ${skippedExisting}, batch dupes ${skippedBatchDuplicate}.`
+      : `Pool (${importSource}): raw ${raw.length} → eligible ${matchedAll.length} → fresh ${matchedFresh.length} → candidates ${candidatePool.length}; skipped existing ${skippedExisting}, batch dupes ${skippedBatchDuplicate}.`,
   );
 
   const selectionTarget = NEW_POPULAR_ONLY
@@ -2779,8 +3108,8 @@ async function main() {
         Math.max(TARGET_COUNT, TARGET_COUNT * NEW_POPULAR_OVERSAMPLE_FACTOR),
       )
     : TARGET_COUNT;
-  const perChainCount = randomSplit(selectionTarget, chainKeys, available);
-  const selectedByChain = chainKeys.flatMap((chain) => {
+  const perChainCount = randomSplit(selectionTarget, activeChainKeys, available);
+  const selectedByChain = activeChainKeys.flatMap((chain) => {
     const pool = NEW_POPULAR_ONLY
       ? [...byChain[chain]].sort(compareNewPopularTokens)
       : RANDOMIZE
@@ -2801,16 +3130,25 @@ async function main() {
   }
 
   logSection('Import plan');
-  if (NEW_POPULAR_ONLY) {
+  if (DIRECT_CONTRACT_IMPORT) {
+    log(
+      `Plan: ${DRY_RUN ? 'preview' : 'write'} ${tokens.length}/${selectionTarget} requested contract tokens`,
+    );
+    log('Filters: skip existing contracts and duplicate addresses');
+  } else if (NEW_POPULAR_ONLY) {
     log(
       `Plan: ${DRY_RUN ? 'preview' : 'write'} up to ${TARGET_COUNT} new-popular tokens after checking ${tokens.length}/${selectionTarget} candidates`,
     );
-    log(`Filters: this-year age, no >2y, rank > ${EXCLUDE_TOP_RANK}`);
+    log(
+      importSource === 'pulse'
+        ? 'Filters: recent launch identity required; market values optional'
+        : `Filters: this-year age, no >2y, rank > ${EXCLUDE_TOP_RANK}`,
+    );
   } else {
     log(`Plan: ${DRY_RUN ? 'preview' : 'write'} ${tokens.length}/${selectionTarget} random tokens`);
     log(`Filters: rank > ${EXCLUDE_TOP_RANK}`);
   }
-  log(`Chains: ${chainKeys.map((chain) => `${chain}=${perChainCount[chain]}`).join(', ')}`);
+  log(`Chains: ${activeChainKeys.map((chain) => `${chain}=${perChainCount[chain]}`).join(', ')}`);
   log('Chart and DEX links will be added only when market data confirms a usable route.');
 
   await enrichTokensWithMobulaDetails(tokens);
@@ -2903,10 +3241,16 @@ async function main() {
       if (DEBUG) log(`✔ [${token.contract.chain}] ${token.symbol} (${token.name})`);
     } catch (error) {
       failed += 1;
-      console.error(
-        `[+${formatDuration(Date.now() - scriptStartTime)}] ✘ Failed to import ${token.symbol} [${token.contract.chain}]:`,
-        error,
-      );
+      if (isLogoMirrorError(error)) {
+        console.warn(
+          `[+${formatDuration(Date.now() - scriptStartTime)}] ⚠ Skipping ${token.symbol} [${token.contract.chain}]: logo could not be fetched/mirrored (${error.message}).`,
+        );
+      } else {
+        console.error(
+          `[+${formatDuration(Date.now() - scriptStartTime)}] ✘ Failed to import ${token.symbol} [${token.contract.chain}]:`,
+          error,
+        );
+      }
     }
 
     logImportProgress(current, saneTokens.length, writePhaseStartedAt);
@@ -2916,6 +3260,10 @@ async function main() {
     `Import finished: ${success} imported/updated, ${failed} failed, ${suspiciousTokens.length} suspicious skipped, out of ${tokens.length} total. ` +
       `Total run time: ${formatDuration(Date.now() - scriptStartTime)}.`,
   );
+}
+
+function isLogoMirrorError(error) {
+  return error instanceof Error && error.message.startsWith('Could not mirror logo to R2');
 }
 
 main()
