@@ -39,7 +39,7 @@ export type ChartConfig =
   | { source: 'dex'; network: NetworkId; poolAddress: string }
   | {
       source: 'embed';
-      provider: 'dexscreener' | 'geckoterminal' | 'dextools' | 'coinbrain';
+      provider: 'dexscreener' | 'geckoterminal' | 'dextools' | 'coinbrain' | 'mobula';
       url: string;
     }
   | { source: 'external'; url: string }

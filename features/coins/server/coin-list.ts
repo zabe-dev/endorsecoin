@@ -516,6 +516,10 @@ function buildChartConfig(
   }
 
   if (chart?.url) return { source: 'external', url: chart.url };
+
+  const mobulaChartUrl = buildMobulaChartEmbedUrl(network, contractAddress);
+  if (mobulaChartUrl) return { source: 'embed', provider: 'mobula', url: mobulaChartUrl };
+
   return { source: 'unavailable' };
 }
 
@@ -595,6 +599,23 @@ function buildChartEmbedUrl(
   return '';
 }
 
+function buildMobulaChartEmbedUrl(network: NetworkId, address: string) {
+  const chainId = mobulaChartChainIds[network];
+  if (!chainId || !address) return '';
+
+  const params = new URLSearchParams({
+    embed: '1',
+    resolution: '1minute',
+    chart_type: 'price',
+    theme: 'Navy',
+    candle_up_color: 'CBFF4A',
+    candle_down_color: 'EF4444',
+    show_symbol: '1',
+    show_grid_lines: '1',
+  });
+  return `https://www.mtt.gg/embed/token/${chainId}/${encodeURIComponent(address)}?${params}`;
+}
+
 function isEmbeddableChartProvider(
   provider: string,
 ): provider is 'dexscreener' | 'geckoterminal' | 'dextools' | 'coinbrain' {
@@ -605,6 +626,21 @@ function isEmbeddableChartProvider(
     provider === 'coinbrain'
   );
 }
+
+const mobulaChartChainIds: Partial<Record<NetworkId, string>> = {
+  ethereum: 'evm:1',
+  bsc: 'evm:56',
+  polygon: 'evm:137',
+  avalanche: 'evm:43114',
+  arbitrum: 'evm:42161',
+  base: 'evm:8453',
+  optimism: 'evm:10',
+  fantom: 'evm:250',
+  kcc: 'evm:321',
+  hood: 'evm:4663',
+  solana: 'solana:solana',
+  sui: 'sui:sui',
+};
 
 const dexscreenerChainIds: Partial<Record<NetworkId, string>> = {
   ethereum: 'ethereum',

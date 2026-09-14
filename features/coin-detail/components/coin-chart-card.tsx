@@ -74,6 +74,7 @@ function providerName(provider: string) {
   if (provider === 'geckoterminal') return 'GeckoTerminal';
   if (provider === 'dextools') return 'DEXTools';
   if (provider === 'coinbrain') return 'CoinBrain';
+  if (provider === 'mobula') return 'Mobula';
   return 'Live';
 }
 
