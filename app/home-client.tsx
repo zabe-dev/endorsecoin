@@ -98,6 +98,9 @@ export function HomeClient({
   const [isLeaderboardPending, startLeaderboardTransition] = useTransition();
   const [hotspotsVisible, setHotspotsVisible] = useState(true),
     [hotspotIndex, setHotspotIndex] = useState(0);
+  const hasPresaleHotspots = hotspotCoins.presales.length > 0;
+  const hotspotCount = hasPresaleHotspots ? 4 : 3;
+  const visibleHotspotIndex = hotspotIndex % hotspotCount;
   useEffect(() => {
     function closeChainMenu(event: PointerEvent) {
       if (!chainMenuRef.current?.contains(event.target as Node)) setChainMenuOpen(false);
@@ -123,9 +126,12 @@ export function HomeClient({
   }, []);
   useEffect(() => {
     if (!hotspotsVisible) return;
-    const timer = window.setInterval(() => setHotspotIndex((i) => (i + 1) % 4), 4200);
+    const timer = window.setInterval(
+      () => setHotspotIndex((i) => (i + 1) % hotspotCount),
+      4200,
+    );
     return () => window.clearInterval(timer);
-  }, [hotspotsVisible]);
+  }, [hotspotCount, hotspotsVisible]);
   useEffect(() => {
     return () => {
       if (searchTimerRef.current) window.clearTimeout(searchTimerRef.current);
@@ -391,7 +397,10 @@ export function HomeClient({
     if (start === null) return;
     const delta = start - x;
     if (Math.abs(delta) < 42) return;
-    setHotspotIndex((i) => (delta > 0 ? i + 1 : i + 3) % 4);
+    setHotspotIndex((i) =>
+      (delta > 0 ? (i % hotspotCount) + 1 : (i % hotspotCount) + hotspotCount - 1) %
+      hotspotCount,
+    );
   };
   return (
     <main className="market-page">
@@ -426,7 +435,12 @@ export function HomeClient({
           >
             <div
               className="discovery-grid"
-              style={{ '--hotspot-slide': hotspotIndex } as CSSProperties}
+              style={
+                {
+                  '--hotspot-count': hotspotCount,
+                  '--hotspot-slide': visibleHotspotIndex,
+                } as CSSProperties
+              }
             >
               <Discovery
                 icon="new"
@@ -444,14 +458,16 @@ export function HomeClient({
                 viewMoreHref="/?coins=trending#leaderboard"
                 metric="trend"
               />
-              <Discovery
-                icon="presale"
-                title="Presale coins"
-                sub="Ending soon, moving fast."
-                coins={hotspotCoins.presales}
-                viewMoreHref="/?coins=presales#leaderboard"
-                metric="presaleEnd"
-              />
+              {hasPresaleHotspots && (
+                <Discovery
+                  icon="presale"
+                  title="Presale coins"
+                  sub="Ending soon, moving fast."
+                  coins={hotspotCoins.presales}
+                  viewMoreHref="/?coins=presales#leaderboard"
+                  metric="presaleEnd"
+                />
+              )}
               <Discovery
                 icon="watch"
                 title="Most watched"
@@ -463,10 +479,10 @@ export function HomeClient({
             </div>
             <div className="hotspot-controls">
               <div className="hotspot-dots">
-                {[0, 1, 2, 3].map((i) => (
+                {Array.from({ length: hotspotCount }, (_, i) => (
                   <button
                     key={i}
-                    className={hotspotIndex === i ? 'active' : ''}
+                    className={visibleHotspotIndex === i ? 'active' : ''}
                     onClick={() => setHotspotIndex(i)}
                     aria-label={`Show hotspot ${i + 1}`}
                   />

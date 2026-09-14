@@ -150,6 +150,7 @@
   overflow: visible;
 }
 .hotspots-shell .discovery-grid {
+  grid-template-columns: repeat(var(--hotspot-count, 4), minmax(0, 1fr));
   margin-top: 0;
 }
 .hotspot-controls {
