@@ -52,7 +52,6 @@ const MAX_IMPORT_PRICE_USD = 1_000_000;
 const MAX_IMPORT_MARKET_CAP_USD = 1_000_000_000_000;
 const MAX_IMPORT_FDV_USD = 1_000_000_000_000;
 const MAX_MARKET_DETAIL_PRICE_RATIO = 100;
-const IMPORT_SUBMITTED_AT_START = new Date('2026-01-01T00:00:00.000Z');
 
 if (!DATABASE_URL && !options.dryRun) {
   throw new Error('DATABASE_URL is required for a real import. Use --dry-run to preview only.');
