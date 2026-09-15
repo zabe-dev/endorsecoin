@@ -10,6 +10,10 @@ type BannerProps = {
   offset?: number;
 };
 
+type PremiumBannerProps = BannerProps & {
+  fullWidth?: boolean;
+};
+
 const BASIC_AD_ROTATION_MS = 60_000;
 
 function useSelectedAd(ads: PublicBannerAd[] = [], offset = 0, rotating = false) {
@@ -190,13 +194,14 @@ export function BasicAdBannerPair({ ads = [], offset = 0 }: BannerProps) {
   );
 }
 
-export function PremiumAdBanner({ ads = [], offset = 0 }: BannerProps) {
+export function PremiumAdBanner({ ads = [], offset = 0, fullWidth = false }: PremiumBannerProps) {
   const ad = useSelectedAd(ads, offset, false);
+  const className = `${fullWidth ? '' : 'container '}premium-ad-banner`;
 
   if (ad) {
     return (
       <Link
-        className="container premium-ad-banner ad-banner-image"
+        className={`${className} ad-banner-image`}
         href={ad.targetUrl}
         target="_blank"
         rel="sponsored noopener noreferrer"
@@ -208,7 +213,7 @@ export function PremiumAdBanner({ ads = [], offset = 0 }: BannerProps) {
   }
 
   return (
-    <div className="container premium-ad-banner">
+    <div className={className}>
       <small>PREMIUM ADVERTISEMENT</small>
       <div>
         <b>Reach early project investors.</b>

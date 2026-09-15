@@ -644,6 +644,9 @@
   align-items: center;
   gap: 22px;
 }
+.coin-main-column > .premium-ad-banner {
+  margin-top: 0;
+}
 .light .premium-ad-banner {
   background: #fffaf0;
 }

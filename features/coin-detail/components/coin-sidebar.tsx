@@ -123,6 +123,24 @@ export function CoinSidebar({
         )}
         <Info label="Submitted" value={coin.age} />
       </section>
+      <div className="coin-search-actions" aria-label={`Search for ${coin.name}`}>
+        <a
+          href={`https://x.com/search?q=${encodeURIComponent(`${coin.name} $${coin.symbol}`)}`}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <IconifyIcon icon="akar-icons:x-fill" aria-hidden="true" />
+          Search on X
+        </a>
+        <a
+          href={`https://www.google.com/search?q=${encodeURIComponent(`${coin.name} $${coin.symbol}`)}`}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <IconifyIcon icon="logos:google-icon" aria-hidden="true" />
+          Search on Google
+        </a>
+      </div>
       <section className="detail-card request-change-card">
         <div className="request-change-icon" aria-hidden="true">
           <Pencil />

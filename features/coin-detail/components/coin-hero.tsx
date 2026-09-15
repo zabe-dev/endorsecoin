@@ -53,7 +53,7 @@ export function CoinHero({
     : null;
 
   return (
-    <section className="container coin-hero">
+    <section className="coin-hero">
       {coin.isVerified && coin.bannerUrl && (
         <div className="coin-header-banner" aria-hidden="true">
           <img src={coin.bannerUrl} alt="" decoding="async" />

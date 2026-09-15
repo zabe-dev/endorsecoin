@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { SiteFooter } from '@/components/layout/site-footer';
-import { PremiumAdBanner } from '@/features/ads/components/ad-banners';
+import { BasicAdBannerPair, PremiumAdBanner } from '@/features/ads/components/ad-banners';
 import type { PublicBannerAd } from '@/features/ads/types';
 import { AuthModal } from '@/features/auth/components/lazy-auth-modal';
 import { CoinTable } from '@/features/coins/components';
@@ -19,11 +19,13 @@ import { CoinSidebar } from './coin-sidebar';
 export function CoinDetailPage({
   coinRecord,
   promotedCoins,
+  basicBannerAds,
   premiumBannerAds,
   isSignedIn,
 }: {
   coinRecord: Coin;
   promotedCoins: CoinListItem[];
+  basicBannerAds: PublicBannerAd[];
   premiumBannerAds: PublicBannerAd[];
   isSignedIn: boolean;
 }) {
@@ -401,14 +403,7 @@ export function CoinDetailPage({
         <span>{coin.name}</span>
       </div>
 
-      <CoinHero
-        coin={coin}
-        contractAddress={contractAddress}
-        contractCopied={contractCopied}
-        onCopyContract={copyContract}
-        onShare={shareCoin}
-        onReport={() => openChangeRequest('report')}
-      />
+      {!coin.isVerified && <BasicAdBannerPair ads={basicBannerAds} />}
 
       {isSuspended && (
         <div className="container coin-status-notice" role="status">
@@ -429,17 +424,24 @@ export function CoinDetailPage({
         </div>
       )}
 
-      {!coin.isVerified && <PremiumAdBanner ads={premiumBannerAds} />}
-
       <div className="container coin-layout">
         <div className="coin-main-column">
+          <CoinHero
+            coin={coin}
+            contractAddress={contractAddress}
+            contractCopied={contractCopied}
+            onCopyContract={copyContract}
+            onShare={shareCoin}
+            onReport={() => openChangeRequest('report')}
+          />
+          {!coin.isVerified && <PremiumAdBanner ads={premiumBannerAds} fullWidth />}
           <CoinChartCard coin={coin} canonicalCoin={canonicalCoin} />
           <CoinInfoSections coin={coin} />
         </div>
 
-      <CoinSidebar
-        coin={coin}
-        voted={voted}
+        <CoinSidebar
+          coin={coin}
+          voted={voted}
           watched={watched}
           nextVoteAt={nextVoteAt}
           actionsDisabled={isSuspended}
