@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Imports new-popular, random, or explicitly requested tokens into EndorseCoin.
+ * Imports CSV-selected, new-popular, random, or explicitly requested tokens into EndorseCoin.
  *
  * Usage:
  *   npm run import:mobula
@@ -11,6 +11,10 @@
  *   npm run import:mobula -- --random --limit=150
  *   npm run import:mobula -- --contract=ethereum:<contract-address>
  *   npm run import:mobula -- --contracts=ethereum:<address>,bsc:<address>
+ *   npm run import:mobula -- --contract-maps='[{"chain":"ethereum","address":"0x..."},{"chain":"bsc","address":"0x..."}]'
+ *   npm run import:mobula -- --contract-map='{"ethereum":["0x..."],"bsc":"0x..."}'
+ *   npm run import:mobula -- --contracts-file=./contracts.json
+ *   npm run import:mobula -- --csv=./trending_tokens_master.csv
  *   npm run import:mobula -- --chain=hood --dry-run
  *   npm run import:mobula -- --chain=tron --contract=<contract-address>
  *   npm run import:mobula -- --dry-run
@@ -29,10 +33,9 @@
  */
 
 import { createHash, createHmac, randomUUID } from 'crypto';
+import { readFileSync } from 'fs';
 import postgres from 'postgres';
 
-const MOBULA_BASE_URL = 'https://api.mobula.io/api/1/all';
-const MOBULA_PULSE_URL = 'https://api.mobula.io/api/2/pulse';
 const MOBULA_DETAILS_URL = 'https://api.mobula.io/api/2/asset/details';
 const MOBULA_METADATA_URL = 'https://api.mobula.io/api/1/multi-metadata';
 const MOBULA_MARKET_DETAILS_URL = 'https://api.mobula.io/api/2/market/details';
@@ -40,18 +43,6 @@ const GECKOTERMINAL_API_BASE_URL = trimTrailingSlash(
   process.env.GECKOTERMINAL_API_BASE_URL || 'https://api.geckoterminal.com',
 );
 const GECKOTERMINAL_TRON_NETWORK = 'tron';
-const GECKOTERMINAL_TRON_FALLBACK_MIN = 3;
-const GECKOTERMINAL_TRON_FALLBACK_MAX = 5;
-const GECKOTERMINAL_TOKEN_BATCH_SIZE = Math.min(
-  readPositiveInteger(
-    process.argv
-      .slice(2)
-      .find((arg) => arg.startsWith('--geckoterminal-batch-size='))
-      ?.split('=')[1],
-    30,
-  ),
-  30,
-);
 const GECKOTERMINAL_REQUEST_SPACING_MS = Math.max(
   6100,
   readPositiveInteger(process.env.GECKOTERMINAL_REQUEST_SPACING_MS, 6100),
@@ -64,39 +55,7 @@ let mobulaApiKeyIndex = 0;
 // or stalled during a long run.
 const scriptStartTime = Date.now();
 
-const args = process.argv.slice(2);
-const limitArg = args.find((arg) => arg.startsWith('--limit='));
-const positionalLimitArg = args.find((arg) => /^\d+$/.test(arg));
-const CONTRACT_IMPORT_SPECS = parseContractImportSpecs(args);
-const DIRECT_CONTRACT_IMPORT = CONTRACT_IMPORT_SPECS.length > 0;
-const CHAIN_FILTERS = parseChainFilters(args);
-const TARGET_COUNT = DIRECT_CONTRACT_IMPORT
-  ? CONTRACT_IMPORT_SPECS.length
-  : readPositiveInteger(limitArg?.split('=')[1] || positionalLimitArg, 250);
-const DRY_RUN = args.includes('--dry-run');
-const DEBUG = args.includes('--debug');
-const RANDOM_IMPORT = args.includes('--random');
-const RANDOMIZE = RANDOM_IMPORT && !args.includes('--no-random');
-const DETAILS_BATCH_SIZE = Math.min(
-  readPositiveInteger(
-    args.find((arg) => arg.startsWith('--details-batch-size='))?.split('=')[1],
-    10,
-  ),
-  10,
-);
-// Market-details batching uses its own size, since Mobula hasn't publicly documented
-// the max batch size for this endpoint. Defaults to the same conservative size as
-// the other batched endpoints; override with --market-batch-size=N to experiment
-// with a larger value (test with --dry-run first).
-const MARKET_DETAILS_BATCH_SIZE = readPositiveInteger(
-  args.find((arg) => arg.startsWith('--market-batch-size='))?.split('=')[1],
-  DETAILS_BATCH_SIZE,
-);
-const EXCLUDE_TOP_RANK = readPositiveInteger(
-  args.find((arg) => arg.startsWith('--exclude-top-rank='))?.split('=')[1],
-  150,
-);
-const SKIP_R2_LOGO_UPLOAD = args.includes('--skip-r2-logo-upload');
+const options = parseImporterOptions(process.argv.slice(2));
 const R2_IMAGE_CACHE_CONTROL = 'public, max-age=31536000, immutable';
 let geckoTerminalNextAllowedAt = 0;
 const MAX_IMPORT_PRICE_USD = 1_000_000;
@@ -104,12 +63,8 @@ const MAX_IMPORT_MARKET_CAP_USD = 1_000_000_000_000;
 const MAX_IMPORT_FDV_USD = 1_000_000_000_000;
 const MAX_MARKET_DETAIL_PRICE_RATIO = 100;
 const IMPORT_SUBMITTED_AT_START = new Date('2026-01-01T00:00:00.000Z');
-const NEW_POPULAR_ONLY = !RANDOM_IMPORT && !DIRECT_CONTRACT_IMPORT;
-const NEW_POPULAR_MAX_AGE_DAYS = daysSinceStartOfYear();
-const NEW_POPULAR_EXCLUDE_OLDER_THAN_DAYS = 730;
-const NEW_POPULAR_OVERSAMPLE_FACTOR = 6;
 
-if (!DATABASE_URL && !DRY_RUN) {
+if (!DATABASE_URL && !options.dryRun) {
   throw new Error('DATABASE_URL is required for a real import. Use --dry-run to preview only.');
 }
 
@@ -119,23 +74,6 @@ const db = DATABASE_URL
       transform: postgres.camel,
     })
   : null;
-
-const chainKeys = ['ethereum', 'bsc', 'polygon', 'arbitrum', 'base', 'hood', 'solana', 'tron'];
-
-const chainAliases = {
-  ethereum: (name) => name === 'ethereum',
-  bsc: (name) =>
-    name === 'bsc' ||
-    name === 'bnb' ||
-    name.includes('bnb smart chain') ||
-    name.includes('binance smart chain'),
-  polygon: (name) => name === 'polygon' || name === 'matic' || name.includes('polygon'),
-  arbitrum: (name) => name.includes('arbitrum'),
-  base: (name) => name === 'base',
-  hood: (name) => name === 'robinhood chain',
-  solana: (name) => name === 'solana',
-  tron: (name) => name === 'tron' || name === 'trx',
-};
 
 const mobulaAssetBlockchains = {
   ethereum: 'ethereum',
@@ -179,10 +117,6 @@ const mobulaMarketSourceIds = {
   solana: 'solana:solana',
   tron: 'tron:728126428',
 };
-
-const chainByMobulaMarketSourceId = Object.fromEntries(
-  Object.entries(mobulaMarketSourceIds).map(([chain, sourceId]) => [sourceId, chain]),
-);
 
 const dexSwapUrlBuilders = {
   solana: (address) => `https://raydium.io/swap/?inputMint=sol&outputMint=${address}`,
@@ -449,111 +383,30 @@ const categoryKeywordMap = {
   },
 };
 
-const symbolDenylist = new Set(
-  [
-    'USDT',
-    'USDC',
-    'USDC.E',
-    'DAI',
-    'BUSD',
-    'TUSD',
-    'USDD',
-    'FDUSD',
-    'USDE',
-    'PYUSD',
-    'WETH',
-    'WBTC',
-    'WBNB',
-    'WSOL',
-    'WMATIC',
-    'WAVAX',
-    'ETH',
-    'BNB',
-    'SOL',
-    'BTC',
-    'MATIC',
-    'AVAX',
-    'STETH',
-    'WSTETH',
-    'WEETH',
-    'CBBTC',
-    'CBETH',
-    'RETH',
-    'LINK',
-    'UNI',
-    'AAVE',
-    'MKR',
-    'LDO',
-    'ARB',
-    'OP',
-  ].map((symbol) => symbol.toUpperCase()),
-);
-
-function parseContractImportSpecs(values) {
-  const defaultChain = readArgValue(values, '--chain');
-  const specs = [];
-
-  for (const value of readRepeatedArgValues(values, '--contract')) {
-    specs.push(parseContractImportSpec(value, defaultChain));
-  }
-
-  for (const list of readRepeatedArgValues(values, '--contracts')) {
-    list
-      .split(/[\n,]/)
-      .map((item) => item.trim())
-      .filter(Boolean)
-      .forEach((item) => specs.push(parseContractImportSpec(item, defaultChain)));
-  }
-
-  values
-    .filter((arg) => !arg.startsWith('--') && /^[a-z][a-z0-9_-]*:/i.test(arg))
-    .forEach((arg) => specs.push(parseContractImportSpec(arg, defaultChain)));
-
-  const seen = new Set();
-  return specs.filter((spec) => {
-    const key = contractKey(spec.chain, spec.address);
-    if (!key || seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
-
-function parseChainFilters(values) {
-  const chains = readRepeatedArgValues(values, '--chain')
-    .flatMap((value) => value.split(','))
-    .map(normalizeImportChain)
-    .filter(Boolean);
-
-  return new Set(
-    chains.filter((chain) =>
-      ['ethereum', 'bsc', 'polygon', 'arbitrum', 'base', 'hood', 'solana', 'tron'].includes(chain),
-    ),
+function parseImporterOptions(values) {
+  const csvPath = readArgValue(values, '--csv');
+  const detailsBatchSize = Math.min(
+    readPositiveInteger(readArgValue(values, '--details-batch-size'), 10),
+    10,
   );
-}
 
-function parseContractImportSpec(value, defaultChain = '') {
-  const trimmed = String(value || '').trim();
-  if (!trimmed) throw new Error('Contract import value is empty.');
-
-  const chainSeparatorIndex = trimmed.indexOf(':');
-  const hasInlineChain =
-    chainSeparatorIndex > 0 && !trimmed.slice(0, chainSeparatorIndex).includes('/');
-  const chain = hasInlineChain ? trimmed.slice(0, chainSeparatorIndex) : defaultChain;
-  const address = hasInlineChain ? trimmed.slice(chainSeparatorIndex + 1) : trimmed;
-  const normalizedChain = normalizeImportChain(chain);
-  const normalizedAddress = normalizeImportAddress(normalizedChain, address);
-
-  if (!normalizedChain) {
-    throw new Error(
-      `Missing chain for contract ${address}. Use chain:address or --chain=<chain> --contract=<address>.`,
-    );
-  }
-
-  if (!normalizedAddress) {
-    throw new Error(`Invalid ${normalizedChain} contract address: ${address}`);
-  }
-
-  return { chain: normalizedChain, address: normalizedAddress };
+  return Object.freeze({
+    mode: 'csv',
+    csvPath,
+    dryRun: values.includes('--dry-run'),
+    debug: values.includes('--debug'),
+    detailsBatchSize,
+    marketDetailsBatchSize: readPositiveInteger(
+      readArgValue(values, '--market-batch-size'),
+      detailsBatchSize,
+    ),
+    excludeTopRank: readPositiveInteger(readArgValue(values, '--exclude-top-rank'), 150),
+    skipR2LogoUpload: values.includes('--skip-r2-logo-upload'),
+    geckoTerminalBatchSize: Math.min(
+      readPositiveInteger(readArgValue(values, '--geckoterminal-batch-size'), 30),
+      30,
+    ),
+  });
 }
 
 function normalizeImportChain(value) {
@@ -618,24 +471,6 @@ function readArgValue(values, name) {
   return index >= 0 ? values[index + 1] || '' : '';
 }
 
-function readRepeatedArgValues(values, name) {
-  const results = [];
-
-  for (let index = 0; index < values.length; index += 1) {
-    const arg = values[index];
-    if (arg.startsWith(`${name}=`)) {
-      results.push(arg.slice(name.length + 1));
-      continue;
-    }
-    if (arg === name && values[index + 1]) {
-      results.push(values[index + 1]);
-      index += 1;
-    }
-  }
-
-  return results;
-}
-
 function buildContractImportToken(spec) {
   return {
     mobulaId: null,
@@ -667,9 +502,104 @@ function buildContractImportToken(spec) {
   };
 }
 
-function matchChain(blockchainName) {
-  const normalized = blockchainName.toLowerCase().trim();
-  return chainKeys.find((chain) => chainAliases[chain](normalized));
+function buildCsvImportToken(row, rowNumber) {
+  const chain = normalizeImportChain(row.chain);
+  const address = normalizeImportAddress(chain, row.contract_address);
+  const name = String(row.token_name || '').trim();
+  const symbol = String(row.token_symbol || '').trim();
+  if (!chain) throw new Error(`CSV row ${rowNumber}: unsupported or missing chain.`);
+  if (!address) throw new Error(`CSV row ${rowNumber}: invalid or missing contract_address.`);
+  if (!name) throw new Error(`CSV row ${rowNumber}: missing token_name.`);
+  if (!symbol) throw new Error(`CSV row ${rowNumber}: missing token_symbol.`);
+
+  return {
+    ...buildContractImportToken({ chain, address }),
+    name,
+    symbol,
+  };
+}
+
+function parseCsvRows(text, filePath) {
+  const rows = [];
+  let fields = [];
+  let field = '';
+  let quoted = false;
+  let rowNumber = 1;
+
+  for (let index = 0; index <= text.length; index += 1) {
+    const character = text[index];
+    if (quoted) {
+      if (character === '"' && text[index + 1] === '"') {
+        field += '"';
+        index += 1;
+      } else if (character === '"') {
+        quoted = false;
+      } else {
+        field += character || '';
+      }
+      continue;
+    }
+    if (character === '"' && field === '') {
+      quoted = true;
+    } else if (character === ',') {
+      fields.push(field.trim());
+      field = '';
+    } else if (character === '\n' || index === text.length) {
+      fields.push(field.trim().replace(/\r$/, ''));
+      if (fields.some(Boolean)) rows.push({ values: fields, rowNumber });
+      fields = [];
+      field = '';
+      rowNumber += 1;
+    } else {
+      field += character;
+    }
+  }
+
+  if (quoted) throw new Error(`CSV file ${filePath} has an unterminated quoted field.`);
+  if (!rows.length) throw new Error(`CSV file ${filePath} is empty.`);
+
+  const headers = rows.shift().values.map((header) => header.replace(/^\ufeff/, '').toLowerCase());
+  const required = ['chain', 'token_name', 'token_symbol', 'contract_address'];
+  const missing = required.filter((header) => !headers.includes(header));
+  if (missing.length) {
+    throw new Error(`CSV file ${filePath} is missing required column(s): ${missing.join(', ')}.`);
+  }
+
+  return rows.map(({ values, rowNumber }) => ({
+    row: Object.fromEntries(headers.map((header, index) => [header, values[index] || ''])),
+    rowNumber,
+  }));
+}
+
+function loadCsvImportTokens(filePath) {
+  const path = String(filePath || '').trim();
+  if (!path) throw new Error('--csv requires a file path.');
+  const rows = parseCsvRows(readFileSync(path, 'utf8'), path);
+  const seen = new Set();
+  const tokens = [];
+  let duplicateRows = 0;
+  let invalidRows = 0;
+  for (const { row, rowNumber } of rows) {
+    let token;
+    try {
+      token = buildCsvImportToken(row, rowNumber);
+    } catch (error) {
+      invalidRows += 1;
+      console.warn(error instanceof Error ? error.message : `CSV row ${rowNumber} is invalid.`);
+      continue;
+    }
+    const key = contractKey(token.contract.chain, token.contract.address);
+    if (seen.has(key)) {
+      duplicateRows += 1;
+      continue;
+    }
+    seen.add(key);
+    tokens.push(token);
+  }
+  log(
+    `CSV ${path}: ${tokens.length} token(s), ${duplicateRows} duplicate row(s) removed, ${invalidRows} invalid row(s) skipped.`,
+  );
+  return tokens;
 }
 
 function sleep(ms) {
@@ -749,207 +679,21 @@ function logImportProgress(current, total, phaseStartedAt) {
   );
 }
 
-async function fetchGeckoTerminalTronFallbackTokens(existingState, existingCandidates = []) {
-  const desiredCount = randomInteger(
-    GECKOTERMINAL_TRON_FALLBACK_MIN,
-    GECKOTERMINAL_TRON_FALLBACK_MAX,
-  );
-  log(
-    `Requesting ${desiredCount} fallback TRON token candidate(s) from GeckoTerminal recently updated tokens...`,
-  );
-
-  await waitForGeckoTerminalSlot();
-
-  const url = new URL('/api/v2/tokens/info_recently_updated', GECKOTERMINAL_API_BASE_URL);
-  url.searchParams.set('include', 'network');
-  url.searchParams.set('network', GECKOTERMINAL_TRON_NETWORK);
-
-  try {
-    const response = await fetch(url, {
-      headers: { accept: 'application/json;version=20230203' },
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => '');
-      console.warn(
-        `GeckoTerminal TRON fallback request failed: ${response.status} ${response.statusText}${
-          errorText ? ` — ${errorText.slice(0, 500)}` : ''
-        }`,
-      );
-      return [];
-    }
-
-    const json = await response.json();
-    const rows = Array.isArray(json?.data) ? json.data : [];
-    const candidateState = {
-      contracts: new Set(
-        existingCandidates
-          .map((token) => contractKey(token.contract.chain, token.contract.address))
-          .filter(Boolean),
-      ),
-      marketSourceIds: new Set(
-        existingCandidates.map((token) => marketSourceExternalId(token)).filter(Boolean),
-      ),
-    };
-    const fallbackTokens = [];
-
-    for (const row of RANDOMIZE ? shuffle(rows) : rows) {
-      if (fallbackTokens.length >= desiredCount) break;
-      const token = buildGeckoTerminalTronToken(row);
-      if (!token) continue;
-      if (isExistingTokenCandidate(token, existingState, candidateState)) continue;
-
-      fallbackTokens.push(token);
-      const key = contractKey(token.contract.chain, token.contract.address);
-      const sourceId = marketSourceExternalId(token);
-      if (key) candidateState.contracts.add(key);
-      if (sourceId) candidateState.marketSourceIds.add(sourceId);
-    }
-
-    log(
-      `GeckoTerminal TRON fallback added ${fallbackTokens.length}/${desiredCount} token candidate(s).`,
-    );
-    return fallbackTokens;
-  } catch (error) {
-    console.warn(
-      `GeckoTerminal TRON fallback request threw: ${error instanceof Error ? error.message : 'unknown error'}`,
-    );
-    if (DEBUG) console.warn(error);
-    return [];
-  }
-}
-
-async function fetchMobulaAssets() {
-  log('Requesting full asset list from Mobula (GET /api/1/all)...');
-  const url = new URL(MOBULA_BASE_URL);
-  url.searchParams.set(
-    'fields',
-    [
-      'price',
-      'market_cap',
-      'market_cap_diluted',
-      'liquidity',
-      'volume',
-      'price_change_24h',
-      'blockchains',
-      'contracts',
-      'logo',
-      'rank',
-      'listed_at',
-      'listedAt',
-      'total_supply',
-      'holders_count',
-      'description',
-      'category',
-      'categories',
-      'tags',
-      'sectors',
-      'narratives',
-      'socials',
-      'website',
-      'twitter',
-      'telegram',
-      'discord',
-      'github',
-    ].join(','),
-  );
-
-  const response = await fetch(url, {
-    headers: mobulaAuthHeaders(),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Mobula request failed: ${response.status} ${response.statusText}`);
-  }
-
-  const json = await response.json();
-  const list = Array.isArray(json) ? json : json?.data;
-
-  if (!Array.isArray(list)) {
-    console.error('Unexpected Mobula response shape:', JSON.stringify(json).slice(0, 1500));
-    throw new Error('Mobula response was not a token list.');
-  }
-
-  log(`Received ${list.length} assets from Mobula.`);
-
-  if (DEBUG && list.length) {
-    console.log('Sample Mobula item:');
-    console.log(JSON.stringify(list[0], null, 2));
-  }
-
-  return list;
-}
-
-async function fetchMobulaPulseTokens() {
-  const sourceIds = Object.entries(mobulaMarketSourceIds)
-    .filter(([chain]) => !CHAIN_FILTERS.size || CHAIN_FILTERS.has(chain))
-    .map(([, sourceId]) => sourceId);
-  const tokens = [];
-
-  log(
-    `Requesting newly listed tokens from Mobula Pulse for ${sourceIds.length} chain(s)` +
-      (CHAIN_FILTERS.size ? ` (${Array.from(CHAIN_FILTERS).join(', ')})` : '') +
-      '...',
-  );
-
-  for (const chainId of sourceIds) {
-    const url = new URL(MOBULA_PULSE_URL);
-    url.searchParams.set('assetMode', 'false');
-    url.searchParams.set('chainId', chainId);
-    url.searchParams.set('model', 'default');
-
-    try {
-      const response = await fetch(url, {
-        headers: mobulaAuthHeaders(),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text().catch(() => '');
-        console.warn(
-          `Mobula Pulse request failed for ${chainId}: ${response.status} ${response.statusText}${
-            errorText ? ` — ${errorText.slice(0, 500)}` : ''
-          }`,
-        );
-        continue;
-      }
-
-      const json = await response.json();
-      const rows = Array.isArray(json?.new?.data) ? json.new.data : [];
-      for (const row of rows) {
-        const token = buildPulseToken(row, chainId);
-        if (token) tokens.push(token);
-      }
-
-      log(`Pulse ${chainId}: ${rows.length} row(s), ${tokens.length} total candidate(s).`);
-    } catch (error) {
-      console.warn(
-        `Mobula Pulse request threw for ${chainId}: ${
-          error instanceof Error ? error.message : 'unknown error'
-        }`,
-      );
-      if (DEBUG) console.warn(error);
-    }
-  }
-
-  log(`Mobula Pulse returned ${tokens.length} eligible newly listed candidate(s).`);
-  return tokens;
-}
-
 async function enrichTokensWithMobulaDetails(tokens) {
   if (!tokens.length) return tokens;
 
-  const totalBatches = Math.ceil(tokens.length / DETAILS_BATCH_SIZE);
+  const totalBatches = Math.ceil(tokens.length / options.detailsBatchSize);
   logSection(
-    `Phase 1/3: Asset details (dates + links) — ${tokens.length} tokens, ${totalBatches} batch(es) of ${DETAILS_BATCH_SIZE}`,
+    `Phase 1/3: Asset details (dates + links) — ${tokens.length} tokens, ${totalBatches} batch(es) of ${options.detailsBatchSize}`,
   );
 
   let enrichedCount = 0;
   let batchNumber = 0;
   const phaseStartedAt = Date.now();
 
-  for (let index = 0; index < tokens.length; index += DETAILS_BATCH_SIZE) {
+  for (let index = 0; index < tokens.length; index += options.detailsBatchSize) {
     batchNumber += 1;
-    const batch = tokens.slice(index, index + DETAILS_BATCH_SIZE);
+    const batch = tokens.slice(index, index + options.detailsBatchSize);
     const details = await fetchMobulaAssetDetailsBatch(batch);
 
     details.forEach((detail, detailIndex) => {
@@ -963,12 +707,12 @@ async function enrichTokensWithMobulaDetails(tokens) {
       'Asset details',
       batchNumber,
       totalBatches,
-      Math.min(index + DETAILS_BATCH_SIZE, tokens.length),
+      Math.min(index + options.detailsBatchSize, tokens.length),
       tokens.length,
       phaseStartedAt,
     );
 
-    if (index + DETAILS_BATCH_SIZE < tokens.length) {
+    if (index + options.detailsBatchSize < tokens.length) {
       await sleep(1100);
     }
   }
@@ -982,18 +726,18 @@ async function enrichTokensWithMobulaDetails(tokens) {
 async function enrichTokensWithMobulaMetadata(tokens) {
   if (!tokens.length) return tokens;
 
-  const totalBatches = Math.ceil(tokens.length / DETAILS_BATCH_SIZE);
+  const totalBatches = Math.ceil(tokens.length / options.detailsBatchSize);
   logSection(
-    `Phase 2/3: Metadata (trust + social links) — ${tokens.length} tokens, ${totalBatches} batch(es) of ${DETAILS_BATCH_SIZE}`,
+    `Phase 2/3: Metadata (trust + social links) — ${tokens.length} tokens, ${totalBatches} batch(es) of ${options.detailsBatchSize}`,
   );
 
   let enrichedCount = 0;
   let batchNumber = 0;
   const phaseStartedAt = Date.now();
 
-  for (let index = 0; index < tokens.length; index += DETAILS_BATCH_SIZE) {
+  for (let index = 0; index < tokens.length; index += options.detailsBatchSize) {
     batchNumber += 1;
-    const batch = tokens.slice(index, index + DETAILS_BATCH_SIZE);
+    const batch = tokens.slice(index, index + options.detailsBatchSize);
     const details = await fetchMobulaMetadataBatch(batch);
 
     details.forEach((detail, detailIndex) => {
@@ -1007,12 +751,12 @@ async function enrichTokensWithMobulaMetadata(tokens) {
       'Metadata',
       batchNumber,
       totalBatches,
-      Math.min(index + DETAILS_BATCH_SIZE, tokens.length),
+      Math.min(index + options.detailsBatchSize, tokens.length),
       tokens.length,
       phaseStartedAt,
     );
 
-    if (index + DETAILS_BATCH_SIZE < tokens.length) {
+    if (index + options.detailsBatchSize < tokens.length) {
       await sleep(1100);
     }
   }
@@ -1029,7 +773,7 @@ async function enrichTokensWithMobulaMetadata(tokens) {
 // batch queries via POST for fetching multiple markets in one request" per their
 // docs), just like /api/2/asset/details above. Batching this the same way turns
 // what used to be one request per token (thousands of sequential 1rps calls) into
-// one request per MARKET_DETAILS_BATCH_SIZE tokens - the same shape as the other
+// one request per configured batch - the same shape as the other
 // two enrichment passes. This keeps the 1 request/sec pacing intact; it just cuts
 // the *number* of requests needed, which is what actually blew up runtime on large
 // imports. If a batch ever comes back malformed (wrong item count, request error),
@@ -1074,18 +818,18 @@ async function enrichTokensWithGeckoTerminalMarketDetails(tokens) {
   const tronTokens = tokens.filter((token) => token.contract.chain === 'tron');
   if (!tronTokens.length) return tokens;
 
-  const totalBatches = Math.ceil(tronTokens.length / GECKOTERMINAL_TOKEN_BATCH_SIZE);
+  const totalBatches = Math.ceil(tronTokens.length / options.geckoTerminalBatchSize);
   logSection(
-    `TRON enrichment: GeckoTerminal market data — ${tronTokens.length} token(s), ${totalBatches} batch(es) of ${GECKOTERMINAL_TOKEN_BATCH_SIZE}`,
+    `TRON enrichment: GeckoTerminal market data — ${tronTokens.length} token(s), ${totalBatches} batch(es) of ${options.geckoTerminalBatchSize}`,
   );
 
   let enrichedCount = 0;
   let batchNumber = 0;
   const phaseStartedAt = Date.now();
 
-  for (let index = 0; index < tronTokens.length; index += GECKOTERMINAL_TOKEN_BATCH_SIZE) {
+  for (let index = 0; index < tronTokens.length; index += options.geckoTerminalBatchSize) {
     batchNumber += 1;
-    const batch = tronTokens.slice(index, index + GECKOTERMINAL_TOKEN_BATCH_SIZE);
+    const batch = tronTokens.slice(index, index + options.geckoTerminalBatchSize);
     const details = await fetchGeckoTerminalTokenMarketBatch(batch);
 
     details.forEach((detail, detailIndex) => {
@@ -1098,7 +842,7 @@ async function enrichTokensWithGeckoTerminalMarketDetails(tokens) {
       'GeckoTerminal market data',
       batchNumber,
       totalBatches,
-      Math.min(index + GECKOTERMINAL_TOKEN_BATCH_SIZE, tronTokens.length),
+      Math.min(index + options.geckoTerminalBatchSize, tronTokens.length),
       tronTokens.length,
       phaseStartedAt,
     );
@@ -1121,9 +865,9 @@ async function enrichTokensWithMobulaMarketDetails(tokens) {
     return tokens;
   }
 
-  const totalBatches = Math.ceil(usableTokens.length / MARKET_DETAILS_BATCH_SIZE);
+  const totalBatches = Math.ceil(usableTokens.length / options.marketDetailsBatchSize);
   logSection(
-    `Phase 3/3: Market details (chart/DEX links) — ${usableTokens.length} tokens, ${totalBatches} batch(es) of ${MARKET_DETAILS_BATCH_SIZE}` +
+    `Phase 3/3: Market details (chart/DEX links) — ${usableTokens.length} tokens, ${totalBatches} batch(es) of ${options.marketDetailsBatchSize}` +
       (skippedCount ? ` (${skippedCount} skipped, unsupported chain)` : ''),
   );
 
@@ -1131,9 +875,9 @@ async function enrichTokensWithMobulaMarketDetails(tokens) {
   let batchNumber = 0;
   const phaseStartedAt = Date.now();
 
-  for (let index = 0; index < usableTokens.length; index += MARKET_DETAILS_BATCH_SIZE) {
+  for (let index = 0; index < usableTokens.length; index += options.marketDetailsBatchSize) {
     batchNumber += 1;
-    const batch = usableTokens.slice(index, index + MARKET_DETAILS_BATCH_SIZE);
+    const batch = usableTokens.slice(index, index + options.marketDetailsBatchSize);
     const details = await fetchMobulaMarketDetailsBatch(batch);
 
     details.forEach((detail, detailIndex) => {
@@ -1146,12 +890,12 @@ async function enrichTokensWithMobulaMarketDetails(tokens) {
       'Market details',
       batchNumber,
       totalBatches,
-      Math.min(index + MARKET_DETAILS_BATCH_SIZE, usableTokens.length),
+      Math.min(index + options.marketDetailsBatchSize, usableTokens.length),
       usableTokens.length,
       phaseStartedAt,
     );
 
-    if (index + MARKET_DETAILS_BATCH_SIZE < usableTokens.length) {
+    if (index + options.marketDetailsBatchSize < usableTokens.length) {
       await sleep(1100);
     }
   }
@@ -1179,7 +923,7 @@ async function fetchGeckoTerminalTokenInfo(address) {
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => '');
-      if (DEBUG) {
+      if (options.debug) {
         console.warn(
           `GeckoTerminal token info failed for ${address}: ${response.status} ${response.statusText}${
             errorText ? ` — ${errorText.slice(0, 500)}` : ''
@@ -1192,7 +936,7 @@ async function fetchGeckoTerminalTokenInfo(address) {
     const json = await response.json();
     return json?.data?.attributes || null;
   } catch (error) {
-    if (DEBUG) console.warn(`GeckoTerminal token info failed for ${address}:`, error);
+    if (options.debug) console.warn(`GeckoTerminal token info failed for ${address}:`, error);
     return null;
   }
 }
@@ -1250,7 +994,7 @@ async function fetchGeckoTerminalTokenMarketBatch(tokens) {
         error instanceof Error ? error.message : 'unknown error'
       }). Selected TRON tokens will keep existing market values.`,
     );
-    if (DEBUG) console.warn(error);
+    if (options.debug) console.warn(error);
     return tokens.map(() => null);
   }
 }
@@ -1457,18 +1201,18 @@ async function fetchMobulaMetadataBatch(tokens) {
     const json = await response.json();
     const payload = Array.isArray(json?.data) ? json.data : [];
     const details = payload.map((item) => item?.data || item || null);
+    const detailByToken = new Map(
+      usableTokens.map((token, index) => [token, details[index] || null]),
+    );
 
-    return tokens.map((token) => {
-      const expectedIndex = usableTokens.findIndex((usable) => usable === token);
-      return expectedIndex >= 0 ? details[expectedIndex] || null : null;
-    });
+    return tokens.map((token) => detailByToken.get(token) || null);
   } catch (error) {
     console.warn(
       `Mobula metadata batch failed; selected tokens will keep existing trust/link data. ${
         error instanceof Error ? error.message : ''
       }`,
     );
-    if (DEBUG) console.warn(error);
+    if (options.debug) console.warn(error);
     return tokens.map(() => null);
   }
 }
@@ -1488,7 +1232,7 @@ async function fetchMobulaMarketDetails(token) {
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => '');
-      if (DEBUG) {
+      if (options.debug) {
         console.warn(
           `Mobula market details failed for ${token.symbol}: ${response.status} ${response.statusText}${
             errorText ? ` — ${errorText.slice(0, 500)}` : ''
@@ -1501,7 +1245,7 @@ async function fetchMobulaMarketDetails(token) {
     const json = await response.json();
     return json?.data || null;
   } catch (error) {
-    if (DEBUG) console.warn(`Mobula market details failed for ${token.symbol}:`, error);
+    if (options.debug) console.warn(`Mobula market details failed for ${token.symbol}:`, error);
     return null;
   }
 }
@@ -1557,7 +1301,7 @@ async function fetchMobulaMarketDetailsBatch(tokens) {
         error instanceof Error ? error.message : 'unknown error'
       }). Falling back to one-at-a-time requests for this batch of ${tokens.length} token(s).`,
     );
-    if (DEBUG) console.warn(error);
+    if (options.debug) console.warn(error);
     return fetchMarketDetailsIndividually(tokens);
   }
 }
@@ -1728,7 +1472,7 @@ async function fetchMobulaAssetDetailsBatch(tokens) {
         error instanceof Error ? error.message : ''
       }`,
     );
-    if (DEBUG) console.warn(error);
+    if (options.debug) console.warn(error);
     return fetchMobulaAssetDetailsIndividually(tokens);
   }
 }
@@ -1752,7 +1496,7 @@ async function fetchMobulaAssetDetailsIndividually(tokens) {
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => '');
-        if (DEBUG) {
+        if (options.debug) {
           console.warn(
             `Mobula details single request failed for ${token.symbol}: ${response.status} ${response.statusText}${
               errorText ? ` — ${errorText.slice(0, 500)}` : ''
@@ -1766,7 +1510,8 @@ async function fetchMobulaAssetDetailsIndividually(tokens) {
       const json = await response.json();
       details.push(json?.data || null);
     } catch (error) {
-      if (DEBUG) console.warn(`Mobula details single request failed for ${token.symbol}:`, error);
+      if (options.debug)
+        console.warn(`Mobula details single request failed for ${token.symbol}:`, error);
       details.push(null);
     }
 
@@ -1918,159 +1663,14 @@ function applyMobulaMetadata(token, metadata) {
   );
 }
 
-function findTargetContract(item) {
-  const blockchains = pickStringArray(item, ['blockchains']);
-  const contracts = pickStringArray(item, ['contracts']);
-
-  for (let index = 0; index < blockchains.length; index += 1) {
-    const chain = matchChain(blockchains[index]);
-    const address = contracts[index]?.trim();
-    if (chain && address) return { blockchain: blockchains[index], address, chain };
-  }
-
-  return null;
-}
-
-function buildGeckoTerminalTronToken(row) {
-  const attributes = row?.attributes;
-  if (!attributes || typeof attributes !== 'object') return null;
-
-  const address = pickString(attributes, ['address']);
-  if (!address || !/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(address.trim())) return null;
-
-  const symbol = pickString(attributes, ['symbol']) || '???';
-  if (symbolDenylist.has(symbol.toUpperCase())) return null;
-
-  return {
-    mobulaId: null,
-    geckoTerminalId: typeof row?.id === 'string' ? row.id : null,
-    name: pickString(attributes, ['name']) || 'Unknown',
-    symbol,
-    logo: pickGeckoTerminalImageUrl(attributes),
-    description: sanitizePlainText(pickString(attributes, ['description'])),
-    classificationTerms: [
-      ...extractClassificationTerms(attributes),
-      ...pickStringArray(attributes, ['gt_categories_id']),
-      ...pickStringArray(attributes, ['gt_category_ids']),
-    ],
-    category: 'Other',
-    price: null,
-    marketCap: null,
-    fdv: null,
-    volume: null,
-    change24h: null,
-    liquidity: null,
-    totalSupply: null,
-    holdersCount: pickInteger(attributes.holders || {}, ['count']),
-    rank: null,
-    contract: {
-      blockchain: GECKOTERMINAL_TRON_NETWORK,
-      address: address.trim(),
-      chain: 'tron',
-    },
-    chartUrl: chartUrlBuilders.tron(address.trim()),
-    dexUrl: '',
-    launchDate: null,
-    projectLinks: extractGeckoTerminalProjectLinks(attributes),
-  };
-}
-
-function buildPulseToken(item, fallbackChainId = '') {
-  if (!item || typeof item !== 'object') return null;
-
-  const chainId = pickString(item, ['chainId']) || fallbackChainId;
-  const chain = chainByMobulaMarketSourceId[chainId];
-  const address = pickString(item, ['address']) || pickString(item.token || {}, ['address']);
-  if (!chain || !normalizeImportAddress(chain, address)) return null;
-
-  const price = pickNumber(item, ['price', 'latest_price']);
-
-  const marketCap = pickNumber(item, ['marketCap', 'market_cap']);
-
-  const symbol = pickString(item, ['symbol']) || pickString(item.token || {}, ['symbol']) || '???';
-  if (symbolDenylist.has(symbol.toUpperCase())) return null;
-
-  return {
-    mobulaId: pickNumber(item, ['id']),
-    name: pickString(item, ['name']) || pickString(item.token || {}, ['name']) || 'Unknown',
-    symbol,
-    logo: pickString(item, ['logo', 'logoUrl', 'logo_url']) || pickString(item.token || {}, ['logo']),
-    description: sanitizePlainText(pickString(item, ['description'])),
-    classificationTerms: extractClassificationTerms(item),
-    category: 'Other',
-    price,
-    marketCap,
-    fdv: pickNumber(item, ['marketCapDiluted', 'market_cap_diluted']),
-    volume: pickNumber(item, ['volume_24h', 'volume24h', 'volume']),
-    change24h: pickNumber(item, ['price_change_24h', 'priceChange24h']),
-    liquidity: pickNumber(item, ['liquidity', 'approximateReserveUSD']),
-    totalSupply: pickNumber(item, ['totalSupply', 'circulatingSupply']),
-    holdersCount: pickInteger(item, ['holdersCount', 'holders_count']),
-    rank: null,
-    contract: {
-      blockchain: pickString(item, ['blockchain']) || mobulaAssetBlockchains[chain] || chain,
-      address: normalizeImportAddress(chain, address),
-      chain,
-    },
-    chartUrl: '',
-    dexUrl: '',
-    launchDate: pickDate(item, ['createdAt', 'created_at', 'listed_at', 'listedAt']),
-    projectLinks: extractProjectLinks(item),
-    chartPairAddress: normalizeChartPairAddress(
-      chain,
-      pickString(item, ['poolAddress', 'pairAddress']),
-    ),
-    marketExchangeName: pickString(item.exchange || {}, ['name']),
-  };
-}
-
-function buildToken(item) {
-  const contract = findTargetContract(item);
-  if (!contract) return null;
-  if (CHAIN_FILTERS.size && !CHAIN_FILTERS.has(contract.chain)) return null;
-
-  const price = pickNumber(item, ['price']);
-  if (price !== null && price <= 0) return null;
-
-  const marketCap = pickNumber(item, ['market_cap', 'marketCap']);
-  if (marketCap !== null && marketCap <= 0) return null;
-
-  const symbol = pickString(item, ['symbol']) || '???';
-  if (symbolDenylist.has(symbol.toUpperCase())) return null;
-
-  const rank = pickNumber(item, ['rank']);
-  if (EXCLUDE_TOP_RANK > 0 && rank !== null && rank <= EXCLUDE_TOP_RANK) return null;
-
-  return {
-    mobulaId: pickNumber(item, ['id']),
-    name: pickString(item, ['name']) || 'Unknown',
-    symbol,
-    logo: pickString(item, ['logo', 'logoUrl', 'logo_url']),
-    description: sanitizePlainText(pickString(item, ['description'])),
-    classificationTerms: extractClassificationTerms(item),
-    category: 'Other',
-    price,
-    marketCap,
-    fdv: pickNumber(item, ['market_cap_diluted', 'marketCapDiluted', 'fully_diluted_valuation']),
-    volume: pickNumber(item, ['volume', 'volume24h', 'volume_24h']),
-    change24h: pickNumber(item, ['price_change_24h', 'priceChange24h']),
-    liquidity: pickNumber(item, ['liquidity']),
-    totalSupply: pickNumber(item, ['total_supply', 'totalSupply']),
-    holdersCount: pickInteger(item, ['holders_count', 'holdersCount']),
-    rank,
-    contract,
-    chartUrl: '',
-    dexUrl: '',
-    launchDate: pickDate(item, ['listed_at', 'listedAt', 'launch_date', 'launchDate']),
-    projectLinks: extractProjectLinks(item),
-  };
-}
-
 async function upsertToken(token, slug) {
   if (!db) throw new Error('DATABASE_URL is required.');
-  const logoUrl = await resolveLogoUrl(token);
 
-  await db.begin(async (tx) => {
+  return db.begin(async (tx) => {
+    if (options.mode === 'csv') {
+      const identity = contractKey(token.contract.chain, token.contract.address);
+      await tx`select pg_advisory_xact_lock(hashtextextended(${identity}, 0))`;
+    }
     const existing = await tx`
       select id
       from coins
@@ -2078,6 +1678,9 @@ async function upsertToken(token, slug) {
         and lower(contract_address) = lower(${token.contract.address})
       limit 1
     `;
+    if (options.mode === 'csv' && existing.length) return false;
+
+    const logoUrl = await resolveLogoUrl(token);
     const coinId = existing[0]?.id || (await readNextCoinId(tx));
     const now = new Date();
     const submittedAt = randomSubmittedAt(now);
@@ -2125,12 +1728,12 @@ async function upsertToken(token, slug) {
     if (token.chartUrl) await upsertCoinLink(tx, coinId, 'chart', token.chartUrl, now);
     await upsertProjectLinks(tx, coinId, token.projectLinks, now);
 
-    return coinId;
+    return true;
   });
 }
 
 async function resolveLogoUrl(token) {
-  if (!token.logo || SKIP_R2_LOGO_UPLOAD) return token.logo || null;
+  if (!token.logo || options.skipR2LogoUpload) return token.logo || null;
 
   try {
     const uploaded = await mirrorRemoteImageToR2(token.logo, {
@@ -2232,22 +1835,6 @@ async function loadExistingImportState() {
   };
 }
 
-function isExistingTokenCandidate(
-  token,
-  existingState,
-  candidateState = { contracts: new Set(), marketSourceIds: new Set() },
-) {
-  const key = contractKey(token.contract.chain, token.contract.address);
-  const sourceId = marketSourceExternalId(token);
-
-  return Boolean(
-    (key && (existingState.contracts.has(key) || candidateState.contracts.has(key))) ||
-    (sourceId &&
-      (existingState.marketSourceIds.has(sourceId) ||
-        candidateState.marketSourceIds.has(sourceId))),
-  );
-}
-
 function filterNewTokens(tokens, existingState) {
   const seenContracts = new Set();
   const seenSources = new Set();
@@ -2279,54 +1866,6 @@ function filterNewTokens(tokens, existingState) {
   });
 
   return { freshTokens, skippedExisting, skippedBatchDuplicate };
-}
-
-function selectNewPopularCandidatePool(tokens) {
-  const candidates = tokens.filter(couldBecomeNewPopularToken).sort(compareNewPopularTokens);
-  const maxCandidates = Math.max(TARGET_COUNT, TARGET_COUNT * NEW_POPULAR_OVERSAMPLE_FACTOR);
-  return candidates.slice(0, maxCandidates);
-}
-
-function couldBecomeNewPopularToken(token) {
-  if (!token.launchDate) return true;
-  return isRecentLaunchDate(token.launchDate);
-}
-
-function isNewPopularToken(token) {
-  return Boolean(token.launchDate && isRecentLaunchDate(token.launchDate));
-}
-
-function isRecentLaunchDate(date) {
-  const timestamp = date instanceof Date ? date.getTime() : new Date(date).getTime();
-  if (!Number.isFinite(timestamp)) return false;
-
-  const now = Date.now();
-  if (timestamp > now) return false;
-
-  const ageDays = (now - timestamp) / 86_400_000;
-  return ageDays <= NEW_POPULAR_MAX_AGE_DAYS && ageDays <= NEW_POPULAR_EXCLUDE_OLDER_THAN_DAYS;
-}
-
-function compareNewPopularTokens(a, b) {
-  const aDate = a.launchDate instanceof Date ? a.launchDate.getTime() : 0;
-  const bDate = b.launchDate instanceof Date ? b.launchDate.getTime() : 0;
-  if (aDate !== bDate) return bDate - aDate;
-
-  const aRank = Number.isFinite(a.rank) ? a.rank : Infinity;
-  const bRank = Number.isFinite(b.rank) ? b.rank : Infinity;
-  if (aRank !== bRank) return aRank - bRank;
-
-  const aVolume = Number.isFinite(a.volume) ? a.volume : 0;
-  const bVolume = Number.isFinite(b.volume) ? b.volume : 0;
-  if (aVolume !== bVolume) return bVolume - aVolume;
-
-  return a.name.localeCompare(b.name);
-}
-
-function daysSinceStartOfYear() {
-  const now = new Date();
-  const start = Date.UTC(now.getUTCFullYear(), 0, 1);
-  return Math.max(1, Math.ceil((Date.now() - start) / 86_400_000));
 }
 
 function contractKey(chain, address) {
@@ -2369,55 +1908,6 @@ function slugify(input) {
     .trim()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
-}
-
-function randomSplit(total, keys, available) {
-  const weights = keys.map(() => Math.random() + 0.1);
-  const weightSum = weights.reduce((sum, weight) => sum + weight, 0);
-  const split = Object.fromEntries(
-    keys.map((key, index) => [
-      key,
-      Math.min(available[key], Math.round((weights[index] / weightSum) * total)),
-    ]),
-  );
-
-  let assigned = keys.reduce((sum, key) => sum + split[key], 0);
-  let guard = 0;
-
-  while (assigned !== total && guard < 10_000) {
-    guard += 1;
-
-    if (assigned < total) {
-      const candidates = keys.filter((key) => split[key] < available[key]);
-      if (!candidates.length) break;
-      split[randomItem(candidates)] += 1;
-      assigned += 1;
-    } else {
-      const candidates = keys.filter((key) => split[key] > 0);
-      if (!candidates.length) break;
-      split[randomItem(candidates)] -= 1;
-      assigned -= 1;
-    }
-  }
-
-  return split;
-}
-
-function shuffle(items) {
-  const copy = [...items];
-  for (let index = copy.length - 1; index > 0; index -= 1) {
-    const swapIndex = Math.floor(Math.random() * (index + 1));
-    [copy[index], copy[swapIndex]] = [copy[swapIndex], copy[index]];
-  }
-  return copy;
-}
-
-function randomItem(items) {
-  return items[Math.floor(Math.random() * items.length)];
-}
-
-function randomInteger(min, max) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
 function logCategorySummary(tokens) {
@@ -3000,173 +2490,46 @@ function readPositiveInteger(value, fallback) {
   return Number.isSafeInteger(number) && number > 0 ? number : fallback;
 }
 
-async function main() {
-  log('Mobula import has started');
+async function loadImportCandidates() {
+  return { candidates: loadCsvImportTokens(options.csvPath) };
+}
 
-  const existingState = await loadExistingImportState();
-  if (db) {
-    log(
-      `Loaded ${existingState.slugs.size} slug(s), ${existingState.contracts.size} contract(s), and ${existingState.marketSourceIds.size} market source key(s) from the database.`,
-    );
-  } else {
-    log('No database configured for this dry run, so existing imported coins cannot be filtered.');
-  }
-
-  const directContractTokens = DIRECT_CONTRACT_IMPORT
-    ? CONTRACT_IMPORT_SPECS.map(buildContractImportToken)
-    : [];
-  let raw = [];
-  let mobulaCandidates = [];
-  let importSource = DIRECT_CONTRACT_IMPORT ? 'direct' : NEW_POPULAR_ONLY ? 'pulse' : 'all';
-
-  if (DIRECT_CONTRACT_IMPORT) {
-    mobulaCandidates = [];
-  } else if (NEW_POPULAR_ONLY) {
-    mobulaCandidates = await fetchMobulaPulseTokens();
-    raw = mobulaCandidates;
-    if (!mobulaCandidates.length) {
-      console.warn(
-        `[+${formatDuration(Date.now() - scriptStartTime)}] ⚠ Pulse returned no candidates; falling back to /api/1/all.`,
-      );
-      importSource = 'all';
-      raw = await fetchMobulaAssets();
-      mobulaCandidates = raw.map(buildToken).filter(Boolean);
-    }
-  } else {
-    raw = await fetchMobulaAssets();
-    mobulaCandidates = raw.map(buildToken).filter(Boolean);
-  }
-
-  const importCandidates = DIRECT_CONTRACT_IMPORT ? directContractTokens : mobulaCandidates;
-  const freshResult = filterNewTokens(importCandidates, existingState);
-  let matchedFresh = freshResult.freshTokens;
-  let skippedExisting = freshResult.skippedExisting;
-  let skippedBatchDuplicate = freshResult.skippedBatchDuplicate;
-  let geckoTerminalTronFallbackCandidates = [];
-
-  const freshTronCount = matchedFresh.filter((token) => token.contract.chain === 'tron').length;
-  if (
-    !DIRECT_CONTRACT_IMPORT &&
-    (!CHAIN_FILTERS.size || CHAIN_FILTERS.has('tron')) &&
-    freshTronCount < GECKOTERMINAL_TRON_FALLBACK_MIN
-  ) {
-    geckoTerminalTronFallbackCandidates = await fetchGeckoTerminalTronFallbackTokens(
-      existingState,
-      mobulaCandidates,
-    );
-    const geckoFreshResult = filterNewTokens(geckoTerminalTronFallbackCandidates, {
-      ...existingState,
-      contracts: new Set([
-        ...existingState.contracts,
-        ...matchedFresh
-          .map((token) => contractKey(token.contract.chain, token.contract.address))
-          .filter(Boolean),
+function selectImportTokens(candidatePool) {
+  const activeChainKeys = [...new Set(candidatePool.map((token) => token.contract.chain))];
+  return {
+    activeChainKeys,
+    perChainCount: Object.fromEntries(
+      activeChainKeys.map((chain) => [
+        chain,
+        candidatePool.filter((token) => token.contract.chain === chain).length,
       ]),
-      marketSourceIds: new Set([
-        ...existingState.marketSourceIds,
-        ...matchedFresh.map((token) => marketSourceExternalId(token)).filter(Boolean),
-      ]),
-    });
-    matchedFresh = [...matchedFresh, ...geckoFreshResult.freshTokens];
-    skippedExisting += geckoFreshResult.skippedExisting;
-    skippedBatchDuplicate += geckoFreshResult.skippedBatchDuplicate;
-  }
+    ),
+    selectionTarget: candidatePool.length,
+    tokens: candidatePool,
+  };
+}
 
-  const matchedAll = DIRECT_CONTRACT_IMPORT
-    ? directContractTokens
-    : [...mobulaCandidates, ...geckoTerminalTronFallbackCandidates];
-
-  const candidatePool = NEW_POPULAR_ONLY
-    ? selectNewPopularCandidatePool(matchedFresh)
-    : matchedFresh;
-
-  const activeChainKeys = CHAIN_FILTERS.size
-    ? chainKeys.filter((chain) => CHAIN_FILTERS.has(chain))
-    : chainKeys;
-  const byChain = Object.fromEntries(activeChainKeys.map((chain) => [chain, []]));
-  for (const token of candidatePool) byChain[token.contract.chain].push(token);
-
-  const available = Object.fromEntries(
-    activeChainKeys.map((chain) => [chain, byChain[chain].length]),
-  );
-  const emptyChains = activeChainKeys.filter((chain) => available[chain] === 0);
-  if (emptyChains.length) {
-    console.warn(
-      `[+${formatDuration(Date.now() - scriptStartTime)}] ⚠ No eligible tokens found for: ${emptyChains.join(', ')}`,
-    );
-  }
-
-  log(
-    DIRECT_CONTRACT_IMPORT
-      ? `Direct contracts: ${CONTRACT_IMPORT_SPECS.length} requested → ${matchedFresh.length} fresh → ${candidatePool.length} candidates; skipped existing ${skippedExisting}, batch dupes ${skippedBatchDuplicate}.`
-      : `Pool (${importSource}): raw ${raw.length} → eligible ${matchedAll.length} → fresh ${matchedFresh.length} → candidates ${candidatePool.length}; skipped existing ${skippedExisting}, batch dupes ${skippedBatchDuplicate}.`,
-  );
-
-  const selectionTarget = NEW_POPULAR_ONLY
-    ? Math.min(
-        candidatePool.length,
-        Math.max(TARGET_COUNT, TARGET_COUNT * NEW_POPULAR_OVERSAMPLE_FACTOR),
-      )
-    : TARGET_COUNT;
-  const perChainCount = randomSplit(selectionTarget, activeChainKeys, available);
-  const selectedByChain = activeChainKeys.flatMap((chain) => {
-    const pool = NEW_POPULAR_ONLY
-      ? [...byChain[chain]].sort(compareNewPopularTokens)
-      : RANDOMIZE
-        ? shuffle(byChain[chain])
-        : [...byChain[chain]].sort((a, b) => (a.rank ?? Infinity) - (b.rank ?? Infinity));
-    return pool.slice(0, perChainCount[chain]);
-  });
-  let tokens = NEW_POPULAR_ONLY
-    ? selectedByChain.sort(compareNewPopularTokens)
-    : RANDOMIZE
-      ? shuffle(selectedByChain)
-      : selectedByChain;
-
-  if (tokens.length < selectionTarget) {
-    console.warn(
-      `[+${formatDuration(Date.now() - scriptStartTime)}] ⚠ Only ${tokens.length}/${selectionTarget} tokens available — some chains ran out of eligible tokens.`,
-    );
-  }
-
-  logSection('Import plan');
-  if (DIRECT_CONTRACT_IMPORT) {
-    log(
-      `Plan: ${DRY_RUN ? 'preview' : 'write'} ${tokens.length}/${selectionTarget} requested contract tokens`,
-    );
-    log('Filters: skip existing contracts and duplicate addresses');
-  } else if (NEW_POPULAR_ONLY) {
-    log(
-      `Plan: ${DRY_RUN ? 'preview' : 'write'} up to ${TARGET_COUNT} new-popular tokens after checking ${tokens.length}/${selectionTarget} candidates`,
-    );
-    log(
-      importSource === 'pulse'
-        ? 'Filters: recent launch identity required; market values optional'
-        : `Filters: this-year age, no >2y, rank > ${EXCLUDE_TOP_RANK}`,
-    );
-  } else {
-    log(`Plan: ${DRY_RUN ? 'preview' : 'write'} ${tokens.length}/${selectionTarget} random tokens`);
-    log(`Filters: rank > ${EXCLUDE_TOP_RANK}`);
-  }
-  log(`Chains: ${activeChainKeys.map((chain) => `${chain}=${perChainCount[chain]}`).join(', ')}`);
-  log('Chart and DEX links will be added only when market data confirms a usable route.');
-
+async function enrichAndSelectSaneTokens(tokens) {
   await enrichTokensWithMobulaDetails(tokens);
   await enrichTokensWithMobulaMetadata(tokens);
   await enrichTokensWithGeckoTerminalInfo(tokens);
   await enrichTokensWithMobulaMarketDetails(tokens);
   await enrichTokensWithGeckoTerminalMarketDetails(tokens);
 
-  if (NEW_POPULAR_ONLY) {
-    const enrichedCount = tokens.length;
-    tokens = tokens.filter(isNewPopularToken).sort(compareNewPopularTokens).slice(0, TARGET_COUNT);
+  let enrichedTokens = tokens;
+  if (options.mode === 'new-popular') {
+    const enrichedCount = enrichedTokens.length;
+    enrichedTokens = enrichedTokens
+      .filter(isNewPopularToken)
+      .sort(compareNewPopularTokens)
+      .slice(0, options.targetCount);
     log(
-      `Final selection: ${tokens.length}/${TARGET_COUNT} tokens kept from ${enrichedCount} checked`,
+      `Final selection: ${enrichedTokens.length}/${options.targetCount} tokens kept from ${enrichedCount} checked`,
     );
   }
 
-  const saneTokens = tokens.filter(hasSaneImportMarketValues);
-  const suspiciousTokens = tokens.filter((token) => !hasSaneImportMarketValues(token));
+  const saneTokens = enrichedTokens.filter(hasSaneImportMarketValues);
+  const suspiciousTokens = enrichedTokens.filter((token) => !hasSaneImportMarketValues(token));
   if (suspiciousTokens.length) {
     console.warn(
       `[+${formatDuration(Date.now() - scriptStartTime)}] ⚠ Skipping ${suspiciousTokens.length} suspicious token(s) with impossible market values: ${suspiciousTokens
@@ -3184,7 +2547,47 @@ async function main() {
   });
   logCategorySummary(saneTokens);
 
-  if (DRY_RUN) {
+  return { saneTokens, suspiciousTokens, tokenCount: enrichedTokens.length };
+}
+
+function logImportPlan({ tokens, selectionTarget, activeChainKeys, perChainCount }) {
+  logSection('Import plan');
+  log(
+    `Plan: ${options.dryRun ? 'preview' : 'write'} ${tokens.length}/${selectionTarget} CSV tokens`,
+  );
+  log('Filters: skip existing contracts and duplicate addresses');
+
+  log(`Chains: ${activeChainKeys.map((chain) => `${chain}=${perChainCount[chain]}`).join(', ')}`);
+  log('Chart and DEX links will be added only when market data confirms a usable route.');
+}
+
+async function main() {
+  log('Mobula import has started');
+
+  const existingState = await loadExistingImportState();
+  if (db) {
+    log(
+      `Loaded ${existingState.slugs.size} slug(s), ${existingState.contracts.size} contract(s), and ${existingState.marketSourceIds.size} market source key(s) from the database.`,
+    );
+  } else {
+    log('No database configured for this dry run, so existing imported coins cannot be filtered.');
+  }
+
+  const { candidates } = await loadImportCandidates();
+  const freshResult = filterNewTokens(candidates, existingState);
+  const candidatePool = freshResult.freshTokens;
+  const { activeChainKeys, perChainCount, selectionTarget, tokens } =
+    selectImportTokens(candidatePool);
+
+  log(
+    `CSV: ${candidates.length} rows → ${freshResult.freshTokens.length} new candidates; skipped existing ${freshResult.skippedExisting}, batch dupes ${freshResult.skippedBatchDuplicate}.`,
+  );
+
+  logImportPlan({ tokens, selectionTarget, activeChainKeys, perChainCount });
+
+  const { saneTokens, suspiciousTokens, tokenCount } = await enrichAndSelectSaneTokens(tokens);
+
+  if (options.dryRun) {
     logSection(
       `Dry run: previewing ${saneTokens.length} enriched token(s) — no rows will be written`,
     );
@@ -3228,6 +2631,7 @@ async function main() {
   const existingSlugs = existingState.slugs;
 
   let success = 0;
+  let skipped = 0;
   let failed = 0;
   let current = 0;
   const writePhaseStartedAt = Date.now();
@@ -3236,9 +2640,13 @@ async function main() {
     current += 1;
     try {
       const slug = uniqueSlug(slugify(`${token.symbol}-${token.name}`), existingSlugs);
-      await upsertToken(token, slug);
-      success += 1;
-      if (DEBUG) log(`✔ [${token.contract.chain}] ${token.symbol} (${token.name})`);
+      const inserted = await upsertToken(token, slug);
+      if (!inserted) {
+        skipped += 1;
+      } else {
+        success += 1;
+        if (options.debug) log(`✔ [${token.contract.chain}] ${token.symbol} (${token.name})`);
+      }
     } catch (error) {
       failed += 1;
       if (isLogoMirrorError(error)) {
@@ -3257,7 +2665,7 @@ async function main() {
   }
 
   logSection(
-    `Import finished: ${success} imported/updated, ${failed} failed, ${suspiciousTokens.length} suspicious skipped, out of ${tokens.length} total. ` +
+    `Import finished: ${success} imported/updated, ${skipped} already present, ${failed} failed, ${suspiciousTokens.length} suspicious skipped, out of ${tokenCount} total. ` +
       `Total run time: ${formatDuration(Date.now() - scriptStartTime)}.`,
   );
 }
