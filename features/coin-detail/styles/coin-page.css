@@ -872,8 +872,9 @@
   font-size: 14px;
 }
 .claim-card-benefits {
-  display: grid;
-  gap: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 10px;
   margin: 7px 0 0;
   padding: 0;
   color: var(--sub);
@@ -884,6 +885,7 @@
   display: flex;
   align-items: center;
   gap: 5px;
+  white-space: nowrap;
 }
 .claim-card-benefits svg {
   width: 12px;
