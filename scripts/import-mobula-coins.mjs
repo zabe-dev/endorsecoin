@@ -1769,11 +1769,11 @@ async function resolveLogoUrl(token) {
 }
 
 function randomSubmittedAt(now, launchDate) {
-  const lowerBounds = [IMPORT_SUBMITTED_AT_START.getTime()];
-  if (launchDate instanceof Date && !Number.isNaN(launchDate.getTime())) {
-    lowerBounds.push(launchDate.getTime());
+  if (!(launchDate instanceof Date) || Number.isNaN(launchDate.getTime())) {
+    return now;
   }
-  const earliest = Math.max(...lowerBounds);
+
+  const earliest = launchDate.getTime();
   const latest = now.getTime();
 
   if (earliest >= latest) return new Date(latest);
