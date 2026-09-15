@@ -106,6 +106,15 @@
   font-family: var(--font-space-grotesk), sans-serif;
   font-weight: 700;
 }
+.coin-name-line .boost-badge {
+  gap: 3px;
+  padding: 3px 5px;
+  border-radius: 5px;
+  font-size: 8px;
+}
+.coin-name-line .boost-badge .bolt-icon {
+  width: 0.72em;
+}
 .verified-badge {
   display: inline-flex;
   flex: none;
