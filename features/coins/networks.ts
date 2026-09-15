@@ -129,7 +129,15 @@ export const NETWORKS = {
     'sui',
     '/chain-icons/sui.svg',
   ),
-  hood: network('hood', 'Hood', 'HOOD', ['hood'], null, null, '/chain-icons/hood.png'),
+  hood: network(
+    'hood',
+    'Hood',
+    'HOOD',
+    ['hood'],
+    'https://robinhoodchain.blockscout.com/address/',
+    'robinhood',
+    '/chain-icons/hood.png',
+  ),
   xrpl: network(
     'xrpl',
     'XRP Ledger',
