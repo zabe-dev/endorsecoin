@@ -1051,7 +1051,8 @@ def fetch_trending(
     return rows
 
 
-DEFAULT_MASTER_CSV = "trending_tokens_master.csv"
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+DEFAULT_MASTER_CSV = os.path.join(SCRIPT_DIR, "trending_tokens_master.csv")
 
 MASTER_FIELDS = [
     "chain",
@@ -1309,7 +1310,7 @@ def main():
                 keep[key] = row
         save_master_and_state(args.master, list(keep.values()))
         stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M")
-        review_path = args.review_out or f"denied_{stamp}.csv"
+        review_path = args.review_out or os.path.join(SCRIPT_DIR, f"denied_{stamp}.csv")
         if dropped:
             write_denied(review_path, dropped)
         print(
@@ -1387,7 +1388,7 @@ def main():
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M")
 
     if denied_out:
-        review_path = args.review_out or f"denied_{timestamp}.csv"
+        review_path = args.review_out or os.path.join(SCRIPT_DIR, f"denied_{timestamp}.csv")
         write_denied(review_path, denied_out)
         print(f"\nDenied {len(denied_out)} tokens — reasons in {review_path}")
         print("  (skim it for false positives; --lenient turns the heuristics off)")
@@ -1400,7 +1401,7 @@ def main():
         return
 
     if args.no_merge:
-        out_path = f"trending_tokens_birdeye_{timestamp}.csv"
+        out_path = os.path.join(SCRIPT_DIR, f"trending_tokens_birdeye_{timestamp}.csv")
         today = datetime.date.today().isoformat()
         save_master_and_state(
             out_path,
@@ -1433,7 +1434,7 @@ def main():
     print(f"  {added} new, {refreshed} refreshed", end="")
     print(f", {pruned} pruned by the current denylist" if pruned else "")
     if args.prune_master and denied_out:
-        review_path = args.review_out or f"denied_{timestamp}.csv"
+        review_path = args.review_out or os.path.join(SCRIPT_DIR, f"denied_{timestamp}.csv")
         write_denied(review_path, denied_out)
 
 
