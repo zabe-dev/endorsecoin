@@ -83,10 +83,9 @@ export function SiteFooter({ id, variant = 'default' }: SiteFooterProps) {
           <div className="site-footer-column">
             <span>COMMUNITY</span>
             <a href="https://x.com/endorsecoin" target="_blank" rel="noopener noreferrer">
-              <IconifyIcon icon="akar-icons:x-fill" aria-hidden="true" />
-              X / Twitter
+              <IconifyIcon icon="akar-icons:x-fill" aria-hidden="true" />X / Twitter
             </a>
-            <a href="https://t.me/endorsecoin" target="_blank" rel="noopener noreferrer">
+            <a href="https://t.me/endorsecoincom" target="_blank" rel="noopener noreferrer">
               <IconifyIcon icon="akar-icons:telegram-fill" aria-hidden="true" />
               Telegram
             </a>

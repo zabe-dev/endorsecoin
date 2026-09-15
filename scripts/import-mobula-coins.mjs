@@ -1974,14 +1974,22 @@ function inferCoinCategory(token) {
 
 function scoreKeywords(searchText, keywords, weight) {
   return keywords.reduce((score, keyword) => {
-    const matches = searchText.match(keywordPattern(keyword));
-    return score + (matches?.length || 0) * weight;
+    const matches = [...searchText.matchAll(keywordPattern(keyword))];
+    const positiveMatches = matches.filter(
+      (match) => !isNegatedKeyword(searchText, match.index ?? 0),
+    );
+    return score + positiveMatches.length * weight;
   }, 0);
 }
 
 function keywordPattern(keyword) {
   const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '[\\s-]+');
-  return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, 'gi');
+  return new RegExp(`(?<![a-z0-9])${escaped}(?![a-z0-9])`, 'gi');
+}
+
+function isNegatedKeyword(searchText, keywordIndex) {
+  const prefix = searchText.slice(Math.max(0, keywordIndex - 48), keywordIndex);
+  return /(?:\b(?:no|not|without|never)\b(?:\W+\w+){0,3}\W*|\bnon[-\s]*)$/i.test(prefix);
 }
 
 function buildCategorySearchText(token) {
