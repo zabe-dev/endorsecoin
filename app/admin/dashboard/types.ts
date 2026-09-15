@@ -52,6 +52,9 @@ export type AdminCoinRow = {
   submittedAt: string;
   status: string;
   category: string;
+  claim: {
+    bannerUrl: string | null;
+  } | null;
   boost: {
     tier: number;
     status: string;

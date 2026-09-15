@@ -5,7 +5,7 @@ import { BoltIcon } from '@/features/coins/components';
 import { FormattedPrice } from '@/features/coins/components/formatted-price';
 import { getNetworkConfig } from '@/features/coins/networks';
 import { Icon as IconifyIcon } from '@iconify/react';
-import { Check, Copy } from 'lucide-react';
+import { BadgeCheck, Check, Copy } from 'lucide-react';
 import type { CoinDetailView } from '../types';
 import { CoinSocialActions } from './coin-social-actions';
 
@@ -54,6 +54,11 @@ export function CoinHero({
 
   return (
     <section className="container coin-hero">
+      {coin.isVerified && coin.bannerUrl && (
+        <div className="coin-header-banner" aria-hidden="true">
+          <img src={coin.bannerUrl} alt="" decoding="async" />
+        </div>
+      )}
       <div className="coin-heading-main">
         <div className="coin-identity">
           <div className={`detail-logo ${coin.color}`}>
@@ -75,6 +80,11 @@ export function CoinHero({
                 <span className={`boost-badge boost-${coin.boost}`}>
                   <BoltIcon />
                   {coin.boost}×
+                </span>
+              )}
+              {coin.isVerified && (
+                <span className="verified-badge" title="Verified coin" aria-label="Verified coin">
+                  <BadgeCheck fill="currentColor" stroke="var(--ink)" aria-hidden="true" />
                 </span>
               )}
             </div>

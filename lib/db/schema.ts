@@ -120,6 +120,25 @@ export const accounts = pgTable(
   (table) => [index('accounts_user_id_idx').on(table.userId)],
 );
 
+export const coinClaims = pgTable(
+  'coin_claims',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    coinId: integer('coin_id')
+      .references(() => coins.id, { onDelete: 'cascade' })
+      .notNull(),
+    userId: text('user_id')
+      .references(() => users.id, { onDelete: 'cascade' })
+      .notNull(),
+    bannerUrl: text('banner_url'),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex('coin_claims_coin_unique').on(table.coinId),
+    index('coin_claims_user_idx').on(table.userId),
+  ],
+);
+
 export const verifications = pgTable(
   'verifications',
   {

@@ -2,7 +2,7 @@
 
 import { VoteButton, WatchlistButton } from '@/components/ui/action-buttons';
 import { BoltIcon } from '@/features/coins/components';
-import { ExternalLink, Pencil } from 'lucide-react';
+import { Check, ExternalLink, MessageCircle, Pencil } from 'lucide-react';
 import Link from 'next/link';
 import type { CoinDetailView } from '../types';
 import { Info } from './detail-card';
@@ -88,6 +88,7 @@ export function CoinSidebar({
           <Link href="/advertise">View boost packages ↗</Link>
         </section>
       )}
+      {!coin.isVerified && coin.listingStatus === 'active' && <CoinClaimCard />}
       <section className="detail-card quick-info">
         <h3>Coin information</h3>
         <Info label="Network" value={coin.chain} />
@@ -126,6 +127,29 @@ export function CoinSidebar({
         <button onClick={onOpenChangeRequest}>Request a change</button>
       </section>
     </aside>
+  );
+}
+
+function CoinClaimCard() {
+  return (
+    <section className="detail-card claim-card">
+      <div className="claim-card-icon" aria-hidden="true">
+        <MessageCircle />
+      </div>
+      <div>
+        <small>CLAIM THIS COIN</small>
+        <h3>$100 project claim</h3>
+        <ul className="claim-card-benefits">
+          <li><Check aria-hidden="true" /> Verified badge</li>
+          <li><Check aria-hidden="true" /> Custom banner</li>
+          <li><Check aria-hidden="true" /> Ad-free page</li>
+        </ul>
+      </div>
+      <a href="https://t.me/EndorseCoinSupport" target="_blank" rel="noopener noreferrer">
+        <MessageCircle aria-hidden="true" />
+        Contact @EndorseCoinSupport
+      </a>
+    </section>
   );
 }
 

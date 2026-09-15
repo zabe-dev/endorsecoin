@@ -143,6 +143,8 @@ export type Coin = {
   contractAddress: string;
   logoUrl: string | null;
   description: string | null;
+  isVerified: boolean;
+  bannerUrl: string | null;
   category: CoinCategory;
   launchDate: string | null;
   presaleStartDate: string | null;

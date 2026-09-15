@@ -1314,12 +1314,16 @@ tbody tr:hover td {
   min-width: 0;
 }
 .coin-cell > div:last-child > a {
-  display: block;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   max-width: 150px;
   min-width: 0;
 }
 .coin-name-static {
-  display: block;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   max-width: 150px;
   min-width: 0;
 }
@@ -1329,6 +1333,20 @@ tbody tr:hover td {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 12px;
+}
+.coin-cell .coin-name-verified-badge {
+  display: inline-flex !important;
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  color: var(--lime);
+}
+.coin-name-verified-badge svg {
+  display: block;
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+  stroke: var(--ink);
 }
 .coin-cell span {
   font-size: 8px;

@@ -1,0 +1,1 @@
+ALTER TABLE "coin_claims" ADD COLUMN "banner_url" text;

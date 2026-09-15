@@ -18,6 +18,8 @@ export type CoinListItem = {
   logo: string;
   image?: string;
   description: string | null;
+  isVerified: boolean;
+  bannerUrl: string | null;
   color: string;
   cap: string;
   capN: number;
@@ -120,6 +122,8 @@ export function toCoinListItem(coin: Coin, index: number): CoinListItem {
     logo: coin.symbol.slice(0, 1),
     ...(coin.logoUrl ? { image: coin.logoUrl } : {}),
     description: coin.description,
+    isVerified: Boolean(coin.isVerified),
+    bannerUrl: coin.bannerUrl,
     color: coin.promoted.active ? 'yellow' : logoColors[coin.id % logoColors.length],
     cap: formatMoney(coin.market.marketCapUsd),
     capN: marketCap,

@@ -6,9 +6,25 @@ import {
   grantCoinBoost,
   removeCoinBoost,
   removePromotedCoin,
+  setCoinVerification,
   updateAdminCoin,
+  updateCoinHeaderBanner,
 } from '@/app/admin/dashboard/actions';
-import { Megaphone, Pause, Play, Square, Trash2, X, Zap } from 'lucide-react';
+import {
+  bannerImageAssetOrigin,
+  isAllowedBannerImageUrl,
+} from '@/features/ads/banner-image-url';
+import {
+  BadgeCheck,
+  ImageIcon,
+  Megaphone,
+  Pause,
+  Play,
+  Square,
+  Trash2,
+  X,
+  Zap,
+} from 'lucide-react';
 import { useState } from 'react';
 import { CoinPageLinkAction, ConfirmAction, LogoUrlAction } from './admin-actions';
 import { AdminPanel } from './admin-panel';
@@ -118,6 +134,8 @@ export function ListedCoinsTable({
                   <td>
                     <ActionGroup>
                       <CoinPageLinkAction coinId={row.id} name={row.name} />
+                      <VerificationAction row={row} popover={popover} />
+                      {row.claim && <HeaderBannerAction row={row} popover={popover} />}
                       <BoostAction row={row} popover={popover} />
                       <PromoteAction row={row} popover={popover} />
                       <ConfirmAction
@@ -397,6 +415,67 @@ function BoostAction({ row, popover }: { row: AdminCoinRow; popover: PopoverCont
       }
     >
       <Zap aria-hidden="true" />
+    </ConfirmAction>
+  );
+}
+
+function HeaderBannerAction({ row, popover }: { row: AdminCoinRow; popover: PopoverController }) {
+  const [bannerUrl, setBannerUrl] = useState(row.claim?.bannerUrl || '');
+
+  return (
+    <ConfirmAction
+      popover={popover}
+      popoverId={`coin-header-banner-${row.id}`}
+      action={updateCoinHeaderBanner}
+      title="Upload coin header banner"
+      tone="success"
+      message={`Save the coin-page header banner for ${row.name}.`}
+      fields={{ coinId: row.id, bannerUrl }}
+      disabled={!row.claim}
+      validate={(formData) => {
+        const value = formData.get('bannerUrl');
+        if (typeof value === 'string' && value && !isAllowedBannerImageUrl(value)) {
+          return `Header banner URL must be hosted on ${bannerImageAssetOrigin}.`;
+        }
+        return null;
+      }}
+      extra={
+        <div className="admin-schedule-form">
+          <label className="admin-banner-form-wide">
+            Header banner URL (optional)
+            <input
+              name="bannerUrl"
+              type="url"
+              placeholder={`${bannerImageAssetOrigin}/banner-1200x400.jpg`}
+              value={bannerUrl}
+              onChange={(event) => setBannerUrl(event.target.value)}
+            />
+          </label>
+          <small className="admin-banner-form-wide">
+            The recommended size for banner is 1200×400 pixels (3:1).
+          </small>
+        </div>
+      }
+    >
+      <ImageIcon aria-hidden="true" />
+    </ConfirmAction>
+  );
+}
+
+function VerificationAction({ row, popover }: { row: AdminCoinRow; popover: PopoverController }) {
+  const verified = Boolean(row.claim);
+
+  return (
+    <ConfirmAction
+      popover={popover}
+      popoverId={`coin-verification-${row.id}`}
+      action={setCoinVerification}
+      title={verified ? 'Revoke coin verification?' : 'Mark coin as verified?'}
+      tone={verified ? 'danger' : 'success'}
+      message={verified ? `Revoke ${row.name} verification status.` : `Verify ${row.name}?`}
+      fields={{ coinId: row.id, verified: String(!verified) }}
+    >
+      <BadgeCheck aria-hidden="true" />
     </ConfirmAction>
   );
 }

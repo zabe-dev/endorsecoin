@@ -22,6 +22,7 @@ import {
   airdropSubmissions,
   bannerAds,
   changeRequests,
+  coinClaims,
   coinBoosts,
   coinPromotions,
   coins,
@@ -457,12 +458,13 @@ async function hydrateAdminCoins(
   providedPromotionRows?: Array<typeof coinPromotions.$inferSelect>,
 ): Promise<AdminCoinRow[]> {
   const coinIds = coinRows.map((coin) => coin.id);
-  const [submissionRows, activeBoostRows, activePromotionRows] = await Promise.all([
+  const [submissionRows, activeBoostRows, activePromotionRows, claimRows] = await Promise.all([
     getCoinSubmissionsByCoinIds(coinIds),
     providedBoostRows ? Promise.resolve(providedBoostRows) : readActiveBoosts(nowIso, coinIds),
     providedPromotionRows
       ? Promise.resolve(providedPromotionRows)
       : readActivePromotions(nowIso, coinIds),
+    db.select().from(coinClaims).where(inArray(coinClaims.coinId, coinIds)),
   ]);
   const userById = await getUsersByIds(
     submissionRows.map((submission) => submission.submittedByUserId).filter(isString),
@@ -477,6 +479,7 @@ async function hydrateAdminCoins(
   const activePromotionByCoin = new Map(
     activePromotionRows.map((promotion) => [promotion.coinId, promotion]),
   );
+  const claimByCoin = new Map(claimRows.map((claim) => [claim.coinId, claim]));
 
   return coinRows.map((coin) => {
     const submission = submissionsByCoinId.get(coin.id);
@@ -499,6 +502,9 @@ async function hydrateAdminCoins(
       submittedAt: formatDateTime(coin.submittedAt),
       status: coin.listingStatus,
       category: coin.category,
+      claim: claimByCoin.has(coin.id)
+        ? { bannerUrl: claimByCoin.get(coin.id)?.bannerUrl || null }
+        : null,
       boost: boost
         ? {
             tier: boost.multiplier,

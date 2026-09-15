@@ -12,6 +12,7 @@
   color: var(--copy);
 }
 .coin-hero {
+  position: relative;
   margin-top: 18px;
   padding: 0;
   border: 1px solid var(--border);
@@ -19,7 +20,33 @@
   background: var(--surface);
   overflow: hidden;
 }
+.coin-header-banner {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  aspect-ratio: 3 / 1;
+  height: auto;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0.96;
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 70%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 70%, transparent 100%);
+}
+.coin-header-banner::after {
+  position: absolute;
+  inset: 0;
+  content: '';
+  background: linear-gradient(to bottom, transparent 58%, var(--surface) 100%);
+}
+.coin-header-banner img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+}
 .coin-heading-main {
+  position: relative;
+  z-index: 1;
   min-height: 118px;
   padding: 18px 20px;
   display: flex;
@@ -78,6 +105,17 @@
   letter-spacing: -0.045em;
   font-family: var(--font-space-grotesk), sans-serif;
   font-weight: 700;
+}
+.verified-badge {
+  display: inline-flex;
+  flex: none;
+  color: var(--lime);
+}
+.verified-badge svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+  stroke: var(--ink);
 }
 .coin-meta-row {
   display: flex;
@@ -257,6 +295,8 @@
   border-color: rgba(196, 255, 68, 0.44);
 }
 .coin-heading-actions {
+  position: relative;
+  z-index: 1;
   padding: 12px 20px;
   display: flex;
   justify-content: stretch;
@@ -801,6 +841,95 @@
   position: sticky;
   top: 18px;
   align-self: start;
+}
+.claim-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  padding: 16px;
+}
+.claim-card-icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 9px;
+  color: var(--lime);
+  background: rgb(203 255 74 / 10%);
+}
+.claim-card-icon svg {
+  width: 19px;
+  height: 19px;
+}
+.claim-card small {
+  color: var(--sub);
+  font: 700 8px var(--font-fira-mono);
+  letter-spacing: 0.1em;
+}
+.claim-card h3 {
+  margin: 4px 0 0;
+  color: var(--copy);
+  font-size: 14px;
+}
+.claim-card-benefits {
+  display: grid;
+  gap: 4px;
+  margin: 7px 0 0;
+  padding: 0;
+  color: var(--sub);
+  font-size: 10px;
+  list-style: none;
+}
+.claim-card-benefits li {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.claim-card-benefits svg {
+  width: 12px;
+  height: 12px;
+  color: var(--lime);
+}
+.claim-card button {
+  grid-column: 1 / -1;
+  min-height: 36px;
+  border: 1px solid var(--lime);
+  border-radius: 7px;
+  color: #091000;
+  background: var(--lime);
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.claim-card a {
+  grid-column: 1 / -1;
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid var(--lime);
+  border-radius: 7px;
+  color: #091000;
+  background: var(--lime);
+  font-size: 10px;
+  font-weight: 800;
+}
+.claim-card a svg {
+  width: 14px;
+  height: 14px;
+}
+.claim-card a:hover {
+  filter: brightness(1.08);
+}
+.claim-card button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+.claim-card-error {
+  grid-column: 1 / -1;
+  color: #ff7373;
+  font-size: 10px;
 }
 .detail-card {
   border: 1px solid var(--border);

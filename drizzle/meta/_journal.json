@@ -141,6 +141,20 @@
       "when": 1788764400000,
       "tag": "0019_market_source_backoff",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1789478400000,
+      "tag": "0020_coin_claims",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1789484456016,
+      "tag": "0021_petite_doorman",
+      "breakpoints": true
     }
   ]
 }

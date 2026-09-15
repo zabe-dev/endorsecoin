@@ -8,6 +8,7 @@ import {
   type CoinSortKey as SortKey,
 } from '@/features/coins/view';
 import Link from 'next/link';
+import { BadgeCheck } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import type { MouseEvent, ReactNode } from 'react';
 import { FormattedPrice } from './formatted-price';
@@ -75,10 +76,20 @@ export function CoinCells({ coin, linkEnabled = true }: { coin: Coin; linkEnable
                 aria-label={coin.name}
               >
                 <b>{coin.name}</b>
+                {coin.isVerified && (
+                  <span className="coin-name-verified-badge" title="Verified coin">
+                    <BadgeCheck aria-hidden="true" />
+                  </span>
+                )}
               </Link>
             ) : (
               <span className={`coin-name-static ${nameClass}`} title={coin.name}>
                 <b>{coin.name}</b>
+                {coin.isVerified && (
+                  <span className="coin-name-verified-badge" title="Verified coin">
+                    <BadgeCheck aria-hidden="true" />
+                  </span>
+                )}
               </span>
             )}
             <span>

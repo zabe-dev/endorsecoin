@@ -69,7 +69,7 @@ export default async function CoinPage({ params }: CoinPageParams) {
       <CoinDetailPage
         coinRecord={coin}
         promotedCoins={promotedCoins}
-        premiumBannerAds={bannerAds.premium}
+        premiumBannerAds={coin.isVerified ? [] : bannerAds.premium}
         isSignedIn={Boolean(session?.user)}
       />
     </>

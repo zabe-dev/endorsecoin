@@ -429,7 +429,7 @@ export function CoinDetailPage({
         </div>
       )}
 
-      <PremiumAdBanner ads={premiumBannerAds} />
+      {!coin.isVerified && <PremiumAdBanner ads={premiumBannerAds} />}
 
       <div className="container coin-layout">
         <div className="coin-main-column">
@@ -437,9 +437,9 @@ export function CoinDetailPage({
           <CoinInfoSections coin={coin} />
         </div>
 
-        <CoinSidebar
-          coin={coin}
-          voted={voted}
+      <CoinSidebar
+        coin={coin}
+        voted={voted}
           watched={watched}
           nextVoteAt={nextVoteAt}
           actionsDisabled={isSuspended}

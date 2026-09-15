@@ -18,6 +18,7 @@ import { db } from '@/lib/db/client';
 import { timeAsync } from '@/lib/observability/metrics';
 import {
   coinBoosts,
+  coinClaims,
   coinLinks,
   coinPromotions,
   coins,
@@ -35,6 +36,7 @@ const publicCoinDetailCacheSeconds = Number(process.env.PUBLIC_COIN_DETAIL_CACHE
 type DbCoin = typeof coins.$inferSelect;
 type DbMarketSnapshot = typeof marketSnapshots.$inferSelect;
 type DbCoinBoost = typeof coinBoosts.$inferSelect;
+type DbCoinClaim = typeof coinClaims.$inferSelect;
 type DbCoinPromotion = typeof coinPromotions.$inferSelect;
 type DbCoinLink = typeof coinLinks.$inferSelect;
 type DbCoinSubmission = typeof coinSubmissions.$inferSelect;
@@ -107,7 +109,7 @@ async function getPublicCoinRecords(
   if (!coinId && !userId) {
     const version = await getCacheVersion('public-coins');
     return rememberJson(
-      `coins:public:list:${version}:v1`,
+      `coins:public:list:${version}:v2`,
       { ttlSeconds: publicCoinListCacheSeconds },
       () => readPublicCoinRecords(undefined, undefined, priorityCoinId),
     );
@@ -116,7 +118,7 @@ async function getPublicCoinRecords(
   if (coinId && !userId) {
     const version = await getCacheVersion('public-coins');
     return rememberJson(
-      `coins:public:detail:${version}:${coinId}:v1`,
+      `coins:public:detail:${version}:${coinId}:v2`,
       { ttlSeconds: publicCoinDetailCacheSeconds },
       () => readPublicCoinRecords(coinId, undefined, priorityCoinId),
     );
@@ -168,7 +170,7 @@ async function selectPublicCoinRecords(
   if (!coinRows.length) return [];
 
   const hydratedCoinIds = coinRows.map((coin) => coin.id);
-  const [snapshotRows, boostRows, promotionRows, linkRows, submissionRows] = await Promise.all([
+  const [snapshotRows, boostRows, promotionRows, linkRows, submissionRows, claimRows] = await Promise.all([
     selectLatestMarketSnapshots(hydratedCoinIds),
     db
       .select()
@@ -196,6 +198,7 @@ async function selectPublicCoinRecords(
       .orderBy(desc(coinPromotions.expiresAt)),
     db.select().from(coinLinks).where(inArray(coinLinks.coinId, hydratedCoinIds)),
     selectLatestSubmissionPayloads(hydratedCoinIds),
+    db.select().from(coinClaims).where(inArray(coinClaims.coinId, hydratedCoinIds)),
   ]);
 
   const snapshotByCoin = firstByCoinId(snapshotRows);
@@ -212,6 +215,7 @@ async function selectPublicCoinRecords(
   const promotionByCoin = firstByCoinId(promotionRows);
   const linksByCoin = groupLinksByCoinId(linkRows);
   const submissionByCoin = firstByCoinId(submissionRows.filter(hasLinkedCoinId));
+  const claimByCoin = firstByCoinId(claimRows);
   const interactionsByCoin = await getCoinInteractionSummaries(hydratedCoinIds, userId);
 
   return coinRows.map((coin, index) =>
@@ -223,6 +227,7 @@ async function selectPublicCoinRecords(
       promotion: promotionByCoin.get(coin.id) || null,
       links: linksByCoin.get(coin.id) || new Map(),
       submission: submissionByCoin.get(coin.id) || null,
+      claim: claimByCoin.get(coin.id) || null,
       interactions: interactionsByCoin.get(coin.id) || null,
     }),
   );
@@ -279,6 +284,7 @@ function mapDbCoinToCoin({
   promotion,
   links,
   submission,
+  claim,
   interactions,
 }: {
   coin: DbCoin;
@@ -288,6 +294,7 @@ function mapDbCoinToCoin({
   promotion: DbCoinPromotion | null;
   links: Map<string, DbCoinLink>;
   submission: DbCoinSubmissionPayload | null;
+  claim: DbCoinClaim | null;
   interactions: InteractionSummary | null;
 }): Coin {
   const network = toNetworkId(coin.chain);
@@ -307,6 +314,8 @@ function mapDbCoinToCoin({
     contractAddress: coin.contractAddress || '',
     logoUrl: coin.logoUrl,
     description: coin.description,
+    isVerified: Boolean(claim),
+    bannerUrl: claim?.bannerUrl || null,
     category: toCoinCategory(coin.category),
     launchDate: coin.launchDate ? coin.launchDate.toISOString() : null,
     presaleStartDate: presale.startDate,

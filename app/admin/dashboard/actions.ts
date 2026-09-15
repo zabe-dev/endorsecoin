@@ -13,6 +13,7 @@ import {
   airdropSubmissions,
   bannerAds,
   changeRequests,
+  coinClaims,
   coinBoosts,
   coinLinks,
   coinPromotions,
@@ -125,6 +126,59 @@ export async function updateAdminCoin(formData: FormData) {
 
   await audit(adminUser.id, 'coin.updated', 'coin', String(coinId), { listingStatus, category });
   await invalidateCoinDiscoveryCache(coinId);
+  revalidatePath('/admin/dashboard');
+}
+
+export async function updateCoinHeaderBanner(formData: FormData) {
+  const adminUser = await requireAdmin();
+  const coinId = readNumber(formData, 'coinId');
+  const bannerUrl = readOptional(formData, 'bannerUrl');
+
+  if (bannerUrl) {
+    assertAllowedBannerImageUrl(bannerUrl, 'Header banner URL');
+  }
+
+  const [claim] = await db
+    .select({ id: coinClaims.id })
+    .from(coinClaims)
+    .where(eq(coinClaims.coinId, coinId))
+    .limit(1);
+  if (!claim) {
+    throw new Error('Approve the claim through @EndorseCoinSupport before uploading a banner.');
+  }
+
+  await db
+    .update(coinClaims)
+    .set({ bannerUrl: bannerUrl || null, updatedAt: new Date() })
+    .where(eq(coinClaims.coinId, coinId));
+
+  await audit(adminUser.id, 'coin.header_banner.updated', 'coin', String(coinId), {
+    bannerUrl: bannerUrl || null,
+  });
+  await invalidateCoinDiscoveryCache(coinId);
+  revalidatePath(`/coin/${coinId}`);
+  revalidatePath('/admin/dashboard');
+}
+
+export async function setCoinVerification(formData: FormData) {
+  const adminUser = await requireAdmin();
+  const coinId = readNumber(formData, 'coinId');
+  const verified = formData.get('verified') === 'true';
+
+  if (verified) {
+    await db
+      .insert(coinClaims)
+      .values({ coinId, userId: adminUser.id })
+      .onConflictDoNothing({ target: coinClaims.coinId });
+  } else {
+    await db.delete(coinClaims).where(eq(coinClaims.coinId, coinId));
+  }
+
+  await audit(adminUser.id, verified ? 'coin.verified' : 'coin.unverified', 'coin', String(coinId), {
+    verified,
+  });
+  await invalidateCoinDiscoveryCache(coinId);
+  revalidatePath(`/coin/${coinId}`);
   revalidatePath('/admin/dashboard');
 }
 
