@@ -94,14 +94,19 @@ function Metric({
   metric: 'votes' | 'launch' | 'presaleEnd' | 'watchlist' | 'trend';
 }) {
   if (metric === 'trend' || metric === 'votes' || metric === 'watchlist') {
+    const value =
+      metric === 'watchlist'
+        ? formatVotes(coin.watchCount)
+        : metric === 'trend'
+          ? formatChangePercent(coin.change)
+          : formatVotes(coin.votes);
+    const label = metric === 'watchlist' ? 'watchlists' : metric === 'trend' ? '24h' : 'total votes';
+    const valueClass = metric === 'trend' ? (coin.change >= 0 ? 'positive' : 'negative') : undefined;
+
     return (
       <strong className={`mini-coin-metric mini-coin-votes metric-${metric}`}>
-        <b>
-          {formatVotes(
-            metric === 'watchlist' ? coin.watchCount : metric === 'trend' ? coin.votes : coin.votes,
-          )}
-        </b>
-        <span>{metric === 'watchlist' ? 'watchlists' : 'total votes'}</span>
+        <b className={valueClass}>{value}</b>
+        <span>{label}</span>
       </strong>
     );
   }
@@ -120,4 +125,8 @@ function formatMetric(
     return coin.presaleEnd === '—' ? 'No end date' : `${coin.presaleEnd}`;
   if (metric === 'watchlist') return `${formatVotes(coin.watchCount)} watches`;
   return `${formatVotes(coin.votes)} votes`;
+}
+
+function formatChangePercent(value: number) {
+  return `${value >= 0 ? '+' : ''}${value}%`;
 }

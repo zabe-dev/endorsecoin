@@ -313,7 +313,7 @@ function buildLeaderboardCacheKey(query: NormalizedLeaderboardQuery, version: nu
     query.sort.direction,
     query.page,
     query.pageSize,
-    'v1',
+    'v2',
   ]
     .map(cacheKeyPart)
     .join(':');
@@ -343,10 +343,6 @@ function buildScoredLeaderboardWhere(query: NormalizedLeaderboardQuery, nowIso: 
   if (query.view === 'presales') {
     where.push(sql`is_presale = true`);
     where.push(sql`presale_end_at > ${nowIso}::timestamptz`);
-  } else if (query.view === 'trending') {
-    where.push(sql`trending_score > 0`);
-  } else if (query.view === 'watched') {
-    where.push(sql`watch_count > 0`);
   } else if (query.view === 'recent') {
     where.push(sql`is_presale = false`);
     where.push(sql`launch_date is not null`);
@@ -445,8 +441,6 @@ function filterCoins(
 
   return coins.filter((coin) => {
     if (query.view === 'presales' && !isActivePresaleCandidate(coin)) return false;
-    if (query.view === 'trending' && coin.trendingScore <= 0) return false;
-    if (query.view === 'watched' && coin.watchCount <= 0) return false;
     if (query.view === 'recent' && !isLaunchedRecentlyCandidate(coin)) return false;
     if (query.category !== 'All' && coin.category !== query.category) return false;
     if (query.chain !== 'All chains' && coin.chain !== query.chain) return false;

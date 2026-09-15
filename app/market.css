@@ -577,8 +577,12 @@
   color: var(--hotspot-data, #9ba5ac);
   white-space: nowrap;
 }
-.mini-coin-votes b {
+.mini-coin-votes b:not(.positive):not(.negative) {
   color: #cfd4d7;
+  font-size: 12px;
+  line-height: 1;
+}
+.mini-coin-votes b {
   font-size: 12px;
   line-height: 1;
 }

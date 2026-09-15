@@ -123,7 +123,7 @@ function buildDiscoveryCacheKey(
     query.sort.direction,
     query.page || '',
     query.pageSize || '',
-    'v1',
+    'v2',
   ]
     .map(cacheKeyPart)
     .join(':');
