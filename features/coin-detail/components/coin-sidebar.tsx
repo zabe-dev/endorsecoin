@@ -2,7 +2,14 @@
 
 import { VoteButton, WatchlistButton } from '@/components/ui/action-buttons';
 import { BoltIcon } from '@/features/coins/components';
-import { BadgeCheck, Check, ExternalLink, MessageCircle, Pencil } from 'lucide-react';
+import {
+  BadgeCheck,
+  ExternalLink,
+  ImageIcon,
+  MessageCircle,
+  Pencil,
+} from 'lucide-react';
+import { Icon as IconifyIcon } from '@iconify/react';
 import Link from 'next/link';
 import type { CoinDetailView } from '../types';
 import { Info } from './detail-card';
@@ -140,10 +147,10 @@ function CoinClaimCard() {
         <small>CLAIM THIS COIN</small>
         <h3>Verified coin benefits</h3>
         <ul className="claim-card-benefits">
-          <li><Check aria-hidden="true" /> Verified badge</li>
-          <li><Check aria-hidden="true" /> Custom banner</li>
-          <li><Check aria-hidden="true" /> Ad-free page</li>
-          <li><Check aria-hidden="true" /> Priority support</li>
+          <li><BadgeCheck aria-hidden="true" /> Verified badge</li>
+          <li><ImageIcon aria-hidden="true" /> Custom banner</li>
+          <li><IconifyIcon icon="icon-park-outline:ad" aria-hidden="true" /> Ad-free page</li>
+          <li><MessageCircle aria-hidden="true" /> Priority support</li>
         </ul>
       </div>
       <a href="https://t.me/EndorseCoinSupport" target="_blank" rel="noopener noreferrer">
