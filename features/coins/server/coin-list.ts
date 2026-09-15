@@ -510,6 +510,8 @@ function buildChartConfig(
 ): Coin['chart'] {
   const chart = links.get('chart');
 
+  if (submission && !chart?.url) return { source: 'unavailable' };
+
   // Submitted coins pick a provider via dropdown (chart.provider in the
   // submission data). Imported coins (Mobula import script) have no
   // submission row, so we fall back to guessing the provider from the
@@ -720,7 +722,7 @@ function buildDexConfig(
   if (submission) {
     const provider = readSubmissionDexProvider(submission.coinData);
     if (dexLink?.url) return { available: true, provider, url: dexLink.url };
-    return buildDefaultDexConfig(network, contractAddress);
+    return { available: false };
   }
 
   // Imported coins (no submission row): infer provider from chain, since
