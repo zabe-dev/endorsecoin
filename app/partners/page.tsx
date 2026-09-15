@@ -38,9 +38,9 @@ export default function PartnersPage() {
               investors looking for an edge in early discovery.
             </p>
             <div className="partners-actions">
-              <a className="partners-primary" href="https://t.me/EndorseCoinCom">
+              <a className="partners-primary" href="https://t.me/EndorseCoinSupport">
                 <MessageCircle aria-hidden="true" />
-                Contact @EndorseCoinCom
+                Contact @EndorseCoinSupport
               </a>
               <a className="partners-secondary" href="/advertise">
                 Advertise instead
