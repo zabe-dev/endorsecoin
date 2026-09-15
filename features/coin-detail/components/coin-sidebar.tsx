@@ -165,10 +165,10 @@ function CoinClaimCard() {
         <small>CLAIM THIS COIN</small>
         <h3>Verified coin benefits</h3>
         <ul className="claim-card-benefits">
-          <li><BadgeCheck aria-hidden="true" /> Verified badge</li>
-          <li><ImageIcon aria-hidden="true" /> Custom banner</li>
-          <li><IconifyIcon icon="icon-park-outline:ad" aria-hidden="true" /> Ad-free page</li>
-          <li><MessageCircle aria-hidden="true" /> Priority support</li>
+          <li><BadgeCheck aria-hidden="true" /> Verified Badge</li>
+          <li><ImageIcon aria-hidden="true" /> Custom Banner</li>
+          <li><IconifyIcon icon="icon-park-outline:ad" aria-hidden="true" /> Ad-Free Page</li>
+          <li><MessageCircle aria-hidden="true" /> Priority Support</li>
         </ul>
       </div>
       <a href="https://t.me/EndorseCoinSupport" target="_blank" rel="noopener noreferrer">

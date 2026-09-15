@@ -375,12 +375,12 @@
 .coin-social-actions .share-action {
   border-color: rgba(255, 255, 255, 0.075);
   background: rgba(255, 255, 255, 0.028);
-  color: #b7c0c6;
+  color: var(--copy);
 }
 .coin-social-actions .report-action {
   border-color: rgba(255, 255, 255, 0.075);
   background: rgba(255, 255, 255, 0.028);
-  color: #b7c0c6;
+  color: var(--copy);
 }
 .coin-social-actions .detail-watch {
   border-color: rgba(255, 255, 255, 0.075);
@@ -1568,7 +1568,7 @@
 .coin-footer {
   margin-top: 0;
 }
-@media (max-width: 1050px) {
+@media (max-width: 1200px) {
   .coin-heading-main {
     align-items: flex-start;
     flex-direction: column;
