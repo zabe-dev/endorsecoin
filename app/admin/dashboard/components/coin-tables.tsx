@@ -10,10 +10,7 @@ import {
   updateAdminCoin,
   updateCoinHeaderBanner,
 } from '@/app/admin/dashboard/actions';
-import {
-  bannerImageAssetOrigin,
-  isAllowedBannerImageUrl,
-} from '@/features/ads/banner-image-url';
+import { bannerImageAssetOrigin, isAllowedBannerImageUrl } from '@/features/ads/banner-image-url';
 import {
   BadgeCheck,
   ImageIcon,
@@ -26,11 +23,11 @@ import {
   Zap,
 } from 'lucide-react';
 import { useState } from 'react';
+import type { AdminCoinRow, AdminTablePagination, PopoverController } from '../types';
+import { labelize, todayUtcInputDate } from '../utils';
 import { CoinPageLinkAction, ConfirmAction, LogoUrlAction } from './admin-actions';
 import { AdminPanel } from './admin-panel';
 import { ActionGroup, StatusPill } from './admin-primitives';
-import type { AdminCoinRow, AdminTablePagination, PopoverController } from '../types';
-import { labelize, todayUtcInputDate } from '../utils';
 
 const emptyTableMessage = 'There is currently no items available to display.';
 const boostPackages = [
@@ -470,9 +467,11 @@ function VerificationAction({ row, popover }: { row: AdminCoinRow; popover: Popo
       popover={popover}
       popoverId={`coin-verification-${row.id}`}
       action={setCoinVerification}
-      title={verified ? 'Revoke coin verification?' : 'Mark coin as verified?'}
+      title={verified ? 'Mark coin as unverified?' : 'Mark coin as verified?'}
       tone={verified ? 'danger' : 'success'}
-      message={verified ? `Revoke ${row.name} verification status.` : `Verify ${row.name}?`}
+      message={
+        verified ? `Revoke ${row.name} verified status.` : `Grant ${row.name} a verified status.`
+      }
       fields={{ coinId: row.id, verified: String(!verified) }}
     >
       <BadgeCheck aria-hidden="true" />
