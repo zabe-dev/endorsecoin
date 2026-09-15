@@ -449,7 +449,7 @@ function HeaderBannerAction({ row, popover }: { row: AdminCoinRow; popover: Popo
             />
           </label>
           <small className="admin-banner-form-wide">
-            The recommended size for banner is 1200×400 pixels (3:1).
+            The recommended size for banner is 1000×250 pixels (4:1).
           </small>
         </div>
       }
