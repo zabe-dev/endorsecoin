@@ -449,7 +449,7 @@ export function CoinDetailPage({
         />
       </div>
 
-      {promotedRows.length > 0 && (
+      {!coin.isVerified && promotedRows.length > 0 && (
         <section className="promoted-section coin-promoted-section">
           <CoinTable
             className="promoted-table"
