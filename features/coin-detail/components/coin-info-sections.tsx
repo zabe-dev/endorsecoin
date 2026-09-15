@@ -17,7 +17,7 @@ export function CoinInfoSections({ coin }: { coin: CoinDetailView }) {
       </section>
 
       <section className="detail-card about-card">
-        <Heading kicker="DESCRIPTION" title={`What is ${coin.name}?`} />
+        <Heading kicker="DESCRIPTION" title={`What is ${coin.name} about?`} />
         <p>{coin.description || 'A coin description has not been provided yet.'}</p>
         <div className="tag-row">
           <span>{coin.category}</span>
