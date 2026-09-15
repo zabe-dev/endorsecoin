@@ -1314,14 +1314,16 @@ tbody tr:hover td {
   min-width: 0;
 }
 .coin-cell > div:last-child > a {
-  display: inline-flex;
+  display: inline-flex !important;
+  flex-direction: row;
   align-items: center;
   gap: 5px;
   max-width: 150px;
   min-width: 0;
 }
 .coin-name-static {
-  display: inline-flex;
+  display: inline-flex !important;
+  flex-direction: row;
   align-items: center;
   gap: 5px;
   max-width: 150px;
@@ -1339,12 +1341,17 @@ tbody tr:hover td {
   flex: 0 0 auto;
   width: 14px;
   height: 14px;
-  color: var(--lime);
+  max-width: 14px !important;
+  min-width: 14px;
+  color: var(--lime) !important;
+  font-size: 0 !important;
+  overflow: visible !important;
 }
-.coin-name-verified-badge svg {
+.coin-cell .coin-name-verified-badge svg {
   display: block;
   width: 14px;
   height: 14px;
+  min-width: 14px;
   fill: currentColor;
   stroke: var(--ink);
 }
