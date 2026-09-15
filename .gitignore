@@ -35,3 +35,7 @@ yarn-error.log*
 *.tsbuildinfo
 /outputs/
 /work/
+
+# Birdeye generated data
+/scripts/birdeye/*
+!/scripts/birdeye/birdeye.py

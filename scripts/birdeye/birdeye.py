@@ -169,6 +169,7 @@ EXCLUDE_SYMBOLS = {
     "WEETH",
     "CBETH",
     "RETH",
+    "ALETH",  # Alchemix synthetic ETH-backed yield token
     "BNSOL",
     "JITOSOL",
     "CBBTC",  # Coinbase Wrapped BTC — real Coinbase product
@@ -609,6 +610,16 @@ CORPORATE_SUFFIX_PATTERN = re.compile(
 # stablecoins instead of ETH. Checked against a small core set, not all of
 # EXCLUDE_SYMBOLS, to avoid false-triggering on short/generic tickers.
 _STABLE_BASE_TICKERS = ("USDC", "USDT", "DAI", "USDE", "BUSD", "TUSD")
+_DERIVATIVE_BASE_TICKERS = (
+    "ETH",
+    "BTC",
+    "SOL",
+    "BNB",
+    "AVAX",
+    "MATIC",
+    "ARB",
+    "OP",
+)
 
 
 def is_stablecoin_derivative(symbol):
@@ -624,6 +635,18 @@ def is_stablecoin_derivative(symbol):
         if sym.endswith(base) and sym != base:
             return True
     return False
+
+
+def is_base_asset_derivative(symbol):
+    """Reject synthetic, wrapped, staked, or yield products named after majors.
+
+    The name-denylist catches explicit product wording. This catches compact
+    tickers such as ALETH, WBTC, and BETH without denying the base ticker.
+    """
+    if not symbol:
+        return False
+    sym = symbol.strip().upper()
+    return any(sym.endswith(base) and sym != base for base in _DERIVATIVE_BASE_TICKERS)
 
 
 # Escape hatch: anything listed here is kept even if the heuristic tier
@@ -741,8 +764,12 @@ def denial_reason(name, symbol, strict=True):
         return "name-spam"
     if is_junk_name(name):
         return "junk-name"
+    if has_emoji(name, symbol):
+        return "emoji-in-name-or-symbol"
     if is_stablecoin_derivative(symbol):
         return "stablecoin-derivative"
+    if is_base_asset_derivative(symbol):
+        return "base-asset-derivative"
     if strict:
         reason = heuristic_reason(name, symbol)
         if reason:
@@ -791,6 +818,36 @@ EXACT_JUNK_NAMES = {
 
 def is_junk_name(name):
     return bool(name) and name.strip().lower() in EXACT_JUNK_NAMES
+
+
+# Emoji in the name or symbol. Legitimate community tokens occasionally use
+# a single decorative emoji, but a real project doesn't need one to be
+# identifiable — its actual signal here is "spam/shitcoin trying to catch
+# the eye in a trending list" (🎯🔥😹🎒, etc.), the same pattern as
+# is_name_spam/is_junk_name above: an objective, non-judgment-call signal,
+# so this runs unconditionally rather than only under --lenient's opposite
+# (strict) tier. Ranges cover the actual emoji blocks (pictographs, misc
+# symbols, dingbats, misc symbols-and-arrows, misc technical, playing
+# cards/mahjong, plus the variation-selector-16 and ZWJ used to join
+# multi-codepoint emoji) and deliberately exclude general punctuation
+# (U+2000-206F) and geometric shapes (U+25A0-25FF), which would otherwise
+# false-positive on ordinary dashes/quotes and on shape glyphs that aren't
+# actually used as emoji.
+EMOJI_PATTERN = re.compile(
+    "["
+    "\U0001F000-\U0001FAFF"  # emoticons, pictographs, transport, supplemental, mahjong/cards
+    "\U00002600-\U000027BF"  # misc symbols + dingbats
+    "\U00002B00-\U00002BFF"  # misc symbols and arrows (\u2b50 etc.)
+    "\U00002300-\U000023FF"  # misc technical (\u23f0 etc.)
+    "\U0000FE0F"  # variation selector-16 (forces emoji presentation)
+    "\U0000200D"  # zero-width joiner (combines multi-part emoji)
+    "]",
+    flags=re.UNICODE,
+)
+
+
+def has_emoji(name, symbol):
+    return bool((name and EMOJI_PATTERN.search(name)) or (symbol and EMOJI_PATTERN.search(symbol)))
 
 
 # ---------------------------------------------------------------------------

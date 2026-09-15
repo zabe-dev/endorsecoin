@@ -1,22 +1,12 @@
 #!/usr/bin/env node
 
 /**
- * Imports CSV-selected, new-popular, random, or explicitly requested tokens into EndorseCoin.
+ * Imports CSV-selected tokens into EndorseCoin.
  *
  * Usage:
  *   npm run import:mobula
- *   npm run import:mobula -- 10000
- *   npm run import:mobula -- --limit=150
- *   npm run import:mobula:random
- *   npm run import:mobula -- --random --limit=150
- *   npm run import:mobula -- --contract=ethereum:<contract-address>
- *   npm run import:mobula -- --contracts=ethereum:<address>,bsc:<address>
- *   npm run import:mobula -- --contract-maps='[{"chain":"ethereum","address":"0x..."},{"chain":"bsc","address":"0x..."}]'
- *   npm run import:mobula -- --contract-map='{"ethereum":["0x..."],"bsc":"0x..."}'
- *   npm run import:mobula -- --contracts-file=./contracts.json
- *   npm run import:mobula -- --csv=./trending_tokens_master.csv
- *   npm run import:mobula -- --chain=hood --dry-run
- *   npm run import:mobula -- --chain=tron --contract=<contract-address>
+ *   npm run import:mobula -- --csv=scripts/birdeye/trending_tokens_master.csv
+ *   npm run import:mobula -- --limit=10
  *   npm run import:mobula -- --dry-run
  *   npm run import:mobula -- --dry-run --debug
  *   npm run import:mobula -- --geckoterminal-batch-size=30
@@ -79,10 +69,13 @@ const mobulaAssetBlockchains = {
   ethereum: 'ethereum',
   bsc: 'bsc',
   polygon: 'polygon',
+  avalanche: 'avalanche',
   arbitrum: 'arbitrum',
   base: 'base',
+  optimism: 'evm:10',
   hood: 'Robinhood Chain',
   solana: 'solana',
+  sui: 'sui',
   tron: 'tron',
 };
 
@@ -90,31 +83,27 @@ const mobulaMetadataBlockchains = {
   ethereum: '1',
   bsc: '56',
   polygon: '137',
+  avalanche: '43114',
   arbitrum: '42161',
   base: '8453',
+  optimism: '10',
   hood: '4663',
   solana: 'solana',
+  sui: 'sui',
   tron: 'tron',
-};
-
-const mobulaMarketBlockchains = {
-  ethereum: 'ethereum',
-  bsc: 'bsc',
-  polygon: 'polygon',
-  arbitrum: 'arbitrum',
-  base: 'base',
-  hood: 'Robinhood Chain',
-  solana: 'solana',
 };
 
 const mobulaMarketSourceIds = {
   ethereum: 'evm:1',
   bsc: 'evm:56',
   polygon: 'evm:137',
+  avalanche: 'evm:43114',
   arbitrum: 'evm:42161',
   base: 'evm:8453',
+  optimism: 'evm:10',
   hood: 'evm:4663',
   solana: 'solana:solana',
+  sui: 'sui:sui',
   tron: 'tron:728126428',
 };
 
@@ -126,14 +115,17 @@ const dexSwapUrlBuilders = {
   hood: (address) => `https://app.uniswap.org/swap?outputCurrency=${address}`,
   bsc: (address) => `https://pancakeswap.finance/swap?outputCurrency=${address}`,
   polygon: (address) => `https://dapp.quickswap.exchange/swap?type=best&to=${address}`,
+  sui: (address) => `https://app.cetus.zone/swap?to=${address}`,
 };
 
 const chartUrlBuilders = {
   ethereum: (address) => `https://dexscreener.com/ethereum/${address}`,
   bsc: (address) => `https://dexscreener.com/bsc/${address}`,
   polygon: (address) => `https://dexscreener.com/polygon/${address}`,
+  avalanche: (address) => `https://dexscreener.com/avalanche/${address}`,
   arbitrum: (address) => `https://dexscreener.com/arbitrum/${address}`,
   base: (address) => `https://dexscreener.com/base/${address}`,
+  optimism: (address) => `https://dexscreener.com/optimism/${address}`,
   hood: (address) => `https://dexscreener.com/robinhood/${address}`,
   solana: (address) => `https://dexscreener.com/solana/${address}`,
   tron: (address) => `https://dexscreener.com/tron/${address}`,
@@ -150,7 +142,10 @@ const supportedExchangeMatchers = {
   hood: [/uniswap/i],
   bsc: [/pancakeswap/i],
   polygon: [/quickswap/i],
+  avalanche: [],
+  optimism: [],
   solana: [/raydium/i],
+  sui: [/cetus/i],
   tron: [],
 };
 
@@ -384,15 +379,15 @@ const categoryKeywordMap = {
 };
 
 function parseImporterOptions(values) {
-  const csvPath = readArgValue(values, '--csv');
+  const csvPath = readArgValue(values, '--csv') || 'scripts/birdeye/trending_tokens_master.csv';
   const detailsBatchSize = Math.min(
     readPositiveInteger(readArgValue(values, '--details-batch-size'), 10),
     10,
   );
 
   return Object.freeze({
-    mode: 'csv',
     csvPath,
+    limit: readPositiveInteger(readArgValue(values, '--limit'), 0),
     dryRun: values.includes('--dry-run'),
     debug: values.includes('--debug'),
     detailsBatchSize,
@@ -400,7 +395,6 @@ function parseImporterOptions(values) {
       readArgValue(values, '--market-batch-size'),
       detailsBatchSize,
     ),
-    excludeTopRank: readPositiveInteger(readArgValue(values, '--exclude-top-rank'), 150),
     skipR2LogoUpload: values.includes('--skip-r2-logo-upload'),
     geckoTerminalBatchSize: Math.min(
       readPositiveInteger(readArgValue(values, '--geckoterminal-batch-size'), 30),
@@ -416,9 +410,11 @@ function normalizeImportChain(value) {
   if (!normalized) return '';
 
   if (normalized === 'eth') return 'ethereum';
-  if (normalized === 'bnb') return 'bsc';
+  if (['bnb', 'bnb smart chain', 'binance smart chain'].includes(normalized)) return 'bsc';
   if (normalized === 'matic') return 'polygon';
   if (normalized === 'arb') return 'arbitrum';
+  if (['avax', 'avalanche c-chain'].includes(normalized)) return 'avalanche';
+  if (['op', 'optimistic ethereum'].includes(normalized)) return 'optimism';
   if (normalized === 'robinhood') return 'hood';
   if (normalized === 'trx') return 'tron';
 
@@ -429,7 +425,11 @@ function normalizeImportAddress(chain, value) {
   const address = String(value || '').trim();
   if (!address) return '';
 
-  if (['ethereum', 'bsc', 'polygon', 'arbitrum', 'base', 'hood'].includes(chain)) {
+  if (
+    ['ethereum', 'bsc', 'polygon', 'avalanche', 'arbitrum', 'base', 'optimism', 'hood'].includes(
+      chain,
+    )
+  ) {
     return /^0x[a-fA-F0-9]{40}$/.test(address) ? address.toLowerCase() : '';
   }
 
@@ -439,6 +439,11 @@ function normalizeImportAddress(chain, value) {
 
   if (chain === 'tron') {
     return /^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(address) ? address : '';
+  }
+
+  if (chain === 'sui') {
+    const packageId = address.match(/^0x[a-fA-F0-9]{64}/)?.[0] || '';
+    return packageId ? packageId.toLowerCase() : '';
   }
 
   return '';
@@ -448,7 +453,11 @@ function normalizeChartPairAddress(chain, value) {
   const address = String(value || '').trim();
   if (!address) return '';
 
-  if (['ethereum', 'bsc', 'polygon', 'arbitrum', 'base', 'hood'].includes(chain)) {
+  if (
+    ['ethereum', 'bsc', 'polygon', 'avalanche', 'arbitrum', 'base', 'optimism', 'hood'].includes(
+      chain,
+    )
+  ) {
     return /^0x[a-fA-F0-9]{40}$/.test(address) ? address.toLowerCase() : '';
   }
 
@@ -458,6 +467,11 @@ function normalizeChartPairAddress(chain, value) {
 
   if (chain === 'tron') {
     return /^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(address) ? address : '';
+  }
+
+  if (chain === 'sui') {
+    const packageId = address.match(/^0x[a-fA-F0-9]{64}/)?.[0] || '';
+    return packageId ? packageId.toLowerCase() : '';
   }
 
   return '';
@@ -857,7 +871,9 @@ async function enrichTokensWithGeckoTerminalMarketDetails(tokens) {
 async function enrichTokensWithMobulaMarketDetails(tokens) {
   if (!tokens.length) return tokens;
 
-  const usableTokens = tokens.filter((token) => mobulaMarketBlockchains[token.contract.chain]);
+  const usableTokens = tokens.filter(
+    (token) => token.contract.chain !== 'tron' && mobulaMarketSourceIds[token.contract.chain],
+  );
   const skippedCount = tokens.length - usableTokens.length;
 
   if (!usableTokens.length) {
@@ -1218,11 +1234,12 @@ async function fetchMobulaMetadataBatch(tokens) {
 }
 
 async function fetchMobulaMarketDetails(token) {
-  const blockchain = mobulaMarketBlockchains[token.contract.chain];
+  const blockchain =
+    token.contract.chain === 'tron' ? '' : mobulaMarketSourceIds[token.contract.chain];
   if (!blockchain) return null;
 
   const url = new URL(MOBULA_MARKET_DETAILS_URL);
-  url.searchParams.set('blockchain', blockchain);
+  url.searchParams.set('chainId', blockchain);
   url.searchParams.set('address', token.contract.address);
 
   try {
@@ -1256,7 +1273,7 @@ async function fetchMobulaMarketDetails(token) {
 async function fetchMobulaMarketDetailsBatch(tokens) {
   const body = {
     items: tokens.map((token) => ({
-      blockchain: mobulaMarketBlockchains[token.contract.chain],
+      chainId: mobulaMarketSourceIds[token.contract.chain],
       address: token.contract.address,
     })),
   };
@@ -1430,11 +1447,15 @@ function applyMobulaMarketDetails(token, details) {
 }
 
 async function fetchMobulaAssetDetailsBatch(tokens) {
-  const body = tokens.map((token) => ({
-    blockchain: mobulaAssetBlockchains[token.contract.chain] || token.contract.blockchain,
+  const supportedTokens = tokens.filter((token) => mobulaAssetBlockchains[token.contract.chain]);
+  const detailsByToken = new Map();
+  const body = supportedTokens.map((token) => ({
+    blockchain: mobulaAssetBlockchains[token.contract.chain],
     address: token.contract.address,
     tokensLimit: 1,
   }));
+
+  if (!supportedTokens.length) return tokens.map(() => null);
 
   try {
     const response = await fetch(MOBULA_DETAILS_URL, {
@@ -1464,8 +1485,9 @@ async function fetchMobulaAssetDetailsBatch(tokens) {
           ? json.data.payload
           : [];
 
-    if (!Array.isArray(payload)) return [];
-    return payload;
+    if (!Array.isArray(payload)) return tokens.map(() => null);
+    supportedTokens.forEach((token, index) => detailsByToken.set(token, payload[index] || null));
+    return tokens.map((token) => detailsByToken.get(token) || null);
   } catch (error) {
     console.warn(
       `Mobula details batch failed; selected tokens will keep any list-level date data. ${
@@ -1473,7 +1495,9 @@ async function fetchMobulaAssetDetailsBatch(tokens) {
       }`,
     );
     if (options.debug) console.warn(error);
-    return fetchMobulaAssetDetailsIndividually(tokens);
+    const details = await fetchMobulaAssetDetailsIndividually(supportedTokens);
+    supportedTokens.forEach((token, index) => detailsByToken.set(token, details[index] || null));
+    return tokens.map((token) => detailsByToken.get(token) || null);
   }
 }
 
@@ -1484,7 +1508,7 @@ async function fetchMobulaAssetDetailsIndividually(tokens) {
     const url = new URL(MOBULA_DETAILS_URL);
     url.searchParams.set(
       'blockchain',
-      mobulaAssetBlockchains[token.contract.chain] || token.contract.blockchain,
+      mobulaAssetBlockchains[token.contract.chain],
     );
     url.searchParams.set('address', token.contract.address);
     url.searchParams.set('tokensLimit', '1');
@@ -1667,10 +1691,8 @@ async function upsertToken(token, slug) {
   if (!db) throw new Error('DATABASE_URL is required.');
 
   return db.begin(async (tx) => {
-    if (options.mode === 'csv') {
-      const identity = contractKey(token.contract.chain, token.contract.address);
-      await tx`select pg_advisory_xact_lock(hashtextextended(${identity}, 0))`;
-    }
+    const identity = contractKey(token.contract.chain, token.contract.address);
+    await tx`select pg_advisory_xact_lock(hashtextextended(${identity}, 0))`;
     const existing = await tx`
       select id
       from coins
@@ -1678,7 +1700,7 @@ async function upsertToken(token, slug) {
         and lower(contract_address) = lower(${token.contract.address})
       limit 1
     `;
-    if (options.mode === 'csv' && existing.length) return false;
+    if (existing.length) return false;
 
     const logoUrl = await resolveLogoUrl(token);
     const coinId = existing[0]?.id || (await readNextCoinId(tx));
@@ -2490,25 +2512,6 @@ function readPositiveInteger(value, fallback) {
   return Number.isSafeInteger(number) && number > 0 ? number : fallback;
 }
 
-async function loadImportCandidates() {
-  return { candidates: loadCsvImportTokens(options.csvPath) };
-}
-
-function selectImportTokens(candidatePool) {
-  const activeChainKeys = [...new Set(candidatePool.map((token) => token.contract.chain))];
-  return {
-    activeChainKeys,
-    perChainCount: Object.fromEntries(
-      activeChainKeys.map((chain) => [
-        chain,
-        candidatePool.filter((token) => token.contract.chain === chain).length,
-      ]),
-    ),
-    selectionTarget: candidatePool.length,
-    tokens: candidatePool,
-  };
-}
-
 async function enrichAndSelectSaneTokens(tokens) {
   await enrichTokensWithMobulaDetails(tokens);
   await enrichTokensWithMobulaMetadata(tokens);
@@ -2516,17 +2519,7 @@ async function enrichAndSelectSaneTokens(tokens) {
   await enrichTokensWithMobulaMarketDetails(tokens);
   await enrichTokensWithGeckoTerminalMarketDetails(tokens);
 
-  let enrichedTokens = tokens;
-  if (options.mode === 'new-popular') {
-    const enrichedCount = enrichedTokens.length;
-    enrichedTokens = enrichedTokens
-      .filter(isNewPopularToken)
-      .sort(compareNewPopularTokens)
-      .slice(0, options.targetCount);
-    log(
-      `Final selection: ${enrichedTokens.length}/${options.targetCount} tokens kept from ${enrichedCount} checked`,
-    );
-  }
+  const enrichedTokens = tokens;
 
   const saneTokens = enrichedTokens.filter(hasSaneImportMarketValues);
   const suspiciousTokens = enrichedTokens.filter((token) => !hasSaneImportMarketValues(token));
@@ -2558,7 +2551,8 @@ function logImportPlan({ tokens, selectionTarget, activeChainKeys, perChainCount
   log('Filters: skip existing contracts and duplicate addresses');
 
   log(`Chains: ${activeChainKeys.map((chain) => `${chain}=${perChainCount[chain]}`).join(', ')}`);
-  log('Chart and DEX links will be added only when market data confirms a usable route.');
+  log('Stored chart/DEX links require confirmed market data; app may provide chain defaults.');
+  log('Stored DEX links are added only when Mobula confirms a route.');
 }
 
 async function main() {
@@ -2573,17 +2567,29 @@ async function main() {
     log('No database configured for this dry run, so existing imported coins cannot be filtered.');
   }
 
-  const { candidates } = await loadImportCandidates();
+  const candidates = loadCsvImportTokens(options.csvPath);
   const freshResult = filterNewTokens(candidates, existingState);
-  const candidatePool = freshResult.freshTokens;
-  const { activeChainKeys, perChainCount, selectionTarget, tokens } =
-    selectImportTokens(candidatePool);
-
-  log(
-    `CSV: ${candidates.length} rows → ${freshResult.freshTokens.length} new candidates; skipped existing ${freshResult.skippedExisting}, batch dupes ${freshResult.skippedBatchDuplicate}.`,
+  const tokens = options.limit
+    ? freshResult.freshTokens.slice(0, options.limit)
+    : freshResult.freshTokens;
+  const activeChainKeys = [...new Set(tokens.map((token) => token.contract.chain))];
+  const perChainCount = Object.fromEntries(
+    activeChainKeys.map((chain) => [
+      chain,
+      tokens.filter((token) => token.contract.chain === chain).length,
+    ]),
   );
 
-  logImportPlan({ tokens, selectionTarget, activeChainKeys, perChainCount });
+  log(
+    `CSV: ${candidates.length} rows, ${tokens.length} selected tokens; skipped existing ${freshResult.skippedExisting}, batch duplicates ${freshResult.skippedBatchDuplicate}.`,
+  );
+
+  logImportPlan({
+    tokens,
+    selectionTarget: candidates.length,
+    activeChainKeys,
+    perChainCount,
+  });
 
   const { saneTokens, suspiciousTokens, tokenCount } = await enrichAndSelectSaneTokens(tokens);
 
