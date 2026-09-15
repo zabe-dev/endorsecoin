@@ -2,6 +2,7 @@
 /* eslint-disable @next/next/no-img-element -- Project logos can come from submitted URLs later. */
 
 import { formatVotes, type CoinListItem as Coin } from '@/features/coins/view';
+import { ArrowDownRight, ArrowUpRight } from 'lucide-react';
 import Link from 'next/link';
 import { BoltIcon, DiscoveryIcon } from './icons';
 
@@ -102,10 +103,14 @@ function Metric({
           : formatVotes(coin.votes);
     const label = metric === 'watchlist' ? 'watchlists' : metric === 'trend' ? '24h' : 'total votes';
     const valueClass = metric === 'trend' ? (coin.change >= 0 ? 'positive' : 'negative') : undefined;
+    const TrendIcon = coin.change >= 0 ? ArrowUpRight : ArrowDownRight;
 
     return (
       <strong className={`mini-coin-metric mini-coin-votes metric-${metric}`}>
-        <b className={valueClass}>{value}</b>
+        <b className={valueClass}>
+          {metric === 'trend' && <TrendIcon aria-hidden="true" />}
+          {value}
+        </b>
         <span>{label}</span>
       </strong>
     );
