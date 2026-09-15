@@ -1424,7 +1424,157 @@
 .market-page .site-footer-inner {
   width: min(1320px, calc(100% - 40px));
   max-width: none;
-  padding: 30px 24px 38px;
+  padding: 48px 24px 24px;
+  grid-template-columns: minmax(240px, 1fr) auto;
+  align-items: start;
+  column-gap: 80px;
+  row-gap: 42px;
+}
+.market-page .site-footer-branding {
+  align-content: start;
+  gap: 16px;
+}
+.market-page .site-footer-branding .brand {
+  margin-bottom: 2px;
+}
+.market-page .site-footer-tagline {
+  max-width: 390px;
+  color: #9aa4ab;
+  font-size: 12px;
+  line-height: 1.7;
+  white-space: normal;
+}
+.site-footer-brand-socials {
+  display: grid;
+  grid-auto-flow: column;
+  align-items: center;
+  justify-content: start;
+  gap: 14px;
+}
+.site-footer-brand-socials span {
+  color: #9aa4ab;
+  font-size: 11px;
+}
+.site-footer-brand-socials a {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  color: #9aa4ab;
+  transition: color 0.18s ease;
+}
+.site-footer-brand-socials a:hover {
+  color: var(--lime);
+}
+.site-footer-brand-socials svg {
+  width: 17px;
+  height: 17px;
+}
+.site-footer-mobile-meta {
+  display: none;
+}
+.site-footer-columns {
+  width: fit-content;
+  max-width: 100%;
+  grid-template-columns: repeat(4, minmax(112px, 160px));
+  gap: 24px;
+  justify-content: start;
+}
+.market-page .site-footer-column {
+  gap: 9px;
+}
+.market-page .site-footer-column > span:first-child {
+  color: var(--copy);
+  font-size: 13px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.market-page .site-footer-column a {
+  gap: 6px;
+  color: #9aa4ab;
+  font-size: 12px;
+  transition: color 0.18s ease;
+}
+.market-page .site-footer-column a:hover {
+  color: var(--lime);
+}
+.market-page .site-footer-column svg {
+  width: 15px;
+  height: 15px;
+}
+.site-footer-bottom {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 16px;
+  border-top: 1px solid #263038;
+  padding-top: 18px;
+  color: #68727a;
+  font-size: 10px;
+}
+.site-footer-bottom span {
+  display: block;
+}
+.site-footer-bottom nav {
+  display: grid;
+  grid-auto-flow: column;
+  align-items: center;
+  gap: 14px;
+}
+.site-footer-bottom a {
+  color: inherit !important;
+  font-size: inherit !important;
+}
+.site-footer-bottom > span:last-child {
+  justify-self: end;
+  text-align: right;
+}
+@media (max-width: 1050px) {
+  .market-page .site-footer-inner {
+    grid-template-columns: 1fr;
+    gap: 30px;
+  }
+  .market-page .site-footer-branding {
+    order: 2;
+  }
+  .market-page .site-footer-tagline {
+    display: block;
+    order: 2;
+  }
+  .site-footer-mobile-meta {
+    display: grid;
+    order: 4;
+    gap: 8px;
+    max-width: 420px;
+    color: #68727a;
+    font-size: 10px;
+    line-height: 1.6;
+  }
+  .site-footer-mobile-meta a {
+    color: inherit !important;
+    font-size: inherit !important;
+  }
+  .site-footer-columns {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .site-footer-brand-socials {
+    order: 3;
+  }
+  .site-footer-bottom {
+    display: none;
+    grid-template-columns: 1fr;
+    align-items: flex-start;
+  }
+  .site-footer-bottom > span:last-child {
+    justify-self: start;
+    text-align: left;
+  }
+}
+@media (max-width: 430px) {
+  .site-footer-columns {
+    grid-template-columns: 1fr;
+  }
 }
 .market-page .site-footer-inner a:not(.brand) {
   display: inline-flex;
