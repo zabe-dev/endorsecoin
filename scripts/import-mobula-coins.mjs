@@ -1506,10 +1506,7 @@ async function fetchMobulaAssetDetailsIndividually(tokens) {
 
   for (const token of tokens) {
     const url = new URL(MOBULA_DETAILS_URL);
-    url.searchParams.set(
-      'blockchain',
-      mobulaAssetBlockchains[token.contract.chain],
-    );
+    url.searchParams.set('blockchain', mobulaAssetBlockchains[token.contract.chain]);
     url.searchParams.set('address', token.contract.address);
     url.searchParams.set('tokensLimit', '1');
 
@@ -1705,7 +1702,7 @@ async function upsertToken(token, slug) {
     const logoUrl = await resolveLogoUrl(token);
     const coinId = existing[0]?.id || (await readNextCoinId(tx));
     const now = new Date();
-    const submittedAt = randomSubmittedAt(now);
+    const submittedAt = randomSubmittedAt(now, token.launchDate);
 
     await tx`
       insert into coins (
@@ -1771,8 +1768,12 @@ async function resolveLogoUrl(token) {
   }
 }
 
-function randomSubmittedAt(now) {
-  const earliest = Math.min(IMPORT_SUBMITTED_AT_START.getTime(), now.getTime());
+function randomSubmittedAt(now, launchDate) {
+  const lowerBounds = [IMPORT_SUBMITTED_AT_START.getTime()];
+  if (launchDate instanceof Date && !Number.isNaN(launchDate.getTime())) {
+    lowerBounds.push(launchDate.getTime());
+  }
+  const earliest = Math.max(...lowerBounds);
   const latest = now.getTime();
 
   if (earliest >= latest) return new Date(latest);
