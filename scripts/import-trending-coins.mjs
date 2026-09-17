@@ -205,7 +205,7 @@ class TrendingCoinImporter {
         failed += 1;
         if (isLogoMirrorError(error)) {
           console.warn(`Skipping ${token.symbol} [${token.contract.chain}]: logo unavailable.`);
-          console.warn(`  Reason: ${error.message}`);
+          console.warn(`  - Reason: ${error.message}`);
         } else {
           console.error(`Failed to import ${token.symbol} [${token.contract.chain}]:`, error);
         }
