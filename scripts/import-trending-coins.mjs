@@ -2872,6 +2872,45 @@ function readPositiveInteger(value, fallback) {
   return Number.isSafeInteger(number) && number > 0 ? number : fallback;
 }
 
+function needsFinalMarketEnrichment(token) {
+  return (
+    !Number.isFinite(token.price) ||
+    (!Number.isFinite(token.marketCap) && !Number.isFinite(token.fdv)) ||
+    (!Number.isFinite(token.liquidity) && !Number.isFinite(token.volume))
+  );
+}
+
+function hasRequiredImportMarketValues(token) {
+  return (
+    Number.isFinite(token.price) &&
+    token.price > 0 &&
+    (Number.isFinite(token.marketCap) || Number.isFinite(token.fdv)) &&
+    (Number.isFinite(token.liquidity) || Number.isFinite(token.volume))
+  );
+}
+
+async function runFinalEnrichmentAttempt(tokens) {
+  const candidates = tokens.filter(needsFinalMarketEnrichment);
+  if (!candidates.length) return tokens;
+
+  logSection(`Final market enrichment attempt - ${candidates.length} coin(s)`);
+  await enrichTokensWithMobulaMarketDetails(candidates);
+  await enrichTokensWithGeckoTerminalMarketDetails(candidates);
+  await enrichTokensWithDexScreenerDetails(candidates);
+
+  const unresolved = candidates.filter((token) => !hasRequiredImportMarketValues(token));
+  if (unresolved.length) {
+    console.warn(
+      `Skipping ${unresolved.length} coin(s) after final enrichment; required market data is still missing: ${unresolved
+        .slice(0, 12)
+        .map((token) => `${token.symbol} [${token.contract.chain}]`)
+        .join(', ')}${unresolved.length > 12 ? ', more' : ''}`,
+    );
+  }
+
+  return tokens;
+}
+
 async function enrichAndSelectSaneTokens(tokens) {
   await enrichTokensWithMobulaDetails(tokens);
   await enrichTokensWithMobulaMetadata(tokens);
@@ -2879,14 +2918,19 @@ async function enrichAndSelectSaneTokens(tokens) {
   await enrichTokensWithMobulaMarketDetails(tokens);
   await enrichTokensWithGeckoTerminalMarketDetails(tokens);
   await enrichTokensWithDexScreenerDetails(tokens);
+  await runFinalEnrichmentAttempt(tokens);
 
   const enrichedTokens = tokens;
 
-  const saneTokens = enrichedTokens.filter(hasSaneImportMarketValues);
-  const suspiciousTokens = enrichedTokens.filter((token) => !hasSaneImportMarketValues(token));
+  const saneTokens = enrichedTokens.filter(
+    (token) => hasSaneImportMarketValues(token) && hasRequiredImportMarketValues(token),
+  );
+  const suspiciousTokens = enrichedTokens.filter(
+    (token) => !hasSaneImportMarketValues(token) || !hasRequiredImportMarketValues(token),
+  );
   if (suspiciousTokens.length) {
     console.warn(
-      `Skipping ${suspiciousTokens.length} suspicious coin(s) with impossible market values: ${suspiciousTokens
+      `Skipping ${suspiciousTokens.length} coin(s) after enrichment validation: ${suspiciousTokens
         .slice(0, 12)
         .map(
           (token) =>
