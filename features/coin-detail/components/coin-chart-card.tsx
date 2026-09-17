@@ -91,7 +91,6 @@ function dexProviderName(provider: string, network: CanonicalCoin['network']) {
   if (network === 'bsc') return 'PancakeSwap';
   if (network === 'solana') return 'Raydium';
   if (network === 'polygon') return 'QuickSwap';
-  if (network === 'kcc') return 'MojitoSwap';
   if (network === 'sui') return 'Cetus';
   if (network === 'tron') return 'Rubic';
   return 'DEX';

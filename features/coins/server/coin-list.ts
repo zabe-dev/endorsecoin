@@ -647,7 +647,6 @@ const mobulaChartChainIds: Partial<Record<NetworkId, string>> = {
   base: 'evm:8453',
   optimism: 'evm:10',
   fantom: 'evm:250',
-  kcc: 'evm:321',
   hood: 'evm:4663',
   solana: 'solana:solana',
   sui: 'sui:sui',
@@ -662,10 +661,8 @@ const dexscreenerChainIds: Partial<Record<NetworkId, string>> = {
   arbitrum: 'arbitrum',
   base: 'base',
   optimism: 'optimism',
-  dogecoin: 'dogechain',
   tron: 'tron',
   fantom: 'fantom',
-  kcc: 'kcc',
   sui: 'sui',
   hood: 'robinhood',
   xrpl: 'xrpl',
@@ -681,7 +678,6 @@ const geckoTerminalChainIds: Partial<Record<NetworkId, string>> = {
   base: 'base',
   optimism: 'optimism',
   fantom: 'ftm',
-  kcc: 'kcc',
   tron: 'tron',
   sui: 'sui-network',
 };
@@ -779,10 +775,6 @@ function buildDefaultDexUrl(network: NetworkId, contractAddress: string) {
     return `https://dapp.quickswap.exchange/swap?type=best&to=${encodeURIComponent(contractAddress)}`;
   }
 
-  if (network === 'kcc') {
-    return `https://app.mojitoswap.finance/swap?outputCurrency=${encodeURIComponent(contractAddress)}`;
-  }
-
   if (network === 'sui') {
     return `https://app.cetus.zone/swap?to=${encodeURIComponent(contractAddress)}`;
   }
@@ -809,7 +801,6 @@ function inferDexProviderFromNetwork(network: NetworkId): DexProvider {
   if (network === 'bsc') return 'pancakeswap';
   if (network === 'solana') return 'raydium';
   if (network === 'polygon') return 'quickswap';
-  if (network === 'kcc') return 'mojitoswap';
   if (network === 'sui') return 'cetus';
   return 'custom';
 }

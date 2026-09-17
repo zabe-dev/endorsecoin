@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Imports ds.py-selected tokens into EndorseCoin.
+ * Imports trending.py-selected tokens into EndorseCoin.
  *
  * Usage:
  *   npm run dev:import:trending
@@ -33,7 +33,12 @@ const MOBULA_MARKET_DETAILS_URL = 'https://api.mobula.io/api/2/market/details';
 const GECKOTERMINAL_API_BASE_URL = trimTrailingSlash(
   process.env.GECKOTERMINAL_API_BASE_URL || 'https://api.geckoterminal.com',
 );
-const GECKOTERMINAL_TRON_NETWORK = 'tron';
+const geckoTerminalNetworks = {
+  tron: 'tron',
+  sui: 'sui-network',
+  fantom: 'ftm',
+  xrpl: 'xrpl',
+};
 const GECKOTERMINAL_REQUEST_SPACING_MS = Math.max(
   6100,
   readPositiveInteger(process.env.GECKOTERMINAL_REQUEST_SPACING_MS, 6100),
@@ -63,6 +68,8 @@ const dexScreenerChainIds = {
   solana: 'solana',
   sui: 'sui',
   tron: 'tron',
+  fantom: 'fantom',
+  xrpl: 'xrpl',
 };
 
 if (!DATABASE_URL && !options.dryRun) {
@@ -137,7 +144,7 @@ class TrendingCoinImporter {
 
     const input = this.source.loadTokens();
     log(
-      `Loaded ${input.tokens.length} ds.py coin(s) from the source file. ` +
+      `Loaded ${input.tokens.length} trending.py coin(s) from the source file. ` +
         `Removed ${input.duplicateRows} duplicate row(s); skipped ${input.invalidRows} invalid row(s).`,
     );
 
@@ -283,13 +290,11 @@ const chartUrlBuilders = {
   arbitrum: (address) => `https://dexscreener.com/arbitrum/${address}`,
   base: (address) => `https://dexscreener.com/base/${address}`,
   optimism: (address) => `https://dexscreener.com/optimism/${address}`,
+  fantom: (address) => `https://dexscreener.com/fantom/${address}`,
   hood: (address) => `https://dexscreener.com/robinhood/${address}`,
   solana: (address) => `https://dexscreener.com/solana/${address}`,
   tron: (address) => `https://dexscreener.com/tron/${address}`,
-};
-
-const geckoTerminalChartUrlBuilders = {
-  tron: (poolAddress) => `https://www.geckoterminal.com/tron/pools/${poolAddress}`,
+  xrpl: (address) => `https://dexscreener.com/xrpl/${address}`,
 };
 
 const supportedExchangeMatchers = {
@@ -380,7 +385,6 @@ const categoryKeywordMap = {
     medium: [
       'meme',
       'pepe',
-      'doge',
       'shib',
       'shiba',
       'inu',
@@ -576,6 +580,7 @@ function normalizeImportChain(value) {
   if (['op', 'optimistic ethereum'].includes(normalized)) return 'optimism';
   if (normalized === 'robinhood') return 'hood';
   if (normalized === 'trx') return 'tron';
+  if (normalized === 'xrp' || normalized === 'xrp ledger') return 'xrpl';
 
   return normalized;
 }
@@ -585,7 +590,17 @@ function normalizeImportAddress(chain, value) {
   if (!address) return '';
 
   if (
-    ['ethereum', 'bsc', 'polygon', 'avalanche', 'arbitrum', 'base', 'optimism', 'hood'].includes(
+    [
+      'ethereum',
+      'bsc',
+      'polygon',
+      'avalanche',
+      'arbitrum',
+      'base',
+      'optimism',
+      'fantom',
+      'hood',
+    ].includes(
       chain,
     )
   ) {
@@ -603,6 +618,12 @@ function normalizeImportAddress(chain, value) {
   if (chain === 'sui') {
     const packageId = address.match(/^0x[a-fA-F0-9]{64}/)?.[0] || '';
     return packageId ? packageId.toLowerCase() : '';
+  }
+
+  if (chain === 'xrpl') {
+    return /^(?:[A-Za-z0-9_-]{1,64}\.)?r[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(address)
+      ? address
+      : '';
   }
 
   return '';
@@ -613,7 +634,17 @@ function normalizeChartPairAddress(chain, value) {
   if (!address) return '';
 
   if (
-    ['ethereum', 'bsc', 'polygon', 'avalanche', 'arbitrum', 'base', 'optimism', 'hood'].includes(
+    [
+      'ethereum',
+      'bsc',
+      'polygon',
+      'avalanche',
+      'arbitrum',
+      'base',
+      'optimism',
+      'fantom',
+      'hood',
+    ].includes(
       chain,
     )
   ) {
@@ -631,6 +662,12 @@ function normalizeChartPairAddress(chain, value) {
   if (chain === 'sui') {
     const packageId = address.match(/^0x[a-fA-F0-9]{64}/)?.[0] || '';
     return packageId ? packageId.toLowerCase() : '';
+  }
+
+  if (chain === 'xrpl') {
+    return /^(?:[A-Za-z0-9_-]{1,64}\.)?r[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(address)
+      ? address
+      : '';
   }
 
   return '';
@@ -917,75 +954,92 @@ async function enrichTokensWithMobulaMetadata(tokens) {
 // is silently dropped.
 
 async function enrichTokensWithGeckoTerminalInfo(tokens) {
-  const tronTokens = tokens.filter(
-    (token) => token.contract.chain === 'tron' && needsGeckoTerminalInfo(token),
+  const geckoTokens = tokens.filter(
+    (token) => geckoTerminalNetworks[token.contract.chain] && needsGeckoTerminalInfo(token),
   );
-  if (!tronTokens.length) return tokens;
+  if (!geckoTokens.length) return tokens;
 
   logSection(
-    `TRON enrichment: GeckoTerminal coin info - ${tronTokens.length} coin(s) missing profile data, 1 request each`,
+    `GeckoTerminal coin info - ${geckoTokens.length} coin(s) missing profile data, 1 request each`,
   );
 
   let enrichedCount = 0;
   const phaseStartedAt = Date.now();
 
-  for (let index = 0; index < tronTokens.length; index += 1) {
-    const token = tronTokens[index];
-    const info = await fetchGeckoTerminalTokenInfo(token.contract.address);
+  for (let index = 0; index < geckoTokens.length; index += 1) {
+    const token = geckoTokens[index];
+    const info = await fetchGeckoTerminalTokenInfo(
+      geckoTerminalNetworks[token.contract.chain],
+      token.contract.address,
+    );
     if (info && applyGeckoTerminalTokenInfo(token, info)) enrichedCount += 1;
 
     logBatchProgress(
       'GeckoTerminal info',
       index + 1,
-      tronTokens.length,
+      geckoTokens.length,
       index + 1,
-      tronTokens.length,
+      geckoTokens.length,
       phaseStartedAt,
     );
   }
 
   log(
-    `TRON enrichment done: applied GeckoTerminal info to ${enrichedCount}/${tronTokens.length} coin(s) in ${formatDuration(Date.now() - phaseStartedAt)}.`,
+    `GeckoTerminal enrichment done: applied coin info to ${enrichedCount}/${geckoTokens.length} coin(s) in ${formatDuration(Date.now() - phaseStartedAt)}.`,
   );
   return tokens;
 }
 
 async function enrichTokensWithGeckoTerminalMarketDetails(tokens) {
-  const tronTokens = tokens.filter((token) => token.contract.chain === 'tron');
-  if (!tronTokens.length) return tokens;
+  const groupedTokens = new Map();
+  for (const token of tokens) {
+    const network = geckoTerminalNetworks[token.contract.chain];
+    if (!network) continue;
+    const networkTokens = groupedTokens.get(network) || [];
+    networkTokens.push(token);
+    groupedTokens.set(network, networkTokens);
+  }
+  const geckoTokens = [...groupedTokens.values()].flat();
+  if (!geckoTokens.length) return tokens;
 
-  const totalBatches = Math.ceil(tronTokens.length / options.geckoTerminalBatchSize);
+  const totalBatches = [...groupedTokens.values()].reduce(
+    (count, networkTokens) =>
+      count + Math.ceil(networkTokens.length / options.geckoTerminalBatchSize),
+    0,
+  );
   logSection(
-    `TRON enrichment: GeckoTerminal market data - ${tronTokens.length} coin(s), ${totalBatches} batch(es) of ${options.geckoTerminalBatchSize}`,
+    `GeckoTerminal market data - ${geckoTokens.length} coin(s), ${totalBatches} batch(es)`,
   );
 
   let enrichedCount = 0;
   let batchNumber = 0;
   const phaseStartedAt = Date.now();
 
-  for (let index = 0; index < tronTokens.length; index += options.geckoTerminalBatchSize) {
-    batchNumber += 1;
-    const batch = tronTokens.slice(index, index + options.geckoTerminalBatchSize);
-    const details = await fetchGeckoTerminalTokenMarketBatch(batch);
+  for (const [network, networkTokens] of groupedTokens) {
+    for (let index = 0; index < networkTokens.length; index += options.geckoTerminalBatchSize) {
+      batchNumber += 1;
+      const batch = networkTokens.slice(index, index + options.geckoTerminalBatchSize);
+      const details = await fetchGeckoTerminalTokenMarketBatch(network, batch);
 
-    details.forEach((detail, detailIndex) => {
-      const token = batch[detailIndex];
-      if (!token || !detail) return;
-      if (applyGeckoTerminalMarketDetails(token, detail)) enrichedCount += 1;
-    });
+      details.forEach((detail, detailIndex) => {
+        const token = batch[detailIndex];
+        if (!token || !detail) return;
+        if (applyGeckoTerminalMarketDetails(token, detail, network)) enrichedCount += 1;
+      });
 
-    logBatchProgress(
-      'GeckoTerminal market data',
-      batchNumber,
-      totalBatches,
-      Math.min(index + options.geckoTerminalBatchSize, tronTokens.length),
-      tronTokens.length,
-      phaseStartedAt,
-    );
+      logBatchProgress(
+        `GeckoTerminal market data (${network})`,
+        batchNumber,
+        totalBatches,
+        Math.min(index + options.geckoTerminalBatchSize, networkTokens.length),
+        networkTokens.length,
+        phaseStartedAt,
+      );
+    }
   }
 
   log(
-    `TRON market enrichment done: applied GeckoTerminal market data to ${enrichedCount}/${tronTokens.length} coin(s) in ${formatDuration(Date.now() - phaseStartedAt)}.`,
+    `GeckoTerminal market enrichment done: applied data to ${enrichedCount}/${geckoTokens.length} coin(s) in ${formatDuration(Date.now() - phaseStartedAt)}.`,
   );
   return tokens;
 }
@@ -1220,11 +1274,11 @@ async function enrichTokensWithMobulaMarketDetails(tokens) {
   return tokens;
 }
 
-async function fetchGeckoTerminalTokenInfo(address) {
+async function fetchGeckoTerminalTokenInfo(network, address) {
   await waitForGeckoTerminalSlot();
 
   const url = new URL(
-    `/api/v2/networks/${GECKOTERMINAL_TRON_NETWORK}/tokens/${encodeURIComponent(address)}/info`,
+    `/api/v2/networks/${encodeURIComponent(network)}/tokens/${encodeURIComponent(address)}/info`,
     GECKOTERMINAL_API_BASE_URL,
   );
 
@@ -1253,12 +1307,12 @@ async function fetchGeckoTerminalTokenInfo(address) {
   }
 }
 
-async function fetchGeckoTerminalTokenMarketBatch(tokens) {
+async function fetchGeckoTerminalTokenMarketBatch(network, tokens) {
   await waitForGeckoTerminalSlot();
 
   const addressPath = tokens.map((token) => encodeURIComponent(token.contract.address)).join(',');
   const url = new URL(
-    `/api/v2/networks/${GECKOTERMINAL_TRON_NETWORK}/tokens/multi/${addressPath}`,
+    `/api/v2/networks/${encodeURIComponent(network)}/tokens/multi/${addressPath}`,
     GECKOTERMINAL_API_BASE_URL,
   );
   url.searchParams.set('include', 'top_pools');
@@ -1302,9 +1356,9 @@ async function fetchGeckoTerminalTokenMarketBatch(tokens) {
     });
   } catch (error) {
     console.warn(
-      `GeckoTerminal TRON market batch failed (${
+      `GeckoTerminal market batch failed for ${network} (${
         error instanceof Error ? error.message : 'unknown error'
-      }). Selected TRON tokens will keep existing market values.`,
+      }). Selected tokens will keep existing market values.`,
     );
     if (options.debug) console.warn(error);
     return tokens.map(() => null);
@@ -1354,7 +1408,7 @@ function applyGeckoTerminalTokenInfo(token, attributes) {
   );
 }
 
-function applyGeckoTerminalMarketDetails(token, details) {
+function applyGeckoTerminalMarketDetails(token, details, network) {
   if (!details || typeof details !== 'object') return false;
   const tokenAttributes = details.token || {};
   const poolAttributes = details.pool || {};
@@ -1420,10 +1474,11 @@ function applyGeckoTerminalMarketDetails(token, details) {
   if (poolAddress) {
     token.chartPairAddress = poolAddress;
     if (!isDexScreenerChartUrl(token.chartUrl)) {
-      token.chartUrl = geckoTerminalChartUrlBuilders.tron(poolAddress);
+      token.chartUrl = `https://www.geckoterminal.com/${network}/pools/${poolAddress}`;
     }
   } else if (!token.chartUrl) {
-    token.chartUrl = chartUrlBuilders.tron(token.contract.address);
+    const chartBuilder = chartUrlBuilders[token.contract.chain];
+    if (chartBuilder) token.chartUrl = chartBuilder(token.contract.address);
   }
 
   return (
@@ -2852,7 +2907,7 @@ async function enrichAndSelectSaneTokens(tokens) {
 function logImportPlan({ tokens, selectionTarget, activeChainKeys, perChainCount }) {
   logSection('Import plan');
   log(
-    `Plan: ${options.dryRun ? 'preview' : 'write'} ${tokens.length}/${selectionTarget} ds.py coin(s)`,
+    `Plan: ${options.dryRun ? 'preview' : 'write'} ${tokens.length}/${selectionTarget} trending.py coin(s)`,
   );
   log('Filters: skip existing contracts and duplicate addresses');
 

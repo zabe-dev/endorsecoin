@@ -66,7 +66,6 @@ const dexScreenerChainIds: Partial<Record<NetworkId, string>> = {
   base: 'base',
   optimism: 'optimism',
   fantom: 'fantom',
-  kcc: 'kcc',
   hood: 'robinhood',
   solana: 'solana',
   sui: 'sui',
@@ -82,7 +81,6 @@ const mobulaChainIds: Partial<Record<NetworkId, string>> = {
   base: 'evm:8453',
   optimism: 'evm:10',
   fantom: 'evm:250',
-  kcc: 'evm:321',
   hood: 'evm:4663',
   solana: 'solana:solana',
   sui: 'sui:sui',
@@ -90,6 +88,8 @@ const mobulaChainIds: Partial<Record<NetworkId, string>> = {
 
 const geckoTerminalChainIds: Partial<Record<NetworkId, string>> = {
   tron: 'tron',
+  sui: 'sui-network',
+  xrpl: 'xrpl',
 };
 
 const evmNetworks = new Set<NetworkId>([
@@ -101,7 +101,6 @@ const evmNetworks = new Set<NetworkId>([
   'base',
   'optimism',
   'fantom',
-  'kcc',
   'hood',
 ]);
 
@@ -804,7 +803,6 @@ async function selectStaleSyncCoins(limit: number): Promise<MarketSyncCoin[]> {
             when 'base' then 'evm:8453:'
             when 'optimism' then 'evm:10:'
             when 'fantom' then 'evm:250:'
-            when 'kcc' then 'evm:321:'
             when 'hood' then 'evm:4663:'
             when 'tron' then 'tron:'
             when 'solana' then 'solana:solana:'

@@ -45,11 +45,6 @@ export function providerOptions(kind: 'chart' | 'dex', chain: SubmissionNetwork)
       { value: 'custom', label: 'Custom Link' },
     ],
     optimism: [...commonNone, { value: 'custom', label: 'Custom Link' }],
-    dogecoin: [
-      ...commonNone,
-      { value: 'dexscreener', label: 'DexScreener' },
-      { value: 'custom', label: 'Custom Link' },
-    ],
     tron: [
       ...commonNone,
       { value: 'dexscreener', label: 'DexScreener' },
@@ -60,12 +55,6 @@ export function providerOptions(kind: 'chart' | 'dex', chain: SubmissionNetwork)
       { value: 'dexscreener', label: 'DexScreener' },
       { value: 'geckoterminal', label: 'GeckoTerminal' },
       { value: 'dextools', label: 'DEXTools' },
-      { value: 'custom', label: 'Custom Link' },
-    ],
-    kcc: [
-      ...commonNone,
-      { value: 'dexscreener', label: 'DexScreener' },
-      { value: 'geckoterminal', label: 'GeckoTerminal' },
       { value: 'custom', label: 'Custom Link' },
     ],
     sui: [
@@ -116,18 +105,12 @@ export function providerOptions(kind: 'chart' | 'dex', chain: SubmissionNetwork)
       { value: 'custom', label: 'Custom Link' },
     ],
     optimism: [...commonNone, { value: 'custom', label: 'Custom Link' }],
-    dogecoin: [...commonNone, { value: 'custom', label: 'Custom Link' }],
     tron: [
       ...commonNone,
       { value: 'rubic', label: 'Rubic' },
       { value: 'custom', label: 'Custom Link' },
     ],
     fantom: [...commonNone, { value: 'custom', label: 'Custom Link' }],
-    kcc: [
-      ...commonNone,
-      { value: 'mojitoswap', label: 'MojitoSwap' },
-      { value: 'custom', label: 'Custom Link' },
-    ],
     sui: [
       ...commonNone,
       { value: 'cetus', label: 'Cetus' },

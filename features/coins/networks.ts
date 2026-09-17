@@ -84,15 +84,6 @@ export const NETWORKS = {
     'optimism',
     '/chain-icons/op.svg',
   ),
-  dogecoin: network(
-    'dogecoin',
-    'Dogecoin',
-    'DOGE',
-    ['dogechain'],
-    'https://dogechain.info/address/',
-    'dogechain',
-    '/chain-icons/doge.svg',
-  ),
   tron: network(
     'tron',
     'Tron',
@@ -110,15 +101,6 @@ export const NETWORKS = {
     'https://ftmscan.com/address/',
     'fantom',
     '/chain-icons/ftm.svg',
-  ),
-  kcc: network(
-    'kcc',
-    'KuCoin Community Chain',
-    'KCC',
-    ['kucoin-community-chain'],
-    'https://explorer.kcc.io/en/address/',
-    'kcc',
-    '/chain-icons/kcc.svg',
   ),
   sui: network(
     'sui',

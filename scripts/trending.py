@@ -5,8 +5,8 @@ the community-token denylist (ported from the old Birdeye-based script)
 over the results.
 
 Usage:
-    python ds.py --last h24 --limit 50
-    python ds.py --chain robinhood --last h24 --limit 50
+    python trending.py --last h24 --limit 50
+    python trending.py --chain robinhood --last h24 --limit 50
 
 Requires:
     pip install playwright requests --break-system-packages
@@ -97,7 +97,6 @@ EXCLUDE_SYMBOLS = {
     "SOL",
     "XRP",
     "ADA",
-    "DOGE",
     "TRX",
     "TON",
     "AVAX",
@@ -667,12 +666,15 @@ DEXSCREENER_CHAIN_SLUGS = {
     "arbitrum": "arbitrum",
     "base": "base",
     "optimism": "optimism",
+    "fantom": "fantom",
     "hood": "robinhood",
     "solana": "solana",
     "sui": "sui",
     "tron": "tron",
+    "xrpl": "xrpl",
 }
 SUPPORTED_CHAINS = tuple(DEXSCREENER_CHAIN_SLUGS.values())
+GECKO_TRENDING_NETWORKS = {}
 PAIR_ADDRESS_PATTERNS = {
     "ethereum": re.compile(r"0x[0-9a-fA-F]{40}"),
     "bsc": re.compile(r"0x[0-9a-fA-F]{40}"),
@@ -681,10 +683,12 @@ PAIR_ADDRESS_PATTERNS = {
     "arbitrum": re.compile(r"0x[0-9a-fA-F]{40}"),
     "base": re.compile(r"0x[0-9a-fA-F]{40}"),
     "optimism": re.compile(r"0x[0-9a-fA-F]{40}"),
+    "fantom": re.compile(r"0x[0-9a-fA-F]{40}"),
     "robinhood": re.compile(r"0x[0-9a-fA-F]{40}"),
     "solana": re.compile(r"[1-9A-HJ-NP-Za-km-z]{32,44}"),
     "sui": re.compile(r"0x[0-9a-fA-F]{64}"),
     "tron": re.compile(r"T[1-9A-HJ-NP-Za-km-z]{33}"),
+    "xrpl": re.compile(r"[A-Za-z0-9._-]+"),
 }
 
 
@@ -795,6 +799,51 @@ def resolve_pair(chain: str, pair_address: str) -> dict | None:
     }
 
 
+def fetch_gecko_trending_tokens(chain: str, limit: int) -> list[dict]:
+    network = GECKO_TRENDING_NETWORKS.get(chain)
+    if not network:
+        return []
+
+    response = requests.get(
+        f"https://api.geckoterminal.com/api/v2/networks/{network}/trending_pools",
+        params={"page": 1, "include": "base_token"},
+        headers={"accept": "application/json;version=20230203"},
+        timeout=15,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    pools = payload.get("data") if isinstance(payload, dict) else []
+    included = payload.get("included") if isinstance(payload, dict) else []
+    tokens_by_id = {
+        item.get("id"): item.get("attributes", {})
+        for item in included or []
+        if isinstance(item, dict) and item.get("type") == "token" and item.get("id")
+    }
+    results = []
+    seen = set()
+    for pool in pools[:limit] if isinstance(pools, list) else []:
+        attributes = pool.get("attributes") or {}
+        relationship = ((pool.get("relationships") or {}).get("base_token") or {}).get("data") or {}
+        token = tokens_by_id.get(relationship.get("id"), {})
+        address = str(token.get("address") or "").strip()
+        if not address or address.lower() in seen:
+            continue
+        seen.add(address.lower())
+        results.append(
+            {
+                "chain": chain,
+                "contract_address": address,
+                "name": str(token.get("name") or "").strip(),
+                "symbol": str(token.get("symbol") or "").strip(),
+                "price_usd": attributes.get("base_token_price_usd"),
+                "liquidity_usd": attributes.get("reserve_in_usd"),
+                "volume_24h_usd": (attributes.get("volume_usd") or {}).get("h24"),
+                "pair_address": attributes.get("address") or "",
+            }
+        )
+    return [item for item in results if item["name"] and item["symbol"]]
+
+
 def main():
     def _limit_type(value):
         try:
@@ -871,26 +920,46 @@ def main():
         f"Scraping top {args.limit} {args.last}-trending pairs for "
         f"{len(chains)} chain(s)..."
     )
-    pair_refs = []
+    candidates = []
     for chain in chains:
         print(f"  Fetching {chain}...")
+        if chain in GECKO_TRENDING_NETWORKS:
+            try:
+                gecko_tokens = fetch_gecko_trending_tokens(chain, args.limit)
+                candidates.extend(("geckoterminal", token, "") for token in gecko_tokens)
+                print(f"  GeckoTerminal: {len(gecko_tokens)} token(s)")
+            except Exception as error:
+                if args.chain:
+                    raise
+                print(f"  Skipping {chain}: {error}")
+            continue
         try:
-            pair_refs.extend(scrape_trending_pair_addresses(chain, args.limit, args.last))
+            candidates.extend(
+                ("dexscreener", chain, pair_address)
+                for chain, pair_address in scrape_trending_pair_addresses(
+                    chain, args.limit, args.last
+                )
+            )
         except Exception as error:
             if args.chain:
                 raise
             print(f"  Skipping {chain}: {error}")
-    print(f"Found {len(pair_refs)} pairs. Resolving token details via API...")
+    print(f"Found {len(candidates)} trending candidates. Resolving and deduplicating...")
 
     results = []
     denied = []
     seen_addresses = set()
     seen_symbols = {}
 
-    for i, (chain, pair_address) in enumerate(pair_refs, 1):
-        info = resolve_pair(chain, pair_address)
+    for i, (source, candidate, pair_address) in enumerate(candidates, 1):
+        if source == "geckoterminal":
+            info = candidate
+            chain = info["chain"]
+        else:
+            chain = candidate
+            info = resolve_pair(chain, pair_address)
         if not info:
-            print(f"  [{i}] failed to resolve {chain}/{pair_address}")
+            print(f"  [{i}] failed to resolve {chain}/{pair_address or source}")
             time.sleep(args.delay)
             continue
 
@@ -898,7 +967,8 @@ def main():
         symbol = info["symbol"]
         name = info["name"]
 
-        if address and address in seen_addresses:
+        address_key = f"{chain}:{(address or '').lower()}"
+        if address and address_key in seen_addresses:
             time.sleep(args.delay)
             continue
 
@@ -916,7 +986,7 @@ def main():
             reason = f"duplicate-symbol:{seen_symbols[key]}"
 
         if address:
-            seen_addresses.add(address)
+            seen_addresses.add(address_key)
 
         if reason:
             denied.append({"rank": i, **info, "denied_by": reason})

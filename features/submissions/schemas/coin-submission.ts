@@ -47,7 +47,6 @@ const evmSubmissionNetworks = new Set<SubmissionNetwork>([
   'base',
   'optimism',
   'fantom',
-  'kcc',
   'hood',
 ]);
 const evmAddressPattern = /^0x[a-fA-F0-9]{40}$/;
