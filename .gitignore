@@ -36,7 +36,4 @@ yarn-error.log*
 /outputs/
 /work/
 /tmp/
-
-# Birdeye generated data
-/scripts/birdeye/*
-!/scripts/birdeye/birdeye.py
+/scripts/ds-output/

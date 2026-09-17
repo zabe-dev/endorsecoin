@@ -15,14 +15,11 @@
     "db:generate": "node --env-file=.env.local node_modules/drizzle-kit/bin.cjs generate",
     "db:migrate": "node --env-file=.env.local node_modules/drizzle-kit/bin.cjs migrate",
     "db:studio": "node --env-file=.env.local node_modules/drizzle-kit/bin.cjs studio",
-    "dev:db:reset": "node --env-file=.env.local scripts/reset-dev-data.mjs",
-    "db:reset:dev": "node --env-file=.env.local scripts/reset-dev-data.mjs",
-    "import:mobula": "node --env-file=.env.local scripts/import-mobula-coins.mjs",
-    "birdeye:trending": "python3 scripts/birdeye/birdeye.py",
-    "redis:flush": "NODE_EXTRA_CA_CERTS=.certs/coolify-ca.crt node --env-file=.env.local scripts/flush-redis.mjs",
-    "db:seed:dummy": "node --env-file=.env.local scripts/seed-dummy-data.mjs",
-    "backfill:tron": "node --env-file=.env.local scripts/backfill-tron-geckoterminal.mjs",
-    "x:listings": "node --env-file=.env.local scripts/build-x-listing-posts.mjs"
+    "dev:import:mobula": "node --env-file=.env.local scripts/import-mobula.mjs",
+    "dev:resetdata": "NODE_EXTRA_CA_CERTS=.certs/coolify-ca.crt node --env-file=.env.local scripts/reset-data.mjs",
+    "dev:reset": "npm run dev:resetdata",
+    "dev:db:reset": "npm run dev:reset",
+    "db:reset:dev": "npm run dev:reset"
   },
   "dependencies": {
     "@emnapi/core": "1.11.3",

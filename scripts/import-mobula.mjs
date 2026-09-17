@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 
 /**
- * Imports CSV-selected tokens into EndorseCoin.
+ * Imports ds.py-selected tokens into EndorseCoin.
  *
  * Usage:
- *   npm run import:mobula
- *   npm run import:mobula -- --csv=scripts/birdeye/trending_tokens_master.csv
- *   npm run import:mobula -- --limit=10
- *   npm run import:mobula -- --dry-run
- *   npm run import:mobula -- --dry-run --debug
- *   npm run import:mobula -- --geckoterminal-batch-size=30
+ *   npm run dev:import:mobula
+ *   npm run dev:import:mobula -- --csv=ds-output/trending-coins.csv
+ *   npm run dev:import:mobula -- --limit=10
+ *   npm run dev:import:mobula -- --dry-run
+ *   npm run dev:import:mobula -- --dry-run --debug
+ *   npm run dev:import:mobula -- --geckoterminal-batch-size=30
  *
  * This script writes only to tables the app currently reads:
  *   - coins
@@ -40,9 +40,6 @@ const GECKOTERMINAL_REQUEST_SPACING_MS = Math.max(
 const DATABASE_URL = process.env.DATABASE_URL;
 let mobulaApiKeyIndex = 0;
 
-// Used by log()/formatDuration() below so every log line shows elapsed time
-// since the script started, making it obvious whether things are progressing
-// or stalled during a long run.
 const scriptStartTime = Date.now();
 
 const options = parseImporterOptions(process.argv.slice(2));
@@ -63,6 +60,152 @@ const db = DATABASE_URL
       transform: postgres.camel,
     })
   : null;
+
+class DsOutputSource {
+  constructor(filePath) {
+    this.filePath = String(filePath || '').trim();
+  }
+
+  loadTokens() {
+    if (!this.filePath) throw new Error('--csv requires a file path.');
+    const rows = parseCsvRows(readFileSync(this.filePath, 'utf8'), this.filePath);
+    const seen = new Set();
+    const tokens = [];
+    let duplicateRows = 0;
+    let invalidRows = 0;
+
+    for (const { row, rowNumber } of rows) {
+      let token;
+      try {
+        token = buildCsvImportToken(row, rowNumber);
+      } catch (error) {
+        invalidRows += 1;
+        console.warn(error instanceof Error ? error.message : `CSV row ${rowNumber} is invalid.`);
+        continue;
+      }
+
+      const key = contractKey(token.contract.chain, token.contract.address);
+      if (seen.has(key)) {
+        duplicateRows += 1;
+        continue;
+      }
+
+      seen.add(key);
+      tokens.push(token);
+    }
+
+    return {
+      tokens,
+      duplicateRows,
+      invalidRows,
+      path: this.filePath,
+    };
+  }
+}
+
+class MobulaCoinImporter {
+  constructor({ source }) {
+    this.source = source;
+  }
+
+  async run() {
+    log('Mobula import started.');
+
+    const existingState = await loadExistingImportState();
+    if (db) {
+      log(
+        `Loaded ${existingState.slugs.size} slug(s), ${existingState.contracts.size} contract(s), ${existingState.marketSourceIds.size} market source key(s) from database.`,
+      );
+    } else {
+      log('Dry run without DATABASE_URL; existing coins cannot be filtered.');
+    }
+
+    const input = this.source.loadTokens();
+    log(
+      `Loaded ${input.tokens.length} ds.py token(s) from ${input.path}. ` +
+        `Removed ${input.duplicateRows} duplicate row(s); skipped ${input.invalidRows} invalid row(s).`,
+    );
+
+    const freshResult = filterNewTokens(input.tokens, existingState);
+    const tokens = options.limit
+      ? freshResult.freshTokens.slice(0, options.limit)
+      : freshResult.freshTokens;
+    const activeChainKeys = [...new Set(tokens.map((token) => token.contract.chain))];
+    const perChainCount = Object.fromEntries(
+      activeChainKeys.map((chain) => [
+        chain,
+        tokens.filter((token) => token.contract.chain === chain).length,
+      ]),
+    );
+
+    log(
+      `Selected ${tokens.length}/${input.tokens.length} token(s). Skipped ${freshResult.skippedExisting} existing, ${freshResult.skippedBatchDuplicate} duplicate in batch.`,
+    );
+
+    logImportPlan({
+      tokens,
+      selectionTarget: input.tokens.length,
+      activeChainKeys,
+      perChainCount,
+    });
+
+    const { saneTokens, suspiciousTokens, tokenCount } = await enrichAndSelectSaneTokens(tokens);
+
+    if (options.dryRun) {
+      this.printDryRun(saneTokens);
+      log(`Dry run complete. No rows written. Total time: ${formatDuration(elapsedMs())}.`);
+      return;
+    }
+
+    await this.writeTokens({ saneTokens, suspiciousTokens, tokenCount, existingState });
+  }
+
+  printDryRun(tokens) {
+    logSection(`Dry run: previewing ${tokens.length} enriched token(s); no rows will be written`);
+    console.table(tokens.map(dryRunRow));
+  }
+
+  async writeTokens({ saneTokens, suspiciousTokens, tokenCount, existingState }) {
+    logSection(`Writing ${saneTokens.length} token(s) to database`);
+    const existingSlugs = existingState.slugs;
+
+    let success = 0;
+    let skipped = 0;
+    let failed = 0;
+    let current = 0;
+    const writePhaseStartedAt = Date.now();
+
+    for (const token of saneTokens) {
+      current += 1;
+      try {
+        const slug = uniqueSlug(slugify(`${token.symbol}-${token.name}`), existingSlugs);
+        const inserted = await upsertToken(token, slug);
+        if (!inserted) {
+          skipped += 1;
+        } else {
+          success += 1;
+          if (options.debug) log(`[${token.contract.chain}] ${token.symbol} (${token.name})`);
+        }
+      } catch (error) {
+        failed += 1;
+        if (isLogoMirrorError(error)) {
+          console.warn(
+            `Skipping ${token.symbol} [${token.contract.chain}]: logo could not be fetched/mirrored (${error.message}).`,
+          );
+        } else {
+          console.error(`Failed to import ${token.symbol} [${token.contract.chain}]:`, error);
+        }
+      }
+
+      logImportProgress(current, saneTokens.length, writePhaseStartedAt);
+    }
+
+    logSection(
+      `Import finished: ${success} imported/updated, ${skipped} already present, ${failed} failed, ${suspiciousTokens.length} suspicious skipped, out of ${tokenCount} total. ` +
+        `Total run time: ${formatDuration(elapsedMs())}.`,
+    );
+  }
+}
 
 const mobulaAssetBlockchains = {
   ethereum: 'ethereum',
@@ -378,7 +521,7 @@ const categoryKeywordMap = {
 };
 
 function parseImporterOptions(values) {
-  const csvPath = readArgValue(values, '--csv') || 'scripts/birdeye/trending_tokens_master.csv';
+  const csvPath = readArgValue(values, '--csv') || 'ds-output/trending-coins.csv';
   const detailsBatchSize = Math.min(
     readPositiveInteger(readArgValue(values, '--details-batch-size'), 10),
     10,
@@ -584,46 +727,9 @@ function parseCsvRows(text, filePath) {
   }));
 }
 
-function loadCsvImportTokens(filePath) {
-  const path = String(filePath || '').trim();
-  if (!path) throw new Error('--csv requires a file path.');
-  const rows = parseCsvRows(readFileSync(path, 'utf8'), path);
-  const seen = new Set();
-  const tokens = [];
-  let duplicateRows = 0;
-  let invalidRows = 0;
-  for (const { row, rowNumber } of rows) {
-    let token;
-    try {
-      token = buildCsvImportToken(row, rowNumber);
-    } catch (error) {
-      invalidRows += 1;
-      console.warn(error instanceof Error ? error.message : `CSV row ${rowNumber} is invalid.`);
-      continue;
-    }
-    const key = contractKey(token.contract.chain, token.contract.address);
-    if (seen.has(key)) {
-      duplicateRows += 1;
-      continue;
-    }
-    seen.add(key);
-    tokens.push(token);
-  }
-  log(
-    `CSV ${path}: ${tokens.length} token(s), ${duplicateRows} duplicate row(s) removed, ${invalidRows} invalid row(s) skipped.`,
-  );
-  return tokens;
-}
-
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
-
-// --- Logging helpers -----------------------------------------------------
-//
-// Every log line is prefixed with elapsed time since the script started
-// (e.g. "[+2m14s]") so it's obvious from the output alone whether a long
-// run is progressing normally or has stalled somewhere.
 
 function formatDuration(ms) {
   const totalSeconds = Math.max(0, Math.round(ms / 1000));
@@ -632,12 +738,16 @@ function formatDuration(ms) {
   return minutes > 0 ? `${minutes}m${String(seconds).padStart(2, '0')}s` : `${seconds}s`;
 }
 
+function elapsedMs() {
+  return Date.now() - scriptStartTime;
+}
+
 function log(message) {
-  console.log(`[+${formatDuration(Date.now() - scriptStartTime)}] ${message}`);
+  console.log(message);
 }
 
 function logSection(title) {
-  console.log(`\n[+${formatDuration(Date.now() - scriptStartTime)}] === ${title} ===`);
+  console.log(`\n${title}`);
 }
 
 // Logs batch progress at a handful of evenly-spaced points (not every batch,
@@ -667,7 +777,7 @@ function logBatchProgress(
 
   log(
     `${label}: token ${tokensSoFar}/${totalTokens} (${pct}%, batch ${batchNumber}/${totalBatches})` +
-      (isLast ? ` — done in ${formatDuration(elapsedMs)}` : ` — ETA ${formatDuration(etaMs)}`),
+      (isLast ? ` - done in ${formatDuration(elapsedMs)}` : ` - ETA ${formatDuration(etaMs)}`),
   );
 }
 
@@ -688,7 +798,7 @@ function logImportProgress(current, total, phaseStartedAt) {
 
   log(
     `Import progress: token ${current}/${total} (${pct}%)` +
-      (isLast ? ` — done in ${formatDuration(elapsedMs)}` : ` — ETA ${formatDuration(etaMs)}`),
+      (isLast ? ` - done in ${formatDuration(elapsedMs)}` : ` - ETA ${formatDuration(etaMs)}`),
   );
 }
 
@@ -697,7 +807,7 @@ async function enrichTokensWithMobulaDetails(tokens) {
 
   const totalBatches = Math.ceil(tokens.length / options.detailsBatchSize);
   logSection(
-    `Phase 1/3: Asset details (dates + links) — ${tokens.length} tokens, ${totalBatches} batch(es) of ${options.detailsBatchSize}`,
+    `Phase 1/3: Asset details (dates + links) - ${tokens.length} tokens, ${totalBatches} batch(es) of ${options.detailsBatchSize}`,
   );
 
   let enrichedCount = 0;
@@ -741,7 +851,7 @@ async function enrichTokensWithMobulaMetadata(tokens) {
 
   const totalBatches = Math.ceil(tokens.length / options.detailsBatchSize);
   logSection(
-    `Phase 2/3: Metadata (trust + social links) — ${tokens.length} tokens, ${totalBatches} batch(es) of ${options.detailsBatchSize}`,
+    `Phase 2/3: Metadata (trust + social links) - ${tokens.length} tokens, ${totalBatches} batch(es) of ${options.detailsBatchSize}`,
   );
 
   let enrichedCount = 0;
@@ -800,7 +910,7 @@ async function enrichTokensWithGeckoTerminalInfo(tokens) {
   if (!tronTokens.length) return tokens;
 
   logSection(
-    `TRON enrichment: GeckoTerminal token info — ${tronTokens.length} token(s) missing profile data, 1 request each`,
+    `TRON enrichment: GeckoTerminal token info - ${tronTokens.length} token(s) missing profile data, 1 request each`,
   );
 
   let enrichedCount = 0;
@@ -833,7 +943,7 @@ async function enrichTokensWithGeckoTerminalMarketDetails(tokens) {
 
   const totalBatches = Math.ceil(tronTokens.length / options.geckoTerminalBatchSize);
   logSection(
-    `TRON enrichment: GeckoTerminal market data — ${tronTokens.length} token(s), ${totalBatches} batch(es) of ${options.geckoTerminalBatchSize}`,
+    `TRON enrichment: GeckoTerminal market data - ${tronTokens.length} token(s), ${totalBatches} batch(es) of ${options.geckoTerminalBatchSize}`,
   );
 
   let enrichedCount = 0;
@@ -876,13 +986,13 @@ async function enrichTokensWithMobulaMarketDetails(tokens) {
   const skippedCount = tokens.length - usableTokens.length;
 
   if (!usableTokens.length) {
-    log('Phase 3/3: Market details — skipped, no tokens on a supported chain.');
+    log('Phase 3/3: Market details - skipped, no tokens on a supported chain.');
     return tokens;
   }
 
   const totalBatches = Math.ceil(usableTokens.length / options.marketDetailsBatchSize);
   logSection(
-    `Phase 3/3: Market details (chart/DEX links) — ${usableTokens.length} tokens, ${totalBatches} batch(es) of ${options.marketDetailsBatchSize}` +
+    `Phase 3/3: Market details (chart/DEX links) - ${usableTokens.length} tokens, ${totalBatches} batch(es) of ${options.marketDetailsBatchSize}` +
       (skippedCount ? ` (${skippedCount} skipped, unsupported chain)` : ''),
   );
 
@@ -1005,7 +1115,7 @@ async function fetchGeckoTerminalTokenMarketBatch(tokens) {
     });
   } catch (error) {
     console.warn(
-      `[+${formatDuration(Date.now() - scriptStartTime)}] ⚠ GeckoTerminal TRON market batch failed (${
+      `GeckoTerminal TRON market batch failed (${
         error instanceof Error ? error.message : 'unknown error'
       }). Selected TRON tokens will keep existing market values.`,
     );
@@ -1305,7 +1415,7 @@ async function fetchMobulaMarketDetailsBatch(tokens) {
 
     if (payload.length !== tokens.length) {
       console.warn(
-        `[+${formatDuration(Date.now() - scriptStartTime)}] ⚠ Market details batch mismatch: expected ${tokens.length} items, got ${payload.length}. Falling back to one-at-a-time requests for this batch of ${tokens.length} token(s) (slower, but safe).`,
+        `Market details batch mismatch: expected ${tokens.length} items, got ${payload.length}. Falling back to one-at-a-time requests for this batch of ${tokens.length} token(s) (slower, but safe).`,
       );
       return fetchMarketDetailsIndividually(tokens);
     }
@@ -1313,7 +1423,7 @@ async function fetchMobulaMarketDetailsBatch(tokens) {
     return payload;
   } catch (error) {
     console.warn(
-      `[+${formatDuration(Date.now() - scriptStartTime)}] ⚠ Market details batch request failed (${
+      `Market details batch request failed (${
         error instanceof Error ? error.message : 'unknown error'
       }). Falling back to one-at-a-time requests for this batch of ${tokens.length} token(s).`,
     );
@@ -2533,13 +2643,13 @@ async function enrichAndSelectSaneTokens(tokens) {
   const suspiciousTokens = enrichedTokens.filter((token) => !hasSaneImportMarketValues(token));
   if (suspiciousTokens.length) {
     console.warn(
-      `[+${formatDuration(Date.now() - scriptStartTime)}] ⚠ Skipping ${suspiciousTokens.length} suspicious token(s) with impossible market values: ${suspiciousTokens
+      `Skipping ${suspiciousTokens.length} suspicious token(s) with impossible market values: ${suspiciousTokens
         .slice(0, 12)
         .map(
           (token) =>
             `${token.symbol} (${token.name}, price=${token.price}, marketCap=${token.marketCap})`,
         )
-        .join('; ')}${suspiciousTokens.length > 12 ? '; …' : ''}`,
+        .join('; ')}${suspiciousTokens.length > 12 ? '; more' : ''}`,
     );
   }
 
@@ -2554,134 +2664,57 @@ async function enrichAndSelectSaneTokens(tokens) {
 function logImportPlan({ tokens, selectionTarget, activeChainKeys, perChainCount }) {
   logSection('Import plan');
   log(
-    `Plan: ${options.dryRun ? 'preview' : 'write'} ${tokens.length}/${selectionTarget} CSV tokens`,
+    `Plan: ${options.dryRun ? 'preview' : 'write'} ${tokens.length}/${selectionTarget} ds.py token(s)`,
   );
   log('Filters: skip existing contracts and duplicate addresses');
 
-  log(`Chains: ${activeChainKeys.map((chain) => `${chain}=${perChainCount[chain]}`).join(', ')}`);
+  log(
+    `Chains: ${
+      activeChainKeys.length
+        ? activeChainKeys.map((chain) => `${chain}=${perChainCount[chain]}`).join(', ')
+        : 'none'
+    }`,
+  );
   log('Stored chart/DEX links require confirmed market data; app may provide chain defaults.');
   log('Stored DEX links are added only when Mobula confirms a route.');
 }
 
+function dryRunRow(token) {
+  return {
+    mobulaId: token.mobulaId,
+    chain: token.contract.chain,
+    symbol: token.symbol,
+    name: token.name,
+    category: token.category,
+    price: token.price,
+    marketCap: token.marketCap,
+    fdv: token.fdv,
+    liquidity: token.liquidity,
+    holders: token.holdersCount,
+    rank: token.rank,
+    launchDate: token.launchDate?.toISOString().slice(0, 10) || null,
+    website: token.projectLinks.website || null,
+    telegram: token.projectLinks.telegram || null,
+    x: token.projectLinks.x || null,
+    discord: token.projectLinks.discord || null,
+    github: token.projectLinks.github || null,
+    whitepaper: token.projectLinks.whitepaper || null,
+    kyc: token.projectLinks.kyc || null,
+    audit: token.projectLinks.audit || null,
+    pair: token.chartPairAddress || null,
+    exchange: token.marketExchangeName || null,
+    supportedExchange: token.marketExchangeSupported ?? null,
+    chartUrl: token.chartUrl,
+    dexUrl: token.dexUrl,
+    contract: token.contract.address,
+  };
+}
+
 async function main() {
-  log('Mobula import has started');
-
-  const existingState = await loadExistingImportState();
-  if (db) {
-    log(
-      `Loaded ${existingState.slugs.size} slug(s), ${existingState.contracts.size} contract(s), and ${existingState.marketSourceIds.size} market source key(s) from the database.`,
-    );
-  } else {
-    log('No database configured for this dry run, so existing imported coins cannot be filtered.');
-  }
-
-  const candidates = loadCsvImportTokens(options.csvPath);
-  const freshResult = filterNewTokens(candidates, existingState);
-  const tokens = options.limit
-    ? freshResult.freshTokens.slice(0, options.limit)
-    : freshResult.freshTokens;
-  const activeChainKeys = [...new Set(tokens.map((token) => token.contract.chain))];
-  const perChainCount = Object.fromEntries(
-    activeChainKeys.map((chain) => [
-      chain,
-      tokens.filter((token) => token.contract.chain === chain).length,
-    ]),
-  );
-
-  log(
-    `CSV: ${candidates.length} rows, ${tokens.length} selected tokens; skipped existing ${freshResult.skippedExisting}, batch duplicates ${freshResult.skippedBatchDuplicate}.`,
-  );
-
-  logImportPlan({
-    tokens,
-    selectionTarget: candidates.length,
-    activeChainKeys,
-    perChainCount,
+  const importer = new MobulaCoinImporter({
+    source: new DsOutputSource(options.csvPath),
   });
-
-  const { saneTokens, suspiciousTokens, tokenCount } = await enrichAndSelectSaneTokens(tokens);
-
-  if (options.dryRun) {
-    logSection(
-      `Dry run: previewing ${saneTokens.length} enriched token(s) — no rows will be written`,
-    );
-    console.table(
-      saneTokens.map((token) => ({
-        mobulaId: token.mobulaId,
-        chain: token.contract.chain,
-        symbol: token.symbol,
-        name: token.name,
-        category: token.category,
-        price: token.price,
-        marketCap: token.marketCap,
-        fdv: token.fdv,
-        liquidity: token.liquidity,
-        holders: token.holdersCount,
-        rank: token.rank,
-        launchDate: token.launchDate?.toISOString().slice(0, 10) || null,
-        website: token.projectLinks.website || null,
-        telegram: token.projectLinks.telegram || null,
-        x: token.projectLinks.x || null,
-        discord: token.projectLinks.discord || null,
-        github: token.projectLinks.github || null,
-        whitepaper: token.projectLinks.whitepaper || null,
-        kyc: token.projectLinks.kyc || null,
-        audit: token.projectLinks.audit || null,
-        pair: token.chartPairAddress || null,
-        exchange: token.marketExchangeName || null,
-        supportedExchange: token.marketExchangeSupported ?? null,
-        chartUrl: token.chartUrl,
-        dexUrl: token.dexUrl,
-        contract: token.contract.address,
-      })),
-    );
-    log(
-      `Dry run complete — no rows written. (Total time: ${formatDuration(Date.now() - scriptStartTime)})`,
-    );
-    return;
-  }
-
-  logSection(`Writing ${saneTokens.length} token(s) to the database`);
-  const existingSlugs = existingState.slugs;
-
-  let success = 0;
-  let skipped = 0;
-  let failed = 0;
-  let current = 0;
-  const writePhaseStartedAt = Date.now();
-
-  for (const token of saneTokens) {
-    current += 1;
-    try {
-      const slug = uniqueSlug(slugify(`${token.symbol}-${token.name}`), existingSlugs);
-      const inserted = await upsertToken(token, slug);
-      if (!inserted) {
-        skipped += 1;
-      } else {
-        success += 1;
-        if (options.debug) log(`✔ [${token.contract.chain}] ${token.symbol} (${token.name})`);
-      }
-    } catch (error) {
-      failed += 1;
-      if (isLogoMirrorError(error)) {
-        console.warn(
-          `[+${formatDuration(Date.now() - scriptStartTime)}] ⚠ Skipping ${token.symbol} [${token.contract.chain}]: logo could not be fetched/mirrored (${error.message}).`,
-        );
-      } else {
-        console.error(
-          `[+${formatDuration(Date.now() - scriptStartTime)}] ✘ Failed to import ${token.symbol} [${token.contract.chain}]:`,
-          error,
-        );
-      }
-    }
-
-    logImportProgress(current, saneTokens.length, writePhaseStartedAt);
-  }
-
-  logSection(
-    `Import finished: ${success} imported/updated, ${skipped} already present, ${failed} failed, ${suspiciousTokens.length} suspicious skipped, out of ${tokenCount} total. ` +
-      `Total run time: ${formatDuration(Date.now() - scriptStartTime)}.`,
-  );
+  await importer.run();
 }
 
 function isLogoMirrorError(error) {
@@ -2690,10 +2723,7 @@ function isLogoMirrorError(error) {
 
 main()
   .catch((error) => {
-    console.error(
-      `[+${formatDuration(Date.now() - scriptStartTime)}] Fatal error — import stopped early:`,
-      error,
-    );
+    console.error('Fatal error: import stopped early.', error);
     process.exitCode = 1;
   })
   .finally(async () => {
