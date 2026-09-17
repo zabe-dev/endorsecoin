@@ -131,7 +131,7 @@ export const NETWORKS = {
   ),
   hood: network(
     'hood',
-    'Hood',
+    'Robinhood',
     'HOOD',
     ['hood'],
     'https://robinhoodchain.blockscout.com/address/',

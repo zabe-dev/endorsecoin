@@ -5,7 +5,7 @@
  *
  * Usage:
  *   npm run dev:import:mobula
- *   npm run dev:import:mobula -- --csv=ds-output/trending-coins.csv
+ *   npm run dev:import:mobula -- --csv=scripts/ds-output/trending-coins.csv
  *   npm run dev:import:mobula -- --limit=10
  *   npm run dev:import:mobula -- --dry-run
  *   npm run dev:import:mobula -- --dry-run --debug
@@ -24,6 +24,7 @@
 
 import { createHash, createHmac, randomUUID } from 'crypto';
 import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
 import postgres from 'postgres';
 
 const MOBULA_DETAILS_URL = 'https://api.mobula.io/api/2/asset/details';
@@ -49,6 +50,20 @@ const MAX_IMPORT_PRICE_USD = 1_000_000;
 const MAX_IMPORT_MARKET_CAP_USD = 1_000_000_000_000;
 const MAX_IMPORT_FDV_USD = 1_000_000_000_000;
 const MAX_MARKET_DETAIL_PRICE_RATIO = 100;
+const DEXSCREENER_TOKEN_BATCH_SIZE = 30;
+const dexScreenerChainIds = {
+  ethereum: 'ethereum',
+  bsc: 'bsc',
+  polygon: 'polygon',
+  avalanche: 'avalanche',
+  arbitrum: 'arbitrum',
+  base: 'base',
+  optimism: 'optimism',
+  hood: 'robinhood',
+  solana: 'solana',
+  sui: 'sui',
+  tron: 'tron',
+};
 
 if (!DATABASE_URL && !options.dryRun) {
   throw new Error('DATABASE_URL is required for a real import. Use --dry-run to preview only.');
@@ -521,7 +536,9 @@ const categoryKeywordMap = {
 };
 
 function parseImporterOptions(values) {
-  const csvPath = readArgValue(values, '--csv') || 'ds-output/trending-coins.csv';
+  const csvPath =
+    readArgValue(values, '--csv') ||
+    fileURLToPath(new URL('./ds-output/trending-coins.csv', import.meta.url));
   const detailsBatchSize = Math.min(
     readPositiveInteger(readArgValue(values, '--details-batch-size'), 10),
     10,
@@ -975,6 +992,180 @@ async function enrichTokensWithGeckoTerminalMarketDetails(tokens) {
     `TRON market enrichment done: applied GeckoTerminal market data to ${enrichedCount}/${tronTokens.length} token(s) in ${formatDuration(Date.now() - phaseStartedAt)}.`,
   );
   return tokens;
+}
+
+async function enrichTokensWithDexScreenerDetails(tokens) {
+  const groupedTokens = new Map();
+  for (const token of tokens) {
+    const chainId = dexScreenerChainIds[token.contract.chain];
+    if (!chainId) continue;
+    const chainTokens = groupedTokens.get(chainId) || [];
+    chainTokens.push(token);
+    groupedTokens.set(chainId, chainTokens);
+  }
+
+  const eligibleTokens = [...groupedTokens.values()].reduce(
+    (count, chainTokens) => count + chainTokens.length,
+    0,
+  );
+  if (!eligibleTokens) return tokens;
+
+  const totalBatches = [...groupedTokens.values()].reduce(
+    (count, chainTokens) => count + Math.ceil(chainTokens.length / DEXSCREENER_TOKEN_BATCH_SIZE),
+    0,
+  );
+  logSection(
+    `DexScreener enrichment: market data and links - ${eligibleTokens} tokens, ${totalBatches} batch(es)`,
+  );
+
+  let enrichedCount = 0;
+  let batchNumber = 0;
+  let processedCount = 0;
+  const phaseStartedAt = Date.now();
+
+  for (const [chainId, chainTokens] of groupedTokens) {
+    for (let index = 0; index < chainTokens.length; index += DEXSCREENER_TOKEN_BATCH_SIZE) {
+      const batch = chainTokens.slice(index, index + DEXSCREENER_TOKEN_BATCH_SIZE);
+      batchNumber += 1;
+      const pairs = await fetchDexScreenerTokenPairsBatch(chainId, batch);
+      pairs.forEach((pair, pairIndex) => {
+        const token = batch[pairIndex];
+        if (token && pair && applyDexScreenerDetails(token, pair)) enrichedCount += 1;
+      });
+      processedCount += batch.length;
+      logBatchProgress(
+        'DexScreener enrichment',
+        batchNumber,
+        totalBatches,
+        processedCount,
+        eligibleTokens,
+        phaseStartedAt,
+      );
+    }
+  }
+
+  log(
+    `DexScreener enrichment done: applied data to ${enrichedCount}/${eligibleTokens} token(s) in ${formatDuration(Date.now() - phaseStartedAt)}.`,
+  );
+  return tokens;
+}
+
+async function fetchDexScreenerTokenPairsBatch(chainId, tokens) {
+  const addresses = tokens.map((token) => encodeURIComponent(token.contract.address)).join(',');
+  const url = `https://api.dexscreener.com/tokens/v1/${encodeURIComponent(chainId)}/${addresses}`;
+
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      if (options.debug) {
+        console.warn(`DexScreener token batch failed: ${response.status} ${response.statusText}`);
+      }
+      return tokens.map(() => null);
+    }
+
+    const json = await response.json();
+    const pairsByAddress = new Map();
+    for (const pair of Array.isArray(json) ? json : []) {
+      const address = normalizeContractAddress(pair?.baseToken?.address);
+      if (!address) continue;
+      const existing = pairsByAddress.get(address);
+      if (!existing || pairLiquidity(pair) > pairLiquidity(existing)) {
+        pairsByAddress.set(address, pair);
+      }
+    }
+
+    return tokens.map(
+      (token) => pairsByAddress.get(normalizeContractAddress(token.contract.address)) || null,
+    );
+  } catch (error) {
+    console.warn(
+      `DexScreener token batch failed (${error instanceof Error ? error.message : 'unknown error'}). Tokens keep fallback data.`,
+    );
+    return tokens.map(() => null);
+  }
+}
+
+function pairLiquidity(pair) {
+  return pickNumber(pair?.liquidity || {}, ['usd']) || 0;
+}
+
+function applyDexScreenerDetails(token, pair) {
+  if (!pair || typeof pair !== 'object') return false;
+
+  const info = pair.info && typeof pair.info === 'object' ? pair.info : {};
+  const priceChange =
+    pair.priceChange && typeof pair.priceChange === 'object' ? pair.priceChange : {};
+  const volume = pair.volume && typeof pair.volume === 'object' ? pair.volume : {};
+  const before = JSON.stringify({
+    name: token.name,
+    symbol: token.symbol,
+    logo: token.logo,
+    description: token.description,
+    price: token.price,
+    marketCap: token.marketCap,
+    fdv: token.fdv,
+    liquidity: token.liquidity,
+    volume: token.volume,
+    change24h: token.change24h,
+    launchDate: token.launchDate,
+    chartUrl: token.chartUrl,
+    projectLinks: token.projectLinks,
+  });
+
+  token.name = pickString(pair.baseToken || {}, ['name']) || token.name;
+  token.symbol = pickString(pair.baseToken || {}, ['symbol']) || token.symbol;
+  token.logo = pickString(info, ['imageUrl']) || token.logo;
+  token.description = sanitizePlainText(pickString(info, ['description'])) || token.description;
+  token.price = pickSaneMarketDetailNumber(token, 'price', pickNumber(pair, ['priceUsd']));
+  token.marketCap = pickSaneMarketDetailNumber(token, 'marketCap', pickNumber(pair, ['marketCap']));
+  token.fdv = pickSaneMarketDetailNumber(token, 'fdv', pickNumber(pair, ['fdv']));
+  token.liquidity = pairLiquidity(pair) || token.liquidity;
+  token.volume = pickNumber(volume, ['h24']) ?? token.volume;
+  token.change24h = pickNumber(priceChange, ['h24']) ?? token.change24h;
+  token.launchDate = pickDate(pair, ['pairCreatedAt']) || token.launchDate;
+  token.chartPairAddress = pickString(pair, ['pairAddress']) || token.chartPairAddress;
+  token.chartUrl = pickString(pair, ['url']) || token.chartUrl;
+  token.marketExchangeName = pickString(pair, ['dexId']) || token.marketExchangeName;
+  token.marketExchangeSupported = true;
+  token.projectLinks = {
+    ...token.projectLinks,
+    ...extractDexScreenerProjectLinks(info),
+  };
+
+  return (
+    before !==
+    JSON.stringify({
+      name: token.name,
+      symbol: token.symbol,
+      logo: token.logo,
+      description: token.description,
+      price: token.price,
+      marketCap: token.marketCap,
+      fdv: token.fdv,
+      liquidity: token.liquidity,
+      volume: token.volume,
+      change24h: token.change24h,
+      launchDate: token.launchDate,
+      chartUrl: token.chartUrl,
+      projectLinks: token.projectLinks,
+    })
+  );
+}
+
+function extractDexScreenerProjectLinks(info) {
+  const websites = Array.isArray(info.websites) ? info.websites.map((item) => item?.url) : [];
+  const socials = Array.isArray(info.socials) ? info.socials : [];
+  const links = (platform) =>
+    socials
+      .filter((item) => item?.type === platform || item?.platform === platform)
+      .map((item) => item?.url || item?.handle);
+
+  return compactObject({
+    website: firstUrl('website', websites),
+    telegram: firstUrl('telegram', links('telegram')),
+    x: firstUrl('x', [...links('twitter'), ...links('x')]),
+    discord: firstUrl('discord', links('discord')),
+  });
 }
 
 async function enrichTokensWithMobulaMarketDetails(tokens) {
@@ -2636,6 +2827,7 @@ async function enrichAndSelectSaneTokens(tokens) {
   await enrichTokensWithGeckoTerminalInfo(tokens);
   await enrichTokensWithMobulaMarketDetails(tokens);
   await enrichTokensWithGeckoTerminalMarketDetails(tokens);
+  await enrichTokensWithDexScreenerDetails(tokens);
 
   const enrichedTokens = tokens;
 
@@ -2676,7 +2868,7 @@ function logImportPlan({ tokens, selectionTarget, activeChainKeys, perChainCount
     }`,
   );
   log('Stored chart/DEX links require confirmed market data; app may provide chain defaults.');
-  log('Stored DEX links are added only when Mobula confirms a route.');
+  log('Stored DEX links use DexScreener market data when available.');
 }
 
 function dryRunRow(token) {
