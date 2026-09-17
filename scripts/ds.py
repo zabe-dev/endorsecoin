@@ -28,7 +28,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Default output directory for the CSV and any files generated at runtime
 # (debug screenshots/HTML, the denied-token audit CSV).
-DEFAULT_OUTPUT_DIR = "ds-output"
+DEFAULT_OUTPUT_DIR = os.path.join(SCRIPT_DIR, "ds-output")
 DEFAULT_OUTPUT_CSV = os.path.join(DEFAULT_OUTPUT_DIR, "trending-coins.csv")
 
 # Standard comma-delimited CSV. csv.writer/DictWriter auto-quote any field
