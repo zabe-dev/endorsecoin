@@ -60,11 +60,12 @@ function AdBadge() {
   return <span className="ad-creative-badge">Ad</span>;
 }
 
-function AadsFallback({ placement, mobile = false }: { placement: string; mobile?: boolean }) {
-  const adUnit = mobile ? '2455622' : '2455618';
-  const size = mobile ? '320x100' : '728x90';
-  const width = mobile ? 320 : 728;
-  const height = mobile ? 100 : 90;
+function AadsFallback({ placement }: { placement: string }) {
+  const isPremium = placement === 'premium';
+  const adUnit = isPremium ? '2455624' : '2455618';
+  const size = isPremium ? '970x90' : '728x90';
+  const width = isPremium ? 970 : 728;
+  const height = 90;
 
   return (
     <div
@@ -199,7 +200,7 @@ function BasicBannerSlot({
 
   return (
     <div className={`basic-ad-banner basic-ad-banner--${slot} aads-fallback-slot`}>
-      <AadsFallback placement={`basic-${imageMode}-${slot}`} mobile={imageMode === 'mobile'} />
+      <AadsFallback placement={`basic-${imageMode}-${slot}`} />
     </div>
   );
 }
@@ -226,13 +227,8 @@ export function PremiumAdBanner({ ads = [], offset = 0, fullWidth = false }: Pre
 
   if (!ad) {
     return (
-      <div className={className}>
-        <small>PREMIUM ADVERTISEMENT</small>
-        <div>
-          <b>Reach early project investors.</b>
-          <span>Premium inventory · Measured impressions and clicks</span>
-        </div>
-        <Link href="/advertise">View ad packages ↗</Link>
+      <div className={`${className} aads-fallback-slot`}>
+        <AadsFallback placement="premium" />
       </div>
     );
   }

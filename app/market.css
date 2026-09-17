@@ -259,7 +259,8 @@
 .premium-ad-banner:not(.ad-banner-image) {
   min-height: 120px;
 }
-.basic-ad-banner.aads-fallback-slot {
+.basic-ad-banner.aads-fallback-slot,
+.premium-ad-banner.aads-fallback-slot {
   border: 0;
   background: transparent;
   padding: 0;
@@ -657,7 +658,7 @@
   }
 }
 .premium-ad-banner {
-  margin-top: 18px;
+  margin-top: 54px;
   border: 1px solid #34311e;
   background: linear-gradient(100deg, #15140f, #1c1810 55%, #111519);
   border-radius: 10px;
