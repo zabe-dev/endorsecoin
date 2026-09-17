@@ -60,17 +60,34 @@ function AdBadge() {
   return <span className="ad-creative-badge">Ad</span>;
 }
 
-function AadsFallback({ placement }: { placement: string }) {
+function AadsFallback({ placement, mobile = false }: { placement: string; mobile?: boolean }) {
+  const adUnit = mobile ? '2455622' : '2455618';
+  const size = mobile ? '320x100' : '728x90';
+  const width = mobile ? 320 : 728;
+  const height = mobile ? 100 : 90;
+
   return (
-    <iframe
-      className={`aads-ad-unit aads-ad-unit--${placement}`}
-      id={`aads-ad-unit-2455618-${placement}`}
-      title="Advertisement"
-      data-aa="2455618"
-      src="https://acceptable.a-ads.com/2455618/?size=Adaptive"
-      loading="lazy"
-      style={{ position: 'relative', zIndex: 99998 }}
-    />
+    <div
+      className={`aads-ad-unit-frame aads-ad-unit-frame--${placement}`}
+      style={{ width, height: 'auto', margin: 'auto', position: 'relative', zIndex: 99998 }}
+    >
+      <iframe
+        className="aads-ad-unit"
+        title="Advertisement"
+        data-aa={adUnit}
+        src={`https://ad.a-ads.com/${adUnit}/?size=${size}`}
+        loading="lazy"
+        style={{
+          border: 0,
+          padding: 0,
+          width,
+          height,
+          overflow: 'hidden',
+          display: 'block',
+          margin: 'auto',
+        }}
+      />
+    </div>
   );
 }
 
@@ -182,7 +199,7 @@ function BasicBannerSlot({
 
   return (
     <div className={`basic-ad-banner basic-ad-banner--${slot} aads-fallback-slot`}>
-      <AadsFallback placement={`basic-${slot}`} />
+      <AadsFallback placement={`basic-${imageMode}-${slot}`} mobile={imageMode === 'mobile'} />
     </div>
   );
 }
