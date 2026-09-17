@@ -60,6 +60,20 @@ function AdBadge() {
   return <span className="ad-creative-badge">Ad</span>;
 }
 
+function AadsFallback({ placement }: { placement: string }) {
+  return (
+    <iframe
+      className={`aads-ad-unit aads-ad-unit--${placement}`}
+      id={`aads-ad-unit-2455618-${placement}`}
+      title="Advertisement"
+      data-aa="2455618"
+      src="https://acceptable.a-ads.com/2455618/?size=Adaptive"
+      loading="lazy"
+      style={{ position: 'relative', zIndex: 99998 }}
+    />
+  );
+}
+
 function AdPicture({ ad }: { ad: PublicBannerAd }) {
   return (
     <span className="ad-banner-media" aria-label={ad.title || 'Advertisement'}>
@@ -167,13 +181,8 @@ function BasicBannerSlot({
   }
 
   return (
-    <div className={`basic-ad-banner basic-ad-banner--${slot}`}>
-      <small>AD SPACE</small>
-      <div className="ad-placeholder-copy">
-        <b>Reach early project investors.</b>
-        <span>Premium inventory · Measured impressions and clicks</span>
-      </div>
-      <Link href="/advertise">View ad packages ↗</Link>
+    <div className={`basic-ad-banner basic-ad-banner--${slot} aads-fallback-slot`}>
+      <AadsFallback placement={`basic-${slot}`} />
     </div>
   );
 }
@@ -213,13 +222,8 @@ export function PremiumAdBanner({ ads = [], offset = 0, fullWidth = false }: Pre
   }
 
   return (
-    <div className={className}>
-      <small>PREMIUM ADVERTISEMENT</small>
-      <div>
-        <b>Reach early project investors.</b>
-        <span>Premium inventory · Measured impressions and clicks</span>
-      </div>
-      <Link href="/advertise">View ad packages ↗</Link>
+    <div className={`${className} aads-fallback-slot`}>
+      <AadsFallback placement="premium" />
     </div>
   );
 }
@@ -251,12 +255,7 @@ export function FixedFooterBanner({ ads = [], offset = 0 }: BannerProps) {
           </Link>
         ) : (
           <div className="fixed-footer-ad-banner-placeholder">
-            <div className="fixed-footer-ad-banner-placeholder-inner">
-              <small>AD SPACE</small>
-              <b>endorsecoin</b>
-              <span>Reach early project investors.</span>
-              <Link href="/advertise">View ad packages ↗</Link>
-            </div>
+            <AadsFallback placement="fixed" />
           </div>
         )}
         <button

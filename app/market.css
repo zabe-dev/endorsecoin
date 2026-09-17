@@ -259,6 +259,25 @@
 .premium-ad-banner:not(.ad-banner-image) {
   min-height: 120px;
 }
+.basic-ad-banner.aads-fallback-slot,
+.premium-ad-banner.aads-fallback-slot {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  box-shadow: none;
+}
+.aads-ad-unit {
+  display: block;
+  margin: auto;
+  width: 70%;
+  height: 90px;
+  border: 0;
+  padding: 0;
+  overflow: hidden;
+}
+.aads-ad-unit--premium {
+  height: 120px;
+}
 .ad-creative-badge {
   position: absolute;
   top: 8px;
@@ -1898,6 +1917,10 @@
   .basic-ad-row--mobile {
     display: flex;
   }
+}
+.basic-ad-row--desktop[hidden],
+.basic-ad-row--mobile[hidden] {
+  display: none;
 }
 @media (prefers-reduced-motion: reduce) {
   .topbar-marquee-track {
