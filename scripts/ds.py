@@ -5,7 +5,8 @@ the community-token denylist (ported from the old Birdeye-based script)
 over the results.
 
 Usage:
-    python ds.py robinhood --last h24 --limit 50
+    python ds.py --last h24 --limit 50
+    python ds.py --chain robinhood --last h24 --limit 50
 
 Requires:
     pip install playwright requests --break-system-packages
@@ -624,7 +625,7 @@ DENIED_OUTPUT_HEADER = [
     "token_name",
     "token_symbol",
     "contract_address",
-    "deny reason",
+    "reason",
 ]
 
 
@@ -657,6 +658,35 @@ TIMEFRAME_RANK_FIELDS = {
     "h24": "trendingScoreH24",
 }
 
+# Keep this aligned with the chains accepted by import-trending-coins.mjs.
+DEXSCREENER_CHAIN_SLUGS = {
+    "ethereum": "ethereum",
+    "bsc": "bsc",
+    "polygon": "polygon",
+    "avalanche": "avalanche",
+    "arbitrum": "arbitrum",
+    "base": "base",
+    "optimism": "optimism",
+    "hood": "robinhood",
+    "solana": "solana",
+    "sui": "sui",
+    "tron": "tron",
+}
+SUPPORTED_CHAINS = tuple(DEXSCREENER_CHAIN_SLUGS.values())
+PAIR_ADDRESS_PATTERNS = {
+    "ethereum": re.compile(r"0x[0-9a-fA-F]{40}"),
+    "bsc": re.compile(r"0x[0-9a-fA-F]{40}"),
+    "polygon": re.compile(r"0x[0-9a-fA-F]{40}"),
+    "avalanche": re.compile(r"0x[0-9a-fA-F]{40}"),
+    "arbitrum": re.compile(r"0x[0-9a-fA-F]{40}"),
+    "base": re.compile(r"0x[0-9a-fA-F]{40}"),
+    "optimism": re.compile(r"0x[0-9a-fA-F]{40}"),
+    "robinhood": re.compile(r"0x[0-9a-fA-F]{40}"),
+    "solana": re.compile(r"[1-9A-HJ-NP-Za-km-z]{32,44}"),
+    "sui": re.compile(r"0x[0-9a-fA-F]{64}"),
+    "tron": re.compile(r"T[1-9A-HJ-NP-Za-km-z]{33}"),
+}
+
 
 def scrape_trending_pair_addresses(
     chain: str, limit: int, last: str = "h24"
@@ -674,9 +704,9 @@ def scrape_trending_pair_addresses(
     url = f"https://dexscreener.com/{chain}?rankBy={rank_field}&order=desc"
     pairs = []
 
-    # Match any link that points to /{chain}/0x... — this survives Dexscreener's
-    # frequent CSS class-name changes, unlike relying on "ds-dex-table-row" etc.
-    link_selector = f'a[href^="/{chain}/0x"]'
+    # Match links for this chain regardless of address format. EVM addresses
+    # use 0x, while Solana, Sui, and Tron use other formats.
+    link_selector = f'a[href^="/{chain}/"]'
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
@@ -723,6 +753,9 @@ def scrape_trending_pair_addresses(
             parts = href.strip("/").split("/")
             if len(parts) == 2:
                 row_chain, pair_address = parts
+                pattern = PAIR_ADDRESS_PATTERNS.get(row_chain)
+                if not pattern or not pattern.fullmatch(pair_address):
+                    continue
                 pairs.append((row_chain, pair_address))
             if len(pairs) >= limit:
                 break
@@ -776,7 +809,9 @@ def main():
         description="Scrape Dexscreener trending tokens, filtered through the community-token denylist"
     )
     parser.add_argument(
-        "chain", help="Chain/category slug, e.g. robinhood, solana, ethereum"
+        "--chain",
+        choices=SUPPORTED_CHAINS,
+        help="Fetch one chain only; defaults to all importer-supported chains",
     )
     parser.add_argument(
         "--last",
@@ -831,8 +866,20 @@ def main():
 
     os.makedirs(DEFAULT_OUTPUT_DIR, exist_ok=True)
 
-    print(f"Scraping top {args.limit} {args.last}-trending pairs for '{args.chain}'...")
-    pair_refs = scrape_trending_pair_addresses(args.chain, args.limit, args.last)
+    chains = [args.chain] if args.chain else list(SUPPORTED_CHAINS)
+    print(
+        f"Scraping top {args.limit} {args.last}-trending pairs for "
+        f"{len(chains)} chain(s)..."
+    )
+    pair_refs = []
+    for chain in chains:
+        print(f"  Fetching {chain}...")
+        try:
+            pair_refs.extend(scrape_trending_pair_addresses(chain, args.limit, args.last))
+        except Exception as error:
+            if args.chain:
+                raise
+            print(f"  Skipping {chain}: {error}")
     print(f"Found {len(pair_refs)} pairs. Resolving token details via API...")
 
     results = []
