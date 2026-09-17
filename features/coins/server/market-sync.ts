@@ -46,9 +46,32 @@ type MarketFetchResult =
       message: string;
     };
 
+type ProviderMarketFetchResult = MarketFetchResult & {
+  provider: MarketProvider;
+  chainId: string;
+};
+
+const dexScreenerProvider = 'dexscreener';
 const mobulaProvider = 'mobula';
 const geckoTerminalProvider = 'geckoterminal';
-type MarketProvider = typeof mobulaProvider | typeof geckoTerminalProvider;
+type MarketProvider =
+  typeof dexScreenerProvider | typeof mobulaProvider | typeof geckoTerminalProvider;
+
+const dexScreenerChainIds: Partial<Record<NetworkId, string>> = {
+  ethereum: 'ethereum',
+  bsc: 'bsc',
+  polygon: 'polygon',
+  avalanche: 'avalanche',
+  arbitrum: 'arbitrum',
+  base: 'base',
+  optimism: 'optimism',
+  fantom: 'fantom',
+  kcc: 'kcc',
+  hood: 'robinhood',
+  solana: 'solana',
+  sui: 'sui',
+  tron: 'tron',
+};
 
 const mobulaChainIds: Partial<Record<NetworkId, string>> = {
   ethereum: 'evm:1',
@@ -120,7 +143,7 @@ const maxBackoffMs = Number(process.env.MARKET_SYNC_MAX_ERROR_BACKOFF_MS || 12 *
 const invalidAddressErrorCode = 'invalid-address-format';
 
 // Log tag so these are easy to grep in server logs.
-const LOG_TAG = '[mobula-sync]';
+const LOG_TAG = '[market-sync]';
 
 export async function refreshStaleMarketSnapshots(
   coinRows: MarketSyncCoin[],
@@ -267,14 +290,14 @@ async function syncCoinMarketData(coinRows: MarketSyncCoin[]) {
   const refreshed = new Map<number, MarketSnapshotRow>();
 
   for (const coin of coinRows) {
-    const provider = getMarketProvider(coin.chain);
-    const chainId = getProviderChainId(coin.chain);
+    const primaryProvider = getMarketProvider(coin.chain);
+    const chainId = getProviderChainId(coin.chain, primaryProvider);
     const address = coin.contractAddress?.trim();
 
     if (!chainId) {
       recordMetric('market.sync', { event: 'coin_skipped', reason: 'unsupported_chain' });
       console.warn(
-        `${LOG_TAG} coin ${coin.id}: no Mobula chain mapping for chain "${coin.chain}", skipping`,
+        `${LOG_TAG} coin ${coin.id}: no market provider mapping for chain "${coin.chain}", skipping`,
       );
       continue;
     }
@@ -288,7 +311,7 @@ async function syncCoinMarketData(coinRows: MarketSyncCoin[]) {
     if (hasKnownInvalidAddressError(coin, externalId)) {
       recordMetric('market.sync', { event: 'coin_skipped', reason: 'known_invalid_address' });
       console.warn(
-        `${LOG_TAG} coin ${coin.id}: skipping known invalid Mobula address ${chainId}/${address}`,
+        `${LOG_TAG} coin ${coin.id}: skipping known invalid market-data address ${chainId}/${address}`,
       );
       continue;
     }
@@ -296,7 +319,7 @@ async function syncCoinMarketData(coinRows: MarketSyncCoin[]) {
       recordMetric('market.sync', { event: 'coin_skipped', reason: 'invalid_address_format' });
       await recordMarketSourceError(
         coin,
-        provider,
+        primaryProvider,
         externalId,
         invalidAddressErrorCode,
         `Invalid address format for ${coin.chain || 'unknown'} chain.`,
@@ -307,12 +330,18 @@ async function syncCoinMarketData(coinRows: MarketSyncCoin[]) {
       continue;
     }
 
-    const result = await fetchTokenMarketDetails(provider, chainId, address);
+    const result = await fetchTokenMarketDetails(coin.chain, address);
     if (!result.ok) {
       recordMetric('market.sync', { event: 'coin_fetch_failed', reason: result.code });
-      await recordMarketSourceError(coin, provider, externalId, result.code, result.message);
+      await recordMarketSourceError(
+        coin,
+        result.provider,
+        marketSourceExternalId(result.chainId, address),
+        result.code,
+        result.message,
+      );
       console.warn(
-        `${LOG_TAG} coin ${coin.id}: no data returned from ${provider} for ${chainId}/${address}`,
+        `${LOG_TAG} coin ${coin.id}: no data returned from ${result.provider} for ${result.chainId}/${address}`,
       );
       continue;
     }
@@ -323,13 +352,13 @@ async function syncCoinMarketData(coinRows: MarketSyncCoin[]) {
       recordMetric('market.sync', { event: 'coin_skipped', reason: 'suspicious_market_data' });
       await recordMarketSourceError(
         coin,
-        provider,
-        externalId,
+        result.provider,
+        marketSourceExternalId(result.chainId, address),
         'suspicious-market-data',
         suspiciousReason,
       );
       console.warn(
-        `${LOG_TAG} coin ${coin.id}: skipped suspicious Mobula market data — ${suspiciousReason}`,
+        `${LOG_TAG} coin ${coin.id}: skipped suspicious ${result.provider} market data — ${suspiciousReason}`,
       );
       continue;
     }
@@ -352,7 +381,11 @@ async function syncCoinMarketData(coinRows: MarketSyncCoin[]) {
 
     if (snapshot) {
       recordMetric('market.sync', { event: 'coin_updated' });
-      await recordMarketSourceSuccess(coin.id, provider, externalId);
+      await recordMarketSourceSuccess(
+        coin.id,
+        result.provider,
+        marketSourceExternalId(result.chainId, address),
+      );
       refreshed.set(coin.id, snapshot);
       console.log(
         `${LOG_TAG} coin ${coin.id}: snapshot inserted (price=${snapshot.priceUsd ?? 'null'})`,
@@ -366,15 +399,136 @@ async function syncCoinMarketData(coinRows: MarketSyncCoin[]) {
 }
 
 async function fetchTokenMarketDetails(
-  provider: MarketProvider,
+  chain: string | null,
+  address: string,
+): Promise<ProviderMarketFetchResult> {
+  const network = chain as NetworkId;
+  const providers: Array<[MarketProvider, string]> = [];
+  const dexChainId = dexScreenerChainIds[network];
+  if (dexChainId) providers.push([dexScreenerProvider, dexChainId]);
+  const mobulaChainId = mobulaChainIds[network];
+  if (mobulaChainId) providers.push([mobulaProvider, mobulaChainId]);
+  const geckoTerminalChainId = geckoTerminalChainIds[network];
+  if (geckoTerminalChainId) providers.push([geckoTerminalProvider, geckoTerminalChainId]);
+
+  let lastResult: MarketFetchResult = {
+    ok: false,
+    code: 'request-failed',
+    message: 'No market provider returned data.',
+  };
+  for (const [provider, chainId] of providers) {
+    const result =
+      provider === dexScreenerProvider
+        ? await fetchDexScreenerTokenDetails(chainId, address)
+        : provider === geckoTerminalProvider
+          ? await fetchGeckoTerminalTokenDetails(chainId, address)
+          : await fetchMobulaTokenDetails(chainId, address);
+    if (result.ok) {
+      if (
+        provider === dexScreenerProvider &&
+        mobulaChainIds[network] &&
+        needsMobulaSupplement(result.details)
+      ) {
+        const mobulaResult = await fetchMobulaTokenDetails(mobulaChainIds[network], address);
+        if (mobulaResult.ok) mergeMissingMarketDetails(result.details, mobulaResult.details);
+      }
+      return { ...result, provider, chainId };
+    }
+    lastResult = result;
+  }
+
+  const [provider, chainId] = providers[0] || ['', ''];
+  return { ...lastResult, provider: provider as MarketProvider, chainId };
+}
+
+function mergeMissingMarketDetails(primary: MarketTokenDetails, fallback: MarketTokenDetails) {
+  const fields: Array<keyof MarketTokenDetails> = [
+    'priceUSD',
+    'marketCapUSD',
+    'marketCapDilutedUSD',
+    'volume24hUSD',
+    'priceChange24hPercentage',
+    'liquidityUSD',
+    'totalSupply',
+    'holdersCount',
+    'rank',
+  ];
+
+  for (const field of fields) {
+    if (primary[field] === null || primary[field] === undefined) {
+      primary[field] = fallback[field];
+    }
+  }
+}
+
+function needsMobulaSupplement(details: MarketTokenDetails) {
+  return [
+    details.priceUSD,
+    details.marketCapUSD,
+    details.marketCapDilutedUSD,
+    details.volume24hUSD,
+    details.priceChange24hPercentage,
+    details.liquidityUSD,
+    details.totalSupply,
+    details.holdersCount,
+  ].some((value) => value === null || value === undefined);
+}
+
+async function fetchDexScreenerTokenDetails(
   chainId: string,
   address: string,
 ): Promise<MarketFetchResult> {
-  if (provider === geckoTerminalProvider) {
-    return fetchGeckoTerminalTokenDetails(chainId, address);
-  }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
 
-  return fetchMobulaTokenDetails(chainId, address);
+  try {
+    const url = `https://api.dexscreener.com/tokens/v1/${encodeURIComponent(chainId)}/${encodeURIComponent(address)}`;
+    const response = await fetch(url, {
+      headers: { accept: 'application/json' },
+      signal: controller.signal,
+      cache: 'no-store',
+    });
+    if (!response.ok) {
+      return {
+        ok: false,
+        code: 'request-failed',
+        message: `DexScreener ${response.status} ${response.statusText}`,
+      };
+    }
+
+    const payload = await response.json();
+    const pairs = Array.isArray(payload) ? payload : [];
+    const pair = pairs.sort((left, right) => pairLiquidity(right) - pairLiquidity(left))[0];
+    if (!pair) {
+      return { ok: false, code: 'missing-data', message: 'DexScreener returned no token pairs.' };
+    }
+
+    return {
+      ok: true,
+      details: {
+        priceUSD: pair.priceUsd,
+        marketCapUSD: pair.marketCap,
+        marketCapDilutedUSD: pair.fdv,
+        volume24hUSD: pair.volume?.h24,
+        priceChange24hPercentage: pair.priceChange?.h24,
+        liquidityUSD: pair.liquidity?.usd,
+      },
+    };
+  } catch (error) {
+    const isAbort = error instanceof Error && error.name === 'AbortError';
+    return {
+      ok: false,
+      code: 'network-error',
+      message: isAbort ? 'DexScreener request timed out.' : 'DexScreener request failed.',
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function pairLiquidity(pair: unknown) {
+  if (!isRecord(pair) || !isRecord(pair.liquidity)) return 0;
+  return readFiniteNumber(pair.liquidity.usd) || 0;
 }
 
 async function fetchMobulaTokenDetails(
@@ -553,15 +707,19 @@ function shouldRefreshCoin(coin: MarketSyncCoin, snapshot: MarketSnapshotRow | u
 }
 
 function getMarketProvider(chain: string | null): MarketProvider {
-  return chain === 'tron' ? geckoTerminalProvider : mobulaProvider;
+  return dexScreenerChainIds[chain as NetworkId]
+    ? dexScreenerProvider
+    : chain === 'tron'
+      ? geckoTerminalProvider
+      : mobulaProvider;
 }
 
-function getProviderChainId(chain: string | null) {
+function getProviderChainId(chain: string | null, provider = getMarketProvider(chain)) {
   if (!chain) return '';
   const network = chain as NetworkId;
-  return getMarketProvider(chain) === geckoTerminalProvider
-    ? geckoTerminalChainIds[network] || ''
-    : mobulaChainIds[network] || '';
+  if (provider === dexScreenerProvider) return dexScreenerChainIds[network] || '';
+  if (provider === geckoTerminalProvider) return geckoTerminalChainIds[network] || '';
+  return mobulaChainIds[network] || '';
 }
 
 async function selectStaleSyncCoins(limit: number): Promise<MarketSyncCoin[]> {
@@ -588,6 +746,10 @@ async function selectStaleSyncCoins(limit: number): Promise<MarketSyncCoin[]> {
       on source.coin_id = c.id
      and source.provider = (
         case
+          when c.chain in (${sql.join(
+            Object.keys(dexScreenerChainIds).map((chain) => sql`${chain}`),
+            sql`, `,
+          )}) then ${dexScreenerProvider}
           when c.chain = 'tron' then ${geckoTerminalProvider}
           else ${mobulaProvider}
         end
