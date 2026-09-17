@@ -14,12 +14,12 @@ export function DiscoveryCard({
   viewMoreHref,
   metric = 'votes',
 }: {
-  icon: 'new' | 'trend' | 'presale' | 'watch';
+  icon: 'new' | 'trend' | 'presale';
   title: string;
   sub: string;
   coins: Coin[];
   viewMoreHref: string;
-  metric?: 'votes' | 'launch' | 'presaleEnd' | 'watchlist' | 'trend';
+  metric?: 'votes' | 'launch' | 'presaleEnd' | 'trend';
 }) {
   const rows = Array.from({ length: 4 }, (_, index) => coins[index] || null);
 
@@ -52,6 +52,20 @@ export function DiscoveryCard({
               ) : (
                 coin.logo
               )}
+              <span className="chain-badge" title={coin.networkName}>
+                {coin.chainIcon ? (
+                  <img
+                    src={coin.chainIcon}
+                    alt=""
+                    width={15}
+                    height={15}
+                    loading="lazy"
+                    decoding="async"
+                  />
+                ) : (
+                  coin.chain[0]
+                )}
+              </span>
             </div>
             <span>
               <strong
@@ -92,17 +106,13 @@ function Metric({
   metric,
 }: {
   coin: Coin;
-  metric: 'votes' | 'launch' | 'presaleEnd' | 'watchlist' | 'trend';
+  metric: 'votes' | 'launch' | 'presaleEnd' | 'trend';
 }) {
-  if (metric === 'trend' || metric === 'votes' || metric === 'watchlist') {
-    const value =
-      metric === 'watchlist'
-        ? formatVotes(coin.watchCount)
-        : metric === 'trend'
-          ? formatChangePercent(coin.change)
-          : formatVotes(coin.votes);
-    const label = metric === 'watchlist' ? 'watchlists' : metric === 'trend' ? '24h' : 'total votes';
-    const valueClass = metric === 'trend' ? (coin.change >= 0 ? 'positive' : 'negative') : undefined;
+  if (metric === 'trend' || metric === 'votes') {
+    const value = metric === 'trend' ? formatChangePercent(coin.change) : formatVotes(coin.votes);
+    const label = metric === 'trend' ? '24h' : 'total votes';
+    const valueClass =
+      metric === 'trend' ? (coin.change >= 0 ? 'positive' : 'negative') : undefined;
     const TrendIcon = coin.change >= 0 ? ArrowUpRight : ArrowDownRight;
 
     return (
@@ -121,14 +131,10 @@ function Metric({
   );
 }
 
-function formatMetric(
-  coin: Coin,
-  metric: 'votes' | 'launch' | 'presaleEnd' | 'watchlist' | 'trend',
-) {
+function formatMetric(coin: Coin, metric: 'votes' | 'launch' | 'presaleEnd' | 'trend') {
   if (metric === 'launch') return coin.launch;
   if (metric === 'presaleEnd')
     return coin.presaleEnd === '—' ? 'No end date' : `${coin.presaleEnd}`;
-  if (metric === 'watchlist') return `${formatVotes(coin.watchCount)} watches`;
   return `${formatVotes(coin.votes)} votes`;
 }
 

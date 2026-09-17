@@ -343,7 +343,7 @@ function buildScoredLeaderboardWhere(query: NormalizedLeaderboardQuery, nowIso: 
   if (query.view === 'presales') {
     where.push(sql`is_presale = true`);
     where.push(sql`presale_end_at > ${nowIso}::timestamptz`);
-  } else if (query.view === 'recent') {
+  } else if (query.view === 'new') {
     where.push(sql`is_presale = false`);
     where.push(sql`launch_date is not null`);
     where.push(sql`launch_date <= ${nowIso}::timestamptz`);
@@ -358,7 +358,7 @@ function buildLeaderboardOrderBy(query: NormalizedLeaderboardQuery) {
       return sql`trending_score desc, boosted_votes desc, name asc, id asc`;
     if (query.view === 'watched')
       return sql`watch_count desc, boosted_votes desc, name asc, id asc`;
-    if (query.view === 'recent')
+    if (query.view === 'new')
       return sql`launch_date desc nulls last, boosted_votes desc, name asc, id asc`;
     if (query.view === 'presales')
       return sql`presale_end_at asc nulls last, boosted_votes desc, name asc, id asc`;
@@ -441,7 +441,7 @@ function filterCoins(
 
   return coins.filter((coin) => {
     if (query.view === 'presales' && !isActivePresaleCandidate(coin)) return false;
-    if (query.view === 'recent' && !isLaunchedRecentlyCandidate(coin)) return false;
+    if (query.view === 'new' && !isNewCoinCandidate(coin)) return false;
     if (query.category !== 'All' && coin.category !== query.category) return false;
     if (query.chain !== 'All chains' && coin.chain !== query.chain) return false;
     if (search && !`${coin.name} ${coin.symbol} ${coin.chain}`.toLowerCase().includes(search)) {
@@ -459,7 +459,7 @@ function sortLeaderboardCoins(
   if (isDefaultSort(query.sort)) {
     if (query.view === 'trending') return [...coins].sort(sortByTrendingScore);
     if (query.view === 'watched') return [...coins].sort(sortByWatchCount);
-    if (query.view === 'recent') return [...coins].sort(sortByNewestLaunch);
+    if (query.view === 'new') return [...coins].sort(sortByNewestLaunch);
     if (query.view === 'presales') return [...coins].sort(sortByPresaleEnd);
     return [...coins].sort(sortByVotes);
   }
@@ -468,7 +468,7 @@ function sortLeaderboardCoins(
 }
 
 function normalizeView(value: string | null | undefined): LeaderboardView {
-  if (value === 'trending' || value === 'presales' || value === 'watched' || value === 'recent') {
+  if (value === 'trending' || value === 'presales' || value === 'watched' || value === 'new') {
     return value;
   }
   return defaultView;
@@ -514,7 +514,7 @@ function isDefaultSort(sort: { key: CoinSortKey; direction: 'asc' | 'desc' }) {
   return sort.key === defaultSort.key && sort.direction === defaultSort.direction;
 }
 
-function isLaunchedRecentlyCandidate(coin: CoinListItem) {
+function isNewCoinCandidate(coin: CoinListItem) {
   const launchTime = dateValue(coin.launchTimestamp);
   return coin.lifecycle === 'launched' && launchTime > 0 && launchTime <= Date.now();
 }

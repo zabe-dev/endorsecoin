@@ -78,10 +78,9 @@ async function readDiscoveryData(query: LeaderboardQuery = {}): Promise<Discover
   }
 
   const allIds = uniqueNumbers([
-    ...selectionData.recent.ids,
+    ...selectionData.newCoins.ids,
     ...selectionData.trending.ids,
     ...selectionData.presales.ids,
-    ...selectionData.watched.ids,
     ...selectionData.promotedIds,
     ...selectionData.leaderboard.ids,
   ]);
@@ -94,10 +93,9 @@ async function readDiscoveryData(query: LeaderboardQuery = {}): Promise<Discover
 
   return {
     hotspots: {
-      recent: hydrateLeaderboardSelectionFromItems(selectionData.recent, itemsById).rows,
+      newCoins: hydrateLeaderboardSelectionFromItems(selectionData.newCoins, itemsById).rows,
       trending: hydrateLeaderboardSelectionFromItems(selectionData.trending, itemsById).rows,
       presales: hydrateLeaderboardSelectionFromItems(selectionData.presales, itemsById).rows,
-      watched: hydrateLeaderboardSelectionFromItems(selectionData.watched, itemsById).rows,
     },
     promotedCoins,
     leaderboard: hydrateLeaderboardSelectionFromItems(selectionData.leaderboard, itemsById),
@@ -123,27 +121,25 @@ function buildDiscoveryCacheKey(
     query.sort.direction,
     query.page || '',
     query.pageSize || '',
-    'v2',
+    'v5',
   ]
     .map(cacheKeyPart)
     .join(':');
 }
 
 async function getDiscoverySelections(query: LeaderboardQuery = {}) {
-  const [recent, trending, presales, watched, promotedIds, leaderboard] = await Promise.all([
-    getLeaderboardSelection({ view: 'recent', pageSize: 4 }),
+  const [newCoins, trending, presales, promotedIds, leaderboard] = await Promise.all([
+    getLeaderboardSelection({ view: 'new', pageSize: 4 }),
     getStickyTrendingSelection({ pageSize: 4 }),
     getLeaderboardSelection({ view: 'presales', pageSize: 4 }),
-    getLeaderboardSelection({ view: 'watched', pageSize: 4 }),
     getCachedActivePromotedCoinIds(),
     getDiscoveryLeaderboardSelection(query),
   ]);
 
   return {
-    recent,
+    newCoins,
     trending,
     presales,
-    watched,
     promotedIds,
     leaderboard,
   };
@@ -266,18 +262,16 @@ function leaderboardPageToSelection(page: Awaited<ReturnType<typeof getLeaderboa
 }
 
 async function getDiscoveryHotspots(userId?: string | null): Promise<DiscoveryHotspots> {
-  const [recent, trending, presales, watched] = await Promise.all([
-    getLeaderboardPage({ view: 'recent', pageSize: 4, userId }),
+  const [newCoins, trending, presales] = await Promise.all([
+    getLeaderboardPage({ view: 'new', pageSize: 4, userId }),
     getStickyTrendingPage(userId),
     getLeaderboardPage({ view: 'presales', pageSize: 4, userId }),
-    getLeaderboardPage({ view: 'watched', pageSize: 4, userId }),
   ]);
 
   return {
-    recent: recent.rows,
+    newCoins: newCoins.rows,
     trending: trending.rows,
     presales: presales.rows,
-    watched: watched.rows,
   };
 }
 

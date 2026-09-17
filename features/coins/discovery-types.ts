@@ -2,10 +2,9 @@ import type { LeaderboardPage } from '@/features/coins/leaderboard-types';
 import type { CoinListItem } from '@/features/coins/view';
 
 export type DiscoveryHotspots = {
-  recent: CoinListItem[];
+  newCoins: CoinListItem[];
   trending: CoinListItem[];
   presales: CoinListItem[];
-  watched: CoinListItem[];
 };
 
 export type DiscoveryData = {

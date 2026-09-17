@@ -26,7 +26,7 @@ const platformLinks = [
   { href: '/?coins=trending#leaderboard', label: 'Trending coins' },
   { href: '/?coins=presales#leaderboard', label: 'Presale coins' },
   { href: '/?coins=watched#leaderboard', label: 'Most watched' },
-  { href: '/?coins=recent#leaderboard', label: 'Launched recently' },
+  { href: '/?coins=new#leaderboard', label: 'New coins' },
 ];
 
 const legalLinks = [

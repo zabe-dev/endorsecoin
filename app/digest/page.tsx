@@ -25,7 +25,7 @@ type DigestWidget = {
   title: string;
   eyebrow: string;
   query: {
-    view?: 'top' | 'trending' | 'presales' | 'watched' | 'recent';
+    view?: 'top' | 'trending' | 'presales' | 'watched' | 'new';
     sort?: string;
     direction?: string;
     chain?: string;
@@ -59,10 +59,10 @@ const widgets: DigestWidget[] = [
     query: { view: 'watched' },
   },
   {
-    key: 'recent',
-    title: 'Launched Recently',
-    eyebrow: 'RECENTLY LIVE',
-    query: { view: 'recent' },
+    key: 'new',
+    title: 'New Coins',
+    eyebrow: 'NEW COINS',
+    query: { view: 'new' },
   },
   {
     key: 'presales',

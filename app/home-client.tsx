@@ -37,14 +37,14 @@ import { useEffect, useRef, useState, useTransition, type CSSProperties } from '
 /* Market data and reusable UI live in dedicated modules; this page owns orchestration state. */
 
 type LeaderboardLabel =
-  'Top coins' | 'Trending coins' | 'Presale coins' | 'Most watched' | 'Launched recently';
+  'Top coins' | 'Trending coins' | 'Presale coins' | 'Most watched' | 'New coins';
 
 const viewParams: Record<LeaderboardLabel, ServerLeaderboardView> = {
   'Top coins': 'top',
   'Trending coins': 'trending',
   'Presale coins': 'presales',
   'Most watched': 'watched',
-  'Launched recently': 'recent',
+  'New coins': 'new',
 };
 const defaultSort: { key: CoinSortKey; dir: 1 | -1 } = { key: 'votes', dir: -1 };
 
@@ -221,10 +221,9 @@ export function HomeClient({
   };
   const updateCoinRows = (updater: (coin: CoinListItem) => CoinListItem) => {
     setHotspotCoins((current) => ({
-      recent: current.recent.map(updater),
+      newCoins: current.newCoins.map(updater),
       trending: current.trending.map(updater),
       presales: current.presales.map(updater),
-      watched: current.watched.map(updater),
     }));
     setPromotedCoins((coins) => coins.map(updater));
     setLeaderboardPage((current) => ({
@@ -444,10 +443,10 @@ export function HomeClient({
             >
               <Discovery
                 icon="new"
-                title="Launched recently"
+                title="New coins"
                 sub="Newest coins in the market."
-                coins={hotspotCoins.recent}
-                viewMoreHref="/?coins=recent#leaderboard"
+                coins={hotspotCoins.newCoins}
+                viewMoreHref="/?coins=new#leaderboard"
                 metric="launch"
               />
               <Discovery
@@ -468,14 +467,6 @@ export function HomeClient({
                   metric="presaleEnd"
                 />
               )}
-              <Discovery
-                icon="watch"
-                title="Most watched"
-                sub="Most saved by investors."
-                coins={hotspotCoins.watched}
-                viewMoreHref="/?coins=watched#leaderboard"
-                metric="watchlist"
-              />
             </div>
             <div className="hotspot-controls">
               <div className="hotspot-dots">
@@ -537,7 +528,7 @@ export function HomeClient({
               'Trending coins',
               'Presale coins',
               'Most watched',
-              'Launched recently',
+              'New coins',
             ] as LeaderboardLabel[]
           ).map((x) => (
             <button
@@ -790,6 +781,6 @@ function serverViewToLabel(view: ServerLeaderboardView): LeaderboardLabel {
   if (view === 'trending') return 'Trending coins';
   if (view === 'presales') return 'Presale coins';
   if (view === 'watched') return 'Most watched';
-  if (view === 'recent') return 'Launched recently';
+  if (view === 'new') return 'New coins';
   return 'Top coins';
 }

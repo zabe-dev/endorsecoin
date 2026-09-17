@@ -1,6 +1,6 @@
 import type { CoinListItem, CoinSortKey } from '@/features/coins/view';
 
-export type LeaderboardView = 'top' | 'trending' | 'presales' | 'watched' | 'recent';
+export type LeaderboardView = 'top' | 'trending' | 'presales' | 'watched' | 'new';
 
 export type LeaderboardQuery = {
   view?: string | null;

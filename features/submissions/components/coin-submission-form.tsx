@@ -658,7 +658,7 @@ export function CoinSubmissionForm({
                       </Field>
                     </div>
                     <p className="submission-market-note">
-                      This determines when your project appears in Launched recently.
+                      This determines when your project appears in New coins.
                     </p>
                     <ProviderField
                       label="Chart Link"

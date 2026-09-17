@@ -13,7 +13,11 @@ export function BoltIcon() {
   );
 }
 
-export function DiscoveryIcon({ type }: { type: 'new' | 'trend' | 'presale' | 'watch' }) {
+export function DiscoveryIcon({
+  type,
+}: {
+  type: 'new' | 'trend' | 'presale';
+}) {
   if (type === 'trend') {
     return (
       <Icon
@@ -32,11 +36,4 @@ export function DiscoveryIcon({ type }: { type: 'new' | 'trend' | 'presale' | 'w
     return <Icon icon="ix:coin-filled" className="discovery-icon trend-icon" aria-hidden="true" />;
   }
 
-  return (
-    <Icon
-      icon="material-symbols:star-rounded"
-      className="discovery-icon watch-icon"
-      aria-hidden="true"
-    />
-  );
 }

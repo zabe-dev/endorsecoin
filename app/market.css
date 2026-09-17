@@ -630,9 +630,6 @@
 .discovery-card-presale {
   --hotspot-data: #bfa3ff;
 }
-.discovery-card-watch {
-  --hotspot-data: #f47eac;
-}
 @keyframes hotspot-glow-sweep {
   0%,
   100% {
@@ -2230,10 +2227,6 @@
 .top-icon {
   color: #ffc52f;
   background: #241e0d;
-}
-.watch-icon {
-  color: #f47eac;
-  background: #28131d;
 }
 .boost-badge.boost-500:before {
   inset: 1px;
