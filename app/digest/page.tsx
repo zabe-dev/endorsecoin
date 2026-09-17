@@ -285,7 +285,7 @@ function DigestWidget({ widget, rows }: { widget: DigestWidget; rows: CoinListIt
                 </span>
                 <span className="digest-votes">
                   {formatMetric(widget.key, coin)}{' '}
-                  <small>{widget.key === 'gainers' ? '%' : 'votes'}</small>
+                  <small>{formatMetricLabel(widget.key)}</small>
                 </span>
               </Link>
             </li>
@@ -321,6 +321,12 @@ function formatMetric(key: string, coin: CoinListItem) {
   return new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(
     value,
   );
+}
+
+function formatMetricLabel(key: string) {
+  if (key === 'gainers') return '%';
+  if (key === 'watched') return 'watchlists';
+  return 'votes';
 }
 
 function readParam(value: string | string[] | undefined) {
