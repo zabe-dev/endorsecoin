@@ -204,9 +204,8 @@ class MobulaCoinImporter {
       } catch (error) {
         failed += 1;
         if (isLogoMirrorError(error)) {
-          console.warn(
-            `Skipping ${token.symbol} [${token.contract.chain}]: logo could not be fetched/mirrored (${error.message}).`,
-          );
+          console.warn(`Skipping ${token.symbol} [${token.contract.chain}]: logo unavailable.`);
+          console.warn(`  Reason: ${error.message}`);
         } else {
           console.error(`Failed to import ${token.symbol} [${token.contract.chain}]:`, error);
         }
