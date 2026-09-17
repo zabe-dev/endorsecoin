@@ -150,10 +150,10 @@ export default async function DigestPage({ searchParams }: DigestParams) {
       })),
     ),
   );
-  const marketSections = sortEmptySectionsLast(
-    sections.slice(0, selectedChain || selectedWidget ? sections.length : widgets.length),
-  );
-  const chainSections = sortEmptySectionsLast(sections.slice(widgets.length));
+  const marketSections = sections
+    .slice(0, selectedChain || selectedWidget ? sections.length : widgets.length)
+    .filter(({ rows }) => rows.length > 0);
+  const chainSections = sections.slice(widgets.length).filter(({ rows }) => rows.length > 0);
   const title = selectedChain
     ? `${selectedChain.title} Weekly Digest`
     : selectedWidget
@@ -203,7 +203,7 @@ export default async function DigestPage({ searchParams }: DigestParams) {
             <DigestWidget key={widget.key} widget={widget} rows={rows} />
           ))}
         </div>
-        {!selectedChain && !selectedWidget && (
+        {!selectedChain && !selectedWidget && chainSections.length > 0 && (
           <>
             <h2 className="digest-group-title">Top Ranked By Chain</h2>
             <div className="digest-grid">
@@ -249,6 +249,8 @@ export default async function DigestPage({ searchParams }: DigestParams) {
 }
 
 function DigestWidget({ widget, rows }: { widget: DigestWidget; rows: CoinListItem[] }) {
+  if (!rows.length) return null;
+
   const headingId = `digest-${widget.key}`;
   return (
     <section className="digest-widget" aria-labelledby={headingId}>
@@ -270,37 +272,27 @@ function DigestWidget({ widget, rows }: { widget: DigestWidget; rows: CoinListIt
           url={`/digest?${widget.shareParams}`}
         />
       </header>
-      {rows.length ? (
-        <ol className="digest-list">
-          {rows.map((coin, index) => (
-            <li key={coin.coinId}>
-              <Link href={`/coin/${coin.coinId}`} className="digest-coin">
-                <span className="digest-rank">{String(index + 1).padStart(2, '0')}</span>
-                <CoinLogo coin={coin} />
-                <span className="digest-coin-copy">
-                  <strong>{coin.name}</strong>
-                  <span>
-                    {coin.symbol} <i aria-hidden="true">/</i> {coin.chain}
-                  </span>
+      <ol className="digest-list">
+        {rows.map((coin, index) => (
+          <li key={coin.coinId}>
+            <Link href={`/coin/${coin.coinId}`} className="digest-coin">
+              <span className="digest-rank">{String(index + 1).padStart(2, '0')}</span>
+              <CoinLogo coin={coin} />
+              <span className="digest-coin-copy">
+                <strong>{coin.name}</strong>
+                <span>
+                  {coin.symbol} <i aria-hidden="true">/</i> {coin.chain}
                 </span>
-                <span className="digest-votes">
-                  {formatMetric(widget.key, coin)}{' '}
-                  <small>{formatMetricLabel(widget.key)}</small>
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ol>
-      ) : (
-        <p className="digest-empty">No ranked coins this week.</p>
-      )}
+              </span>
+              <span className="digest-votes">
+                {formatMetric(widget.key, coin)}{' '}
+                <small>{formatMetricLabel(widget.key)}</small>
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ol>
     </section>
-  );
-}
-
-function sortEmptySectionsLast<T extends { rows: unknown[] }>(sections: T[]) {
-  return [...sections].sort(
-    (left, right) => Number(!left.rows.length) - Number(!right.rows.length),
   );
 }
 
