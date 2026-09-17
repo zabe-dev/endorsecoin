@@ -127,10 +127,6 @@
   padding: 0 20px 16px;
   border-bottom: 0;
 }
-.digest-grid-single .digest-widget-header .digest-share-actions {
-  display: none;
-}
-
 .digest-group-title {
   margin: 42px 0 14px;
   color: #f2f4f5;

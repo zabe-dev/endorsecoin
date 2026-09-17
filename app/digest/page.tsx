@@ -9,7 +9,7 @@ import { rememberJson } from '@/lib/cache/json-cache';
 import { createPublicPageMetadata, siteName, siteUrl } from '@/lib/seo/metadata';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { ShareDigestButton } from './share-digest-button';
+import { SaveDigestImageButton } from './save-digest-image-button';
 import './digest.css';
 
 /* eslint-disable @next/next/no-img-element -- Coin logos use user-submitted external URLs. */
@@ -165,13 +165,6 @@ export default async function DigestPage({ searchParams }: DigestParams) {
       ? `${selectedWidget.title} coins ranked by this week's EndorseCoin signal.`
       : 'Six weekly market signals, ranked by the EndorseCoin community.';
   const isSingleDigest = Boolean(selectedWidget || selectedChain);
-  const sharePath = selectedChain
-    ? `/digest?chain=${encodeURIComponent(selectedChain.key.replace('chain-', ''))}`
-    : selectedWidget
-      ? `/digest?leaderboard=${encodeURIComponent(selectedWidget.key)}`
-      : '/digest';
-  const shareUrl = sharePath;
-
   return (
     <main className="digest-page">
       <div className="digest-shell">
@@ -187,7 +180,6 @@ export default async function DigestPage({ searchParams }: DigestParams) {
             <span className="digest-period">
               {formatDate(weekStart)} - {formatDate(weekEnd)}
             </span>
-            <ShareDigestButton label="Share digest" telegramText={title} url={shareUrl} />
           </div>
         </header>
         <div className={isSingleDigest ? 'digest-toolbar digest-toolbar-single' : 'digest-toolbar'}>
@@ -253,7 +245,7 @@ function DigestWidget({ widget, rows }: { widget: DigestWidget; rows: CoinListIt
 
   const headingId = `digest-${widget.key}`;
   return (
-    <section className="digest-widget" aria-labelledby={headingId}>
+    <section id={`digest-card-${widget.key}`} className="digest-widget" aria-labelledby={headingId}>
       <header className="digest-widget-header">
         <div
           className={
@@ -266,10 +258,9 @@ function DigestWidget({ widget, rows }: { widget: DigestWidget; rows: CoinListIt
           {widget.chainIcon && <img src={widget.chainIcon} alt="" className="digest-chain-logo" />}
           <h2 id={headingId}>{widget.title}</h2>
         </div>
-        <ShareDigestButton
-          label={`Share ${widget.title}`}
-          telegramText={`${widget.title} Weekly Digest`}
-          url={`/digest?${widget.shareParams}`}
+        <SaveDigestImageButton
+          targetId={`digest-card-${widget.key}`}
+          filename={`endorsecoin-${widget.key}.png`}
         />
       </header>
       <ol className="digest-list">
@@ -285,8 +276,7 @@ function DigestWidget({ widget, rows }: { widget: DigestWidget; rows: CoinListIt
                 </span>
               </span>
               <span className="digest-votes">
-                {formatMetric(widget.key, coin)}{' '}
-                <small>{formatMetricLabel(widget.key)}</small>
+                {formatMetric(widget.key, coin)} <small>{formatMetricLabel(widget.key)}</small>
               </span>
             </Link>
           </li>
