@@ -31,6 +31,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 # (debug screenshots/HTML, the denied-token audit CSV).
 DEFAULT_OUTPUT_DIR = os.path.join(SCRIPT_DIR, "ds-output")
 DEFAULT_OUTPUT_CSV = os.path.join(DEFAULT_OUTPUT_DIR, "trending-coins.csv")
+TRENDING_FETCH_ATTEMPTS = 3
 
 # Standard comma-delimited CSV. csv.writer/DictWriter auto-quote any field
 # that contains a comma (e.g. a token name like "Foo, Inc"), so this is
@@ -739,9 +740,10 @@ def scrape_trending_pair_addresses(
                 f.write(page.content())
             browser.close()
             raise RuntimeError(
-                "Could not find pair rows. Saved debug-screenshot.png and "
-                "debug-page.html for inspection — the page may be showing a "
-                "bot-check/CAPTCHA, or the chain slug may be wrong."
+                "Could not find pair rows.\n"
+                "Saved debug-screenshot.png and debug-page.html for inspection.\n"
+                "The page may be showing a bot-check/CAPTCHA, or the chain slug "
+                "may be wrong."
             )
 
         # Give lazy-loaded rows a moment to finish rendering
@@ -767,6 +769,24 @@ def scrape_trending_pair_addresses(
         browser.close()
 
     return pairs
+
+
+def scrape_trending_pair_addresses_with_retry(
+    chain: str, limit: int, last: str = "h24"
+) -> list[tuple[str, str]]:
+    for attempt in range(1, TRENDING_FETCH_ATTEMPTS + 1):
+        try:
+            return scrape_trending_pair_addresses(chain, limit, last)
+        except Exception:
+            if attempt == TRENDING_FETCH_ATTEMPTS:
+                raise
+            delay = 2 ** (attempt - 1)
+            print(f"  Trending scrape blocked/failed for {chain}.")
+            print(
+                f"  Retrying in {delay}s "
+                f"({attempt + 1}/{TRENDING_FETCH_ATTEMPTS})..."
+            )
+            time.sleep(delay)
 
 
 def resolve_pair(chain: str, pair_address: str) -> dict | None:
@@ -936,7 +956,7 @@ def main():
         try:
             candidates.extend(
                 ("dexscreener", chain, pair_address)
-                for chain, pair_address in scrape_trending_pair_addresses(
+                for chain, pair_address in scrape_trending_pair_addresses_with_retry(
                     chain, args.limit, args.last
                 )
             )
