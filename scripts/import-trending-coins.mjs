@@ -618,6 +618,9 @@ function normalizeImportAddress(chain, value) {
       chain,
     )
   ) {
+    if (chain === 'hood') {
+      return /^0x[a-fA-F0-9]{64}$/.test(address) ? address.toLowerCase() : '';
+    }
     return /^0x[a-fA-F0-9]{40}$/.test(address) ? address.toLowerCase() : '';
   }
 
@@ -1295,7 +1298,7 @@ async function waitForDexPaprikaSlot() {
   dexPaprikaNextAllowedAt = Date.now() + DEXPAPRIKA_REQUEST_SPACING_MS;
 }
 
-async function fetchDexPaprikaTokenDetails(network, address) {
+async function fetchDexPaprikaTokenDetails(network, address, token) {
   await waitForDexPaprikaSlot();
 
   const url = new URL(
@@ -1311,6 +1314,9 @@ async function fetchDexPaprikaTokenDetails(network, address) {
       },
     });
     if (!response.ok) {
+      if (response.status === 404 && token) {
+        return fetchDexPaprikaSearchDetails(network, address, token);
+      }
       if (options.debug) {
         console.warn(
           `DexPaprika token data failed for ${address}: ${response.status} ${response.statusText}`,
@@ -1326,6 +1332,58 @@ async function fetchDexPaprikaTokenDetails(network, address) {
     }
     return null;
   }
+}
+
+async function fetchDexPaprikaSearchDetails(network, address, token) {
+  for (const query of [token.name, token.symbol]) {
+    if (!query) continue;
+    await waitForDexPaprikaSlot();
+    const url = new URL('/search', DEXPAPRIKA_API_BASE_URL);
+    url.searchParams.set('query', query);
+
+    try {
+      const response = await fetch(url, {
+        headers: {
+          accept: 'application/json',
+          ...(DEXPAPRIKA_API_KEY ? { Authorization: DEXPAPRIKA_API_KEY } : {}),
+        },
+      });
+      if (!response.ok) continue;
+      const json = await response.json();
+      const match = (Array.isArray(json?.tokens) ? json.tokens : []).find(
+        (item) => {
+          if (String(item?.chain || '').toLowerCase() !== network.toLowerCase()) return false;
+          const itemId = normalizeContractAddress(item?.id);
+          const tokenAddress = normalizeContractAddress(address);
+          if (itemId === tokenAddress) return true;
+          if (network !== 'sui' || !itemId.startsWith(`${tokenAddress}::`)) return false;
+          return (
+            String(item?.name || '').trim().toLowerCase() === String(token.name).trim().toLowerCase() ||
+            String(item?.symbol || '').trim().toLowerCase() === String(token.symbol).trim().toLowerCase()
+          );
+        },
+      );
+      if (match) return dexPaprikaSearchItemToDetails(match);
+    } catch (error) {
+      if (options.debug) console.warn(`DexPaprika search failed for ${query}:`, error);
+    }
+  }
+  return null;
+}
+
+function dexPaprikaSearchItemToDetails(item) {
+  return {
+    ...item,
+    summary: {
+      price_usd: item.price_usd,
+      liquidity_usd: item.liquidity_usd,
+      fdv: item.fdv,
+      '24h': {
+        volume_usd: item.volume_usd,
+        last_price_usd_change: item.price_usd_change,
+      },
+    },
+  };
 }
 
 function applyDexPaprikaDetails(token, details) {
@@ -1357,7 +1415,7 @@ function applyDexPaprikaDetails(token, details) {
     }),
   };
   token.price = pickSaneMarketDetailNumber(token, 'price', pickNumber(summary, ['price_usd']));
-  token.fdv = pickSaneMarketDetailNumber(token, 'fdv', pickNumber(details, ['fdv']));
+  token.fdv = pickSaneMarketDetailNumber(token, 'fdv', pickNumber(summary, ['fdv']));
   token.liquidity = pickNumber(summary, ['liquidity_usd']) ?? token.liquidity;
   token.volume = pickNumber(day, ['volume_usd']) ?? token.volume;
   token.change24h = pickNumber(day, ['last_price_usd_change']) ?? token.change24h;
@@ -1399,6 +1457,7 @@ async function enrichTokensWithDexPaprikaDetails(tokens) {
     const details = await fetchDexPaprikaTokenDetails(
       dexPaprikaNetworks[token.contract.chain],
       token.contract.address,
+      token,
     );
     if (details && applyDexPaprikaDetails(token, details)) enrichedCount += 1;
   }

@@ -16,7 +16,7 @@ import { sql } from 'drizzle-orm';
 
 type MarketSyncCoin = Pick<
   typeof coins.$inferSelect,
-  'id' | 'chain' | 'contractAddress' | 'listingStatus'
+  'id' | 'chain' | 'contractAddress' | 'listingStatus' | 'name' | 'symbol'
 > & {
   marketSourceExternalId?: string | null;
   marketSourceLastErrorCode?: string | null;
@@ -54,8 +54,12 @@ type ProviderMarketFetchResult = MarketFetchResult & {
 const dexScreenerProvider = 'dexscreener';
 const mobulaProvider = 'mobula';
 const geckoTerminalProvider = 'geckoterminal';
+const dexPaprikaProvider = 'dexpaprika';
 type MarketProvider =
-  typeof dexScreenerProvider | typeof mobulaProvider | typeof geckoTerminalProvider;
+  | typeof dexScreenerProvider
+  | typeof mobulaProvider
+  | typeof geckoTerminalProvider
+  | typeof dexPaprikaProvider;
 
 const dexScreenerChainIds: Partial<Record<NetworkId, string>> = {
   ethereum: 'ethereum',
@@ -92,6 +96,22 @@ const geckoTerminalChainIds: Partial<Record<NetworkId, string>> = {
   xrpl: 'xrpl',
 };
 
+const dexPaprikaChainIds: Partial<Record<NetworkId, string>> = {
+  ethereum: 'ethereum',
+  bsc: 'bsc',
+  polygon: 'polygon',
+  avalanche: 'avalanche',
+  arbitrum: 'arbitrum',
+  base: 'base',
+  optimism: 'optimism',
+  fantom: 'fantom',
+  hood: 'robinhood',
+  solana: 'solana',
+  sui: 'sui',
+  tron: 'tron',
+  xrpl: 'xrpl',
+};
+
 const evmNetworks = new Set<NetworkId>([
   'ethereum',
   'bsc',
@@ -110,12 +130,15 @@ const syncState = globalThis as typeof globalThis & {
   endorsecoinMobulaInFlight?: Promise<Map<number, MarketSnapshotRow>>;
   endorsecoinMobulaNextAllowedAt?: number;
   endorsecoinGeckoTerminalNextAllowedAt?: number;
+  endorsecoinDexPaprikaNextAllowedAt?: number;
   endorsecoinMobulaKeyIndex?: number;
 };
 
 const apiBaseUrl = process.env.MOBULA_API_BASE_URL || 'https://api.mobula.io';
 const geckoTerminalApiBaseUrl =
   process.env.GECKOTERMINAL_API_BASE_URL || 'https://api.geckoterminal.com';
+const dexPaprikaApiBaseUrl = process.env.DEXPAPRIKA_API_BASE_URL || 'https://api.dexpaprika.com';
+const dexPaprikaApiKey = String(process.env.DEXPAPRIKA_API_KEY || '').trim();
 const requestTimeoutMs = Number(process.env.MOBULA_REQUEST_TIMEOUT_MS || 8_000);
 const cacheSeconds = Number(
   process.env.MARKET_SYNC_CACHE_SECONDS || process.env.MARKET_DATA_CACHE_SECONDS || 900,
@@ -130,6 +153,10 @@ const requestSpacingMs = Math.max(1_050, Number(process.env.MOBULA_REQUEST_SPACI
 const geckoTerminalRequestSpacingMs = Math.max(
   6_100,
   Number(process.env.GECKOTERMINAL_REQUEST_SPACING_MS || 6_100),
+);
+const dexPaprikaRequestSpacingMs = Math.max(
+  2_100,
+  Number(process.env.DEXPAPRIKA_REQUEST_SPACING_MS || 2_100),
 );
 const maxSyncedPriceUsd = 1_000_000;
 const maxSyncedMarketCapUsd = 1_000_000_000_000;
@@ -329,7 +356,7 @@ async function syncCoinMarketData(coinRows: MarketSyncCoin[]) {
       continue;
     }
 
-    const result = await fetchTokenMarketDetails(coin.chain, address);
+    const result = await fetchTokenMarketDetails(coin.chain, address, coin);
     if (!result.ok) {
       recordMetric('market.sync', { event: 'coin_fetch_failed', reason: result.code });
       await recordMarketSourceError(
@@ -400,6 +427,7 @@ async function syncCoinMarketData(coinRows: MarketSyncCoin[]) {
 async function fetchTokenMarketDetails(
   chain: string | null,
   address: string,
+  coin?: Pick<MarketSyncCoin, 'name' | 'symbol'>,
 ): Promise<ProviderMarketFetchResult> {
   const network = chain as NetworkId;
   const providers: Array<[MarketProvider, string]> = [];
@@ -409,6 +437,8 @@ async function fetchTokenMarketDetails(
   if (mobulaChainId) providers.push([mobulaProvider, mobulaChainId]);
   const geckoTerminalChainId = geckoTerminalChainIds[network];
   if (geckoTerminalChainId) providers.push([geckoTerminalProvider, geckoTerminalChainId]);
+  const dexPaprikaChainId = dexPaprikaChainIds[network];
+  if (dexPaprikaChainId) providers.push([dexPaprikaProvider, dexPaprikaChainId]);
 
   let lastResult: MarketFetchResult = {
     ok: false,
@@ -421,7 +451,9 @@ async function fetchTokenMarketDetails(
         ? await fetchDexScreenerTokenDetails(chainId, address)
         : provider === geckoTerminalProvider
           ? await fetchGeckoTerminalTokenDetails(chainId, address)
-          : await fetchMobulaTokenDetails(chainId, address);
+          : provider === dexPaprikaProvider
+            ? await fetchDexPaprikaTokenDetails(chainId, address, coin)
+            : await fetchMobulaTokenDetails(chainId, address);
     if (result.ok) {
       if (
         provider === dexScreenerProvider &&
@@ -430,6 +462,10 @@ async function fetchTokenMarketDetails(
       ) {
         const mobulaResult = await fetchMobulaTokenDetails(mobulaChainIds[network], address);
         if (mobulaResult.ok) mergeMissingMarketDetails(result.details, mobulaResult.details);
+      }
+      if (provider !== dexPaprikaProvider && needsMobulaSupplement(result.details)) {
+        const dexPaprikaResult = await fetchDexPaprikaTokenDetails(chainId, address, coin);
+        if (dexPaprikaResult.ok) mergeMissingMarketDetails(result.details, dexPaprikaResult.details);
       }
       return { ...result, provider, chainId };
     }
@@ -605,6 +641,108 @@ async function fetchMobulaTokenDetails(
   }
 }
 
+async function waitForDexPaprikaSlot() {
+  const now = Date.now();
+  const nextAllowedAt = syncState.endorsecoinDexPaprikaNextAllowedAt || 0;
+  const waitMs = Math.max(0, nextAllowedAt - now);
+  if (waitMs) await new Promise((resolve) => setTimeout(resolve, waitMs));
+  syncState.endorsecoinDexPaprikaNextAllowedAt = Date.now() + dexPaprikaRequestSpacingMs;
+}
+
+async function fetchDexPaprikaTokenDetails(
+  network: string,
+  address: string,
+  coin?: Pick<MarketSyncCoin, 'name' | 'symbol'>,
+): Promise<MarketFetchResult> {
+  await waitForDexPaprikaSlot();
+
+  const url = new URL(
+    `/networks/${encodeURIComponent(network)}/tokens/${encodeURIComponent(address)}`,
+    dexPaprikaApiBaseUrl,
+  );
+  const headers = {
+    accept: 'application/json',
+    ...(dexPaprikaApiKey ? { Authorization: dexPaprikaApiKey } : {}),
+  };
+
+  try {
+    const response = await fetch(url, { headers, cache: 'no-store' });
+    if (response.status === 404 && coin) {
+      const searchResult = await fetchDexPaprikaSearchDetails(network, address, coin, headers);
+      if (searchResult) return { ok: true, details: searchResult };
+    }
+    if (!response.ok) {
+      return {
+        ok: false,
+        code: 'request-failed',
+        message: `DexPaprika ${response.status} ${response.statusText}`,
+      };
+    }
+
+    const payload = await response.json();
+    if (!isRecord(payload)) {
+      return { ok: false, code: 'missing-data', message: 'DexPaprika response was malformed.' };
+    }
+    return { ok: true, details: dexPaprikaPayloadToMarketDetails(payload) };
+  } catch (error) {
+    const isAbort = error instanceof Error && error.name === 'AbortError';
+    return {
+      ok: false,
+      code: 'network-error',
+      message: isAbort ? 'DexPaprika request timed out.' : 'DexPaprika request failed.',
+    };
+  }
+}
+
+async function fetchDexPaprikaSearchDetails(
+  network: string,
+  address: string,
+  coin: Pick<MarketSyncCoin, 'name' | 'symbol'>,
+  headers: Record<string, string>,
+) {
+  const normalizedAddress = address.trim().toLowerCase();
+  for (const query of [coin.name, coin.symbol]) {
+    if (!query) continue;
+    await waitForDexPaprikaSlot();
+    const url = new URL('/search', dexPaprikaApiBaseUrl);
+    url.searchParams.set('query', query);
+    try {
+      const response = await fetch(url, { headers, cache: 'no-store' });
+      if (!response.ok) continue;
+      const payload = await response.json();
+      const match = (Array.isArray(payload?.tokens) ? payload.tokens : []).find((item: unknown) => {
+        if (!isRecord(item)) return false;
+        if (String(item?.chain || '').toLowerCase() !== network.toLowerCase()) return false;
+        const itemId = String(item?.id || '').trim().toLowerCase();
+        if (itemId === normalizedAddress) return true;
+        if (network !== 'sui' || !itemId.startsWith(`${normalizedAddress}::`)) return false;
+        return (
+          String(item?.name || '').trim().toLowerCase() === String(coin.name).trim().toLowerCase() ||
+          String(item?.symbol || '').trim().toLowerCase() === String(coin.symbol).trim().toLowerCase()
+        );
+      });
+      if (isRecord(match)) return dexPaprikaPayloadToMarketDetails(match);
+    } catch {
+      // The next provider remains available if the public search endpoint fails.
+    }
+  }
+  return null;
+}
+
+function dexPaprikaPayloadToMarketDetails(payload: Record<string, unknown>): MarketTokenDetails {
+  const summary = isRecord(payload.summary) ? payload.summary : {};
+  const day = isRecord(summary['24h']) ? summary['24h'] : {};
+  return {
+    priceUSD: payload.price_usd ?? summary.price_usd,
+    marketCapUSD: payload.market_cap_usd ?? summary.market_cap_usd,
+    marketCapDilutedUSD: payload.fdv ?? summary.fdv,
+    volume24hUSD: payload.volume_usd ?? day.volume_usd,
+    priceChange24hPercentage: payload.price_usd_change ?? day.last_price_usd_change,
+    liquidityUSD: payload.liquidity_usd ?? summary.liquidity_usd,
+    totalSupply: payload.total_supply,
+  };
+}
+
 async function fetchGeckoTerminalTokenDetails(
   chainId: string,
   address: string,
@@ -736,6 +874,8 @@ async function selectStaleSyncCoins(limit: number): Promise<MarketSyncCoin[]> {
       c.chain,
       c.contract_address as "contractAddress",
       c.listing_status as "listingStatus",
+      c.name,
+      c.symbol,
       source.external_id as "marketSourceExternalId",
       source.last_error_code as "marketSourceLastErrorCode",
       source.failure_count as "marketSourceFailureCount",
@@ -834,6 +974,7 @@ function isValidAddressForChain(chain: string | null, address: string) {
   const trimmed = address.trim();
 
   if (!normalizedChain || !trimmed) return false;
+  if (normalizedChain === 'hood') return /^0x[\da-f]{64}$/i.test(trimmed);
   if (evmNetworks.has(normalizedChain)) return /^0x[\da-f]{40}$/i.test(trimmed);
   if (normalizedChain === 'solana') {
     return trimmed.length >= 32 && trimmed.length <= 44 && base58AddressPattern.test(trimmed);

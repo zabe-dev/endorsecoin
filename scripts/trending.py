@@ -20,6 +20,7 @@ import os
 import re
 import sys
 import time
+from urllib.parse import urlsplit
 
 import requests
 from playwright.sync_api import sync_playwright
@@ -831,7 +832,7 @@ PAIR_ADDRESS_PATTERNS = {
     "base": re.compile(r"0x[0-9a-fA-F]{40}"),
     "optimism": re.compile(r"0x[0-9a-fA-F]{40}"),
     "fantom": re.compile(r"0x[0-9a-fA-F]{40}"),
-    "robinhood": re.compile(r"0x[0-9a-fA-F]{40}"),
+    "robinhood": re.compile(r"0x[0-9a-fA-F]{64}"),
     "solana": re.compile(r"[1-9A-HJ-NP-Za-km-z]{32,44}"),
     "sui": re.compile(r"0x[0-9a-fA-F]{64}"),
     "tron": re.compile(r"T[1-9A-HJ-NP-Za-km-z]{33}"),
@@ -857,7 +858,7 @@ def scrape_trending_pair_addresses(
 
     # Match links for this chain regardless of address format. EVM addresses
     # use 0x, while Solana, Sui, and Tron use other formats.
-    link_selector = f'a[href^="/{chain}/"]'
+    link_selector = f'a[href*="/{chain}/"]'
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
@@ -892,25 +893,37 @@ def scrape_trending_pair_addresses(
                 "may be wrong."
             )
 
-        # Give lazy-loaded rows a moment to finish rendering
-        page.wait_for_timeout(1500)
-
         seen = set()
-        links = page.query_selector_all(link_selector)
-        for link in links:
-            href = link.get_attribute("href")
-            if not href or href in seen:
-                continue
-            seen.add(href)
-            parts = href.strip("/").split("/")
-            if len(parts) == 2:
+        idle_rounds = 0
+        for _ in range(40):
+            page.wait_for_timeout(350)
+            before_count = len(pairs)
+            links = page.query_selector_all(link_selector)
+            for link in links:
+                href = link.get_attribute("href")
+                if not href or href in seen:
+                    continue
+                seen.add(href)
+                parts = urlsplit(href).path.strip("/").split("/")
+                if len(parts) != 2:
+                    continue
                 row_chain, pair_address = parts
                 pattern = PAIR_ADDRESS_PATTERNS.get(row_chain)
-                if not pattern or not pattern.fullmatch(pair_address):
-                    continue
-                pairs.append((row_chain, pair_address))
+                if pattern and pattern.fullmatch(pair_address):
+                    pairs.append((row_chain, pair_address))
+                if len(pairs) >= limit:
+                    break
+
             if len(pairs) >= limit:
                 break
+
+            idle_rounds = idle_rounds + 1 if len(pairs) == before_count else 0
+            at_bottom = page.evaluate(
+                "window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 20"
+            )
+            if at_bottom and idle_rounds >= 3:
+                break
+            page.evaluate("window.scrollBy(0, Math.max(window.innerHeight * 0.8, 600))")
 
         browser.close()
 
