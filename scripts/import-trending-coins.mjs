@@ -124,7 +124,7 @@ class TrendingCoinImporter {
   }
 
   async run() {
-    log('Mobula import started.');
+    log('Coin import started.');
 
     const existingState = await loadExistingImportState();
     if (db) {
@@ -137,7 +137,7 @@ class TrendingCoinImporter {
 
     const input = this.source.loadTokens();
     log(
-      `Loaded ${input.tokens.length} ds.py token(s) from the source file. ` +
+      `Loaded ${input.tokens.length} ds.py coin(s) from the source file. ` +
         `Removed ${input.duplicateRows} duplicate row(s); skipped ${input.invalidRows} invalid row(s).`,
     );
 
@@ -154,7 +154,7 @@ class TrendingCoinImporter {
     );
 
     log(
-      `Selected ${tokens.length}/${input.tokens.length} token(s). Skipped ${freshResult.skippedExisting} existing, ${freshResult.skippedBatchDuplicate} duplicate in batch.`,
+      `Selected ${tokens.length}/${input.tokens.length} coin(s). Skipped ${freshResult.skippedExisting} existing, ${freshResult.skippedBatchDuplicate} duplicate in batch.`,
     );
 
     logImportPlan({
@@ -176,12 +176,12 @@ class TrendingCoinImporter {
   }
 
   printDryRun(tokens) {
-    logSection(`Dry run: previewing ${tokens.length} enriched token(s); no rows will be written`);
+    logSection(`Dry run: previewing ${tokens.length} enriched coin(s); no rows will be written`);
     console.table(tokens.map(dryRunRow));
   }
 
   async writeTokens({ saneTokens, suspiciousTokens, tokenCount, existingState }) {
-    logSection(`Writing ${saneTokens.length} token(s) to database`);
+    logSection(`Writing ${saneTokens.length} coin(s) to database`);
     const existingSlugs = existingState.slugs;
 
     let success = 0;
@@ -793,19 +793,14 @@ function logBatchProgress(
   const etaMs = ratePerMs > 0 ? remainingTokens / ratePerMs : 0;
 
   log(
-    `${label}: token ${tokensSoFar}/${totalTokens} (${pct}%, batch ${batchNumber}/${totalBatches})` +
+      `${label}: coin ${tokensSoFar}/${totalTokens} (${pct}%, batch ${batchNumber}/${totalBatches})` +
       (isLast ? ` - done in ${formatDuration(elapsedMs)}` : ` - ETA ${formatDuration(etaMs)}`),
   );
 }
 
-// Logs import-loop progress at a handful of evenly-spaced points (scales with
-// total size, so a 500-token run and a 9,000-token run both get ~20 updates)
-// with a live ETA, plus always the first and last token.
+// Logs every import so the active coin is always visible with a live ETA.
 function logImportProgress(token, current, total, phaseStartedAt) {
-  const every = Math.max(1, Math.round(total / 20));
-  const isFirst = current === 1;
   const isLast = current === total;
-  if (!isFirst && !isLast && current % every !== 0) return;
 
   const elapsedMs = Date.now() - phaseStartedAt;
   const pct = ((current / total) * 100).toFixed(1);
@@ -815,7 +810,7 @@ function logImportProgress(token, current, total, phaseStartedAt) {
 
   log(
     `Import progress: ${token.symbol || token.name || 'unknown'} [${token.contract.chain}] ` +
-      `token ${current}/${total} (${pct}%)` +
+      `coin ${current}/${total} (${pct}%)` +
       (isLast ? ` - done in ${formatDuration(elapsedMs)}` : ` - ETA ${formatDuration(etaMs)}`),
   );
 }
@@ -825,7 +820,7 @@ async function enrichTokensWithMobulaDetails(tokens) {
 
   const totalBatches = Math.ceil(tokens.length / options.detailsBatchSize);
   logSection(
-    `Mobula asset details (dates + links) - ${tokens.length} tokens, ${totalBatches} batch(es) of ${options.detailsBatchSize}`,
+    `Mobula asset details (dates + links) - ${tokens.length} coins, ${totalBatches} batch(es) of ${options.detailsBatchSize}`,
   );
 
   let enrichedCount = 0;
@@ -859,7 +854,7 @@ async function enrichTokensWithMobulaDetails(tokens) {
   }
 
   log(
-    `Mobula asset details done: applied data to ${enrichedCount}/${tokens.length} token(s) in ${formatDuration(Date.now() - phaseStartedAt)}.`,
+    `Mobula asset details done: applied data to ${enrichedCount}/${tokens.length} coin(s) in ${formatDuration(Date.now() - phaseStartedAt)}.`,
   );
   return tokens;
 }
@@ -869,7 +864,7 @@ async function enrichTokensWithMobulaMetadata(tokens) {
 
   const totalBatches = Math.ceil(tokens.length / options.detailsBatchSize);
   logSection(
-    `Mobula metadata (trust + social links) - ${tokens.length} tokens, ${totalBatches} batch(es) of ${options.detailsBatchSize}`,
+    `Mobula metadata (trust + social links) - ${tokens.length} coins, ${totalBatches} batch(es) of ${options.detailsBatchSize}`,
   );
 
   let enrichedCount = 0;
@@ -903,7 +898,7 @@ async function enrichTokensWithMobulaMetadata(tokens) {
   }
 
   log(
-    `Mobula metadata done: applied data to ${enrichedCount}/${tokens.length} token(s) in ${formatDuration(Date.now() - phaseStartedAt)}.`,
+    `Mobula metadata done: applied data to ${enrichedCount}/${tokens.length} coin(s) in ${formatDuration(Date.now() - phaseStartedAt)}.`,
   );
   return tokens;
 }
@@ -928,7 +923,7 @@ async function enrichTokensWithGeckoTerminalInfo(tokens) {
   if (!tronTokens.length) return tokens;
 
   logSection(
-    `TRON enrichment: GeckoTerminal token info - ${tronTokens.length} token(s) missing profile data, 1 request each`,
+    `TRON enrichment: GeckoTerminal coin info - ${tronTokens.length} coin(s) missing profile data, 1 request each`,
   );
 
   let enrichedCount = 0;
@@ -950,7 +945,7 @@ async function enrichTokensWithGeckoTerminalInfo(tokens) {
   }
 
   log(
-    `TRON enrichment done: applied GeckoTerminal info to ${enrichedCount}/${tronTokens.length} token(s) in ${formatDuration(Date.now() - phaseStartedAt)}.`,
+    `TRON enrichment done: applied GeckoTerminal info to ${enrichedCount}/${tronTokens.length} coin(s) in ${formatDuration(Date.now() - phaseStartedAt)}.`,
   );
   return tokens;
 }
@@ -961,7 +956,7 @@ async function enrichTokensWithGeckoTerminalMarketDetails(tokens) {
 
   const totalBatches = Math.ceil(tronTokens.length / options.geckoTerminalBatchSize);
   logSection(
-    `TRON enrichment: GeckoTerminal market data - ${tronTokens.length} token(s), ${totalBatches} batch(es) of ${options.geckoTerminalBatchSize}`,
+    `TRON enrichment: GeckoTerminal market data - ${tronTokens.length} coin(s), ${totalBatches} batch(es) of ${options.geckoTerminalBatchSize}`,
   );
 
   let enrichedCount = 0;
@@ -990,7 +985,7 @@ async function enrichTokensWithGeckoTerminalMarketDetails(tokens) {
   }
 
   log(
-    `TRON market enrichment done: applied GeckoTerminal market data to ${enrichedCount}/${tronTokens.length} token(s) in ${formatDuration(Date.now() - phaseStartedAt)}.`,
+    `TRON market enrichment done: applied GeckoTerminal market data to ${enrichedCount}/${tronTokens.length} coin(s) in ${formatDuration(Date.now() - phaseStartedAt)}.`,
   );
   return tokens;
 }
@@ -1016,7 +1011,7 @@ async function enrichTokensWithDexScreenerDetails(tokens) {
     0,
   );
   logSection(
-    `DexScreener enrichment: market data and links - ${eligibleTokens} tokens, ${totalBatches} batch(es)`,
+    `DexScreener enrichment: market data and links - ${eligibleTokens} coins, ${totalBatches} batch(es)`,
   );
 
   let enrichedCount = 0;
@@ -1046,7 +1041,7 @@ async function enrichTokensWithDexScreenerDetails(tokens) {
   }
 
   log(
-    `DexScreener enrichment done: applied data to ${enrichedCount}/${eligibleTokens} token(s) in ${formatDuration(Date.now() - phaseStartedAt)}.`,
+    `DexScreener enrichment done: applied data to ${enrichedCount}/${eligibleTokens} coin(s) in ${formatDuration(Date.now() - phaseStartedAt)}.`,
   );
   return tokens;
 }
@@ -1184,7 +1179,7 @@ async function enrichTokensWithMobulaMarketDetails(tokens) {
 
   const totalBatches = Math.ceil(usableTokens.length / options.marketDetailsBatchSize);
   logSection(
-    `Mobula market details (chart/DEX links) - ${usableTokens.length} tokens, ${totalBatches} batch(es) of ${options.marketDetailsBatchSize}` +
+    `Mobula market details (chart/DEX links) - ${usableTokens.length} coins, ${totalBatches} batch(es) of ${options.marketDetailsBatchSize}` +
       (skippedCount ? ` (${skippedCount} skipped, unsupported chain)` : ''),
   );
 
@@ -1218,7 +1213,7 @@ async function enrichTokensWithMobulaMarketDetails(tokens) {
   }
 
   log(
-    `Mobula market details done: applied data to ${enrichedCount}/${tokens.length} token(s) in ${formatDuration(
+    `Mobula market details done: applied data to ${enrichedCount}/${tokens.length} coin(s) in ${formatDuration(
       Date.now() - phaseStartedAt,
     )}.`,
   );
@@ -1242,7 +1237,7 @@ async function fetchGeckoTerminalTokenInfo(address) {
       const errorText = await response.text().catch(() => '');
       if (options.debug) {
         console.warn(
-          `GeckoTerminal token info failed for ${address}: ${response.status} ${response.statusText}${
+          `GeckoTerminal coin info failed for ${address}: ${response.status} ${response.statusText}${
             errorText ? ` — ${errorText.slice(0, 500)}` : ''
           }`,
         );
@@ -1253,7 +1248,7 @@ async function fetchGeckoTerminalTokenInfo(address) {
     const json = await response.json();
     return json?.data?.attributes || null;
   } catch (error) {
-    if (options.debug) console.warn(`GeckoTerminal token info failed for ${address}:`, error);
+    if (options.debug) console.warn(`GeckoTerminal coin info failed for ${address}:`, error);
     return null;
   }
 }
@@ -1607,7 +1602,7 @@ async function fetchMobulaMarketDetailsBatch(tokens) {
 
     if (payload.length !== tokens.length) {
       console.warn(
-        `Market details batch mismatch: expected ${tokens.length} items, got ${payload.length}. Falling back to one-at-a-time requests for this batch of ${tokens.length} token(s) (slower, but safe).`,
+        `Market details batch mismatch: expected ${tokens.length} items, got ${payload.length}. Falling back to one-at-a-time requests for this batch of ${tokens.length} coin(s) (slower, but safe).`,
       );
       return fetchMarketDetailsIndividually(tokens);
     }
@@ -1617,7 +1612,7 @@ async function fetchMobulaMarketDetailsBatch(tokens) {
     console.warn(
       `Market details batch request failed (${
         error instanceof Error ? error.message : 'unknown error'
-      }). Falling back to one-at-a-time requests for this batch of ${tokens.length} token(s).`,
+      }). Falling back to one-at-a-time requests for this batch of ${tokens.length} coin(s).`,
     );
     if (options.debug) console.warn(error);
     return fetchMarketDetailsIndividually(tokens);
@@ -2836,7 +2831,7 @@ async function enrichAndSelectSaneTokens(tokens) {
   const suspiciousTokens = enrichedTokens.filter((token) => !hasSaneImportMarketValues(token));
   if (suspiciousTokens.length) {
     console.warn(
-      `Skipping ${suspiciousTokens.length} suspicious token(s) with impossible market values: ${suspiciousTokens
+      `Skipping ${suspiciousTokens.length} suspicious coin(s) with impossible market values: ${suspiciousTokens
         .slice(0, 12)
         .map(
           (token) =>
@@ -2857,7 +2852,7 @@ async function enrichAndSelectSaneTokens(tokens) {
 function logImportPlan({ tokens, selectionTarget, activeChainKeys, perChainCount }) {
   logSection('Import plan');
   log(
-    `Plan: ${options.dryRun ? 'preview' : 'write'} ${tokens.length}/${selectionTarget} ds.py token(s)`,
+    `Plan: ${options.dryRun ? 'preview' : 'write'} ${tokens.length}/${selectionTarget} ds.py coin(s)`,
   );
   log('Filters: skip existing contracts and duplicate addresses');
 
