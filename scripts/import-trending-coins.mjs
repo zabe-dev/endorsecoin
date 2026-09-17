@@ -214,10 +214,11 @@ class TrendingCoinImporter {
       logImportProgress(current, saneTokens.length, writePhaseStartedAt);
     }
 
-    logSection(
-      `Import finished: ${success} imported/updated, ${skipped} already present, ${failed} failed, ${suspiciousTokens.length} suspicious skipped, out of ${tokenCount} total. ` +
-        `Total run time: ${formatDuration(elapsedMs())}.`,
-    );
+    logSection('Import finished');
+    log(`Imported/updated: ${success} | Duplicate: ${skipped}`);
+    log(`Failed: ${failed} | Suspicious skipped: ${suspiciousTokens.length}`);
+    log(`Total: ${tokenCount}`);
+    log(`Total run time: ${formatDuration(elapsedMs())}.`);
   }
 }
 
