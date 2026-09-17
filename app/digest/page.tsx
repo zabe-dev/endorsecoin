@@ -120,9 +120,12 @@ export default async function DigestPage() {
             <h1>{title}</h1>
             <p>{description}</p>
           </div>
+          <div className="digest-header-actions digest-desktop-countdown">
+            <WeeklyResetChip />
+          </div>
         </header>
         <div className="digest-toolbar">
-          <div className="digest-toolbar-countdown">
+          <div className="digest-toolbar-countdown digest-mobile-countdown">
             <WeeklyResetChip />
           </div>
         </div>

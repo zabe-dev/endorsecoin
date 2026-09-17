@@ -60,6 +60,13 @@
   text-transform: uppercase;
   white-space: nowrap;
 }
+.digest-header-actions {
+  display: grid;
+  justify-items: end;
+}
+.digest-mobile-countdown {
+  display: none;
+}
 .digest-action-group {
   display: inline-flex;
   align-items: center;
@@ -109,7 +116,7 @@
   height: 13px;
 }
 .digest-toolbar {
-  display: flex;
+  display: none;
   justify-content: space-between;
   gap: 16px;
   padding: 22px 0 14px;
@@ -350,13 +357,19 @@
   }
   .digest-header {
     display: block;
-    padding-top: 8px;
+    padding: 8px 0 16px;
+  }
+  .digest-desktop-countdown {
+    display: none;
   }
   .digest-header h1 {
     font-size: 32px;
   }
   .digest-toolbar-countdown {
     width: 100%;
+  }
+  .digest-mobile-countdown {
+    display: block;
   }
   .digest-toolbar-countdown .week-chip {
     display: grid;
@@ -404,8 +417,9 @@
     font-size: 20px;
   }
   .digest-toolbar {
+    display: block;
     flex-wrap: wrap;
-    padding-top: 18px;
+    padding: 8px 0 16px;
   }
   .digest-grid {
     grid-template-columns: 1fr;
