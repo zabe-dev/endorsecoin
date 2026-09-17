@@ -16,7 +16,7 @@
     "db:migrate": "node --env-file=.env.local node_modules/drizzle-kit/bin.cjs migrate",
     "db:studio": "node --env-file=.env.local node_modules/drizzle-kit/bin.cjs studio",
     "dev:import:mobula": "node --env-file=.env.local scripts/import-mobula.mjs",
-    "dev:resetdata": "NODE_EXTRA_CA_CERTS=.certs/coolify-ca.crt node --env-file=.env.local scripts/reset-data.mjs",
+    "dev:resetdata": "node --env-file=.env.local scripts/reset-data.mjs",
     "dev:reset": "npm run dev:resetdata",
     "dev:db:reset": "npm run dev:reset",
     "db:reset:dev": "npm run dev:reset"
