@@ -137,7 +137,7 @@ class MobulaCoinImporter {
 
     const input = this.source.loadTokens();
     log(
-      `Loaded ${input.tokens.length} ds.py token(s) from ${input.path}. ` +
+      `Loaded ${input.tokens.length} ds.py token(s) from the source file. ` +
         `Removed ${input.duplicateRows} duplicate row(s); skipped ${input.invalidRows} invalid row(s).`,
     );
 
