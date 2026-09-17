@@ -28,15 +28,22 @@ export function SaveDigestImageButton({
 
     setState('saving');
     try {
+      await document.fonts.ready;
+      await Promise.all(Array.from(target.querySelectorAll('img')).map(waitForImage));
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+      const bounds = target.getBoundingClientRect();
       const dataUrl = await toPng(target, {
         backgroundColor: '#0e1114',
         cacheBust: true,
-        filter: (node) => !node.classList?.contains('digest-share-exclude'),
+        filter: (node) => !node.classList?.contains('digest-action-exclude'),
+        height: Math.ceil(bounds.height),
         pixelRatio: 2,
+        width: Math.ceil(bounds.width),
       });
+      const paddedDataUrl = await addImagePadding(dataUrl, 16 * 2);
       const link = document.createElement('a');
       link.download = filename;
-      link.href = dataUrl;
+      link.href = paddedDataUrl;
       link.click();
       setState('saved');
     } catch {
@@ -45,10 +52,10 @@ export function SaveDigestImageButton({
   }
 
   return (
-    <span className="digest-share-actions digest-share-exclude">
+    <span className="digest-action-group digest-action-exclude">
       <button
         type="button"
-        className="digest-share"
+        className="digest-action digest-save-image-button"
         onClick={() => void saveImage()}
         disabled={state !== 'idle'}
         title="Save card as image"
@@ -61,4 +68,36 @@ export function SaveDigestImageButton({
       </button>
     </span>
   );
+}
+
+async function waitForImage(image: HTMLImageElement) {
+  if (!image.complete) {
+    await new Promise<void>((resolve) => {
+      image.addEventListener('load', () => resolve(), { once: true });
+      image.addEventListener('error', () => resolve(), { once: true });
+    });
+  }
+  await image.decode().catch(() => undefined);
+}
+
+function addImagePadding(dataUrl: string, padding: number) {
+  return new Promise<string>((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = image.naturalWidth + padding * 2;
+      canvas.height = image.naturalHeight + padding * 2;
+      const context = canvas.getContext('2d');
+      if (!context) {
+        reject(new Error('Could not prepare image canvas.'));
+        return;
+      }
+      context.fillStyle = '#0e1114';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(image, padding, padding);
+      resolve(canvas.toDataURL('image/png'));
+    };
+    image.onerror = () => reject(new Error('Could not prepare image.'));
+    image.src = dataUrl;
+  });
 }

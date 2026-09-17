@@ -18,7 +18,7 @@ const exploreLinks = [
   { href: '/airdrops', label: 'Airdrops' },
   { href: '/partners', label: 'Partners' },
   { href: '/advertise', label: 'Advertise' },
-  { href: '/digest', label: 'Weekly Digest' },
+  { href: '/digest', label: 'Digest' },
 ];
 
 const platformLinks = [

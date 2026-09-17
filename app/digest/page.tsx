@@ -1,4 +1,5 @@
 import { JsonLd } from '@/components/seo/json-ld';
+import { Brand } from '@/components/ui/brand';
 import { NETWORKS } from '@/features/coins/networks';
 import { getLeaderboardPage } from '@/features/coins/server/leaderboard';
 import { WeeklyResetChip } from '@/features/leaderboard/components/weekly-reset-chip';
@@ -6,11 +7,11 @@ import type { CoinListItem } from '@/features/coins/view';
 import { cacheKeyPart } from '@/lib/cache/cache-key';
 import { getCacheVersion } from '@/lib/cache/cache-version';
 import { rememberJson } from '@/lib/cache/json-cache';
-import { createPublicPageMetadata, siteName, siteUrl } from '@/lib/seo/metadata';
+import { createPublicPageMetadata, siteUrl } from '@/lib/seo/metadata';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { ArrowLeft, ArrowUpRight } from 'lucide-react';
 import { SaveDigestImageButton } from './save-digest-image-button';
-import { ShareDigestButton } from './share-digest-button';
 import './digest.css';
 
 /* eslint-disable @next/next/no-img-element -- Coin logos use user-submitted external URLs. */
@@ -30,7 +31,7 @@ type DigestWidget = {
     direction?: string;
     chain?: string;
   };
-  shareParams: string;
+  viewParams: string;
   chainIcon?: string | null;
 };
 
@@ -40,42 +41,42 @@ const widgets: DigestWidget[] = [
     title: 'Top Ranked',
     eyebrow: 'WEEKLY VOTES',
     query: { view: 'top' },
-    shareParams: 'leaderboard=top',
+    viewParams: 'leaderboard=top',
   },
   {
     key: 'gainers',
     title: '24H Gainers',
     eyebrow: 'PRICE CHANGE',
     query: { view: 'top', sort: 'change', direction: 'desc' },
-    shareParams: 'leaderboard=gainers',
+    viewParams: 'leaderboard=gainers',
   },
   {
     key: 'trending',
     title: 'Trending',
     eyebrow: 'RECENT ACTIVITY',
     query: { view: 'trending' },
-    shareParams: 'leaderboard=trending',
+    viewParams: 'leaderboard=trending',
   },
   {
     key: 'presales',
     title: 'Presales',
     eyebrow: 'ACTIVE PRESALES',
     query: { view: 'presales' },
-    shareParams: 'leaderboard=presales',
+    viewParams: 'leaderboard=presales',
   },
   {
     key: 'watched',
     title: 'Most Watched',
     eyebrow: 'WATCHLISTS',
     query: { view: 'watched' },
-    shareParams: 'leaderboard=watched',
+    viewParams: 'leaderboard=watched',
   },
   {
     key: 'recent',
     title: 'Launched Recently',
     eyebrow: 'RECENTLY LIVE',
     query: { view: 'recent' },
-    shareParams: 'leaderboard=recent',
+    viewParams: 'leaderboard=recent',
   },
 ];
 
@@ -84,7 +85,7 @@ const chainWidgets: DigestWidget[] = chainConfigs.map((chain) => ({
   title: chain.name,
   eyebrow: 'TOP RANKED ON CHAIN',
   query: { view: 'top', chain: chain.shortName },
-  shareParams: `chain=${encodeURIComponent(chain.id)}`,
+  viewParams: `chain=${encodeURIComponent(chain.id)}`,
   chainIcon: chain.iconUrl,
 }));
 
@@ -96,10 +97,10 @@ export async function generateMetadata({ searchParams }: DigestParams): Promise<
   const widget = widgets.find((item) => item.key === leaderboardKey);
   const chain = chainWidgets.find((item) => item.key === `chain-${readParam(params?.chain)}`);
   const title = chain
-    ? `${chain.title} Weekly Digest`
+    ? `${chain.title} Digest`
     : widget
-      ? `${widget.title} Weekly Digest`
-      : 'Weekly Ranking Digest';
+      ? `${widget.title} Digest`
+      : 'Weekly Digest';
   const description = chain
     ? `Top community-ranked ${chain.title} coins this week on EndorseCoin.`
     : widget
@@ -153,9 +154,9 @@ export default async function DigestPage({ searchParams }: DigestParams) {
     .filter(({ rows }) => rows.length > 0);
   const chainSections = sections.slice(widgets.length).filter(({ rows }) => rows.length > 0);
   const title = selectedChain
-    ? `${selectedChain.title} Weekly Digest`
+    ? `${selectedChain.title} Digest`
     : selectedWidget
-      ? `${selectedWidget.title} Weekly Digest`
+      ? `${selectedWidget.title} Digest`
       : 'Weekly Digest';
   const description = selectedChain
     ? `Top ranked coins on ${selectedChain.title} this week.`
@@ -166,29 +167,49 @@ export default async function DigestPage({ searchParams }: DigestParams) {
   return (
     <main className="digest-page">
       <div className="digest-shell">
-        <header className="digest-header">
+        <header className={isSingleDigest ? 'digest-header digest-header-single' : 'digest-header'}>
           <div>
-            <Link href="/" className="digest-kicker">
-              ENDORSECOIN / MARKET SIGNAL
+            <Link href={isSingleDigest ? '/digest' : '/'} className="digest-kicker">
+              <ArrowLeft aria-hidden="true" />
+              Go back
             </Link>
-            <h1>{title}</h1>
-            <p>{description}</p>
+            {!isSingleDigest && (
+              <>
+                <h1>{title}</h1>
+                <p>{description}</p>
+              </>
+            )}
           </div>
-          <div className="digest-header-actions">
-            <WeeklyResetChip />
-          </div>
-        </header>
-        <div className={isSingleDigest ? 'digest-toolbar digest-toolbar-single' : 'digest-toolbar'}>
-          {!isSingleDigest && <span>WEEKLY SNAPSHOT</span>}
-          {isSingleDigest ? (
-            <Link href="/digest">View full digest</Link>
-          ) : (
-            <span>TOP 10 PER WIDGET</span>
+          {!isSingleDigest && (
+            <div className="digest-header-actions">
+              <WeeklyResetChip />
+            </div>
           )}
-        </div>
+        </header>
+        {!isSingleDigest && (
+          <div className="digest-toolbar">
+            <span>WEEKLY SNAPSHOT</span>
+            <span>TOP 10 PER WIDGET</span>
+          </div>
+        )}
+        {isSingleDigest && marketSections[0] && (
+          <div className="digest-single-actions">
+            <SaveDigestImageButton
+              targetId={`digest-card-${marketSections[0].widget.key}`}
+              filename={`endorsecoin-${marketSections[0].widget.key}.png`}
+            />
+          </div>
+        )}
         <div className={isSingleDigest ? 'digest-grid digest-grid-single' : 'digest-grid'}>
           {marketSections.map(({ widget, rows }) => (
-            <DigestWidget key={widget.key} widget={widget} rows={rows} />
+            <DigestWidget
+              key={widget.key}
+              widget={widget}
+              rows={rows}
+              showImageSave={false}
+              showViewLink={!isSingleDigest}
+              showBrand={isSingleDigest}
+            />
           ))}
         </div>
         {!selectedChain && !selectedWidget && chainSections.length > 0 && (
@@ -196,21 +217,18 @@ export default async function DigestPage({ searchParams }: DigestParams) {
             <h2 className="digest-group-title">Top Ranked By Chain</h2>
             <div className="digest-grid">
               {chainSections.map(({ widget, rows }) => (
-                <DigestWidget key={widget.key} widget={widget} rows={rows} />
+                <DigestWidget
+                  key={widget.key}
+                  widget={widget}
+                  rows={rows}
+                  showImageSave={false}
+                  showViewLink
+                  showBrand={false}
+                />
               ))}
             </div>
           </>
         )}
-        <footer className="digest-footer">
-          <Link href="/" className="digest-footer-brand">
-            <img src="/logo.svg" alt="" />
-            <span>{siteName}</span>
-          </Link>
-          <span>Rankings reset every Monday</span>
-          <Link href="/digest" className="digest-footer-link">
-            endorsecoin.com/digest
-          </Link>
-        </footer>
       </div>
       <JsonLd
         data={{
@@ -236,7 +254,19 @@ export default async function DigestPage({ searchParams }: DigestParams) {
   );
 }
 
-function DigestWidget({ widget, rows }: { widget: DigestWidget; rows: CoinListItem[] }) {
+function DigestWidget({
+  widget,
+  rows,
+  showImageSave,
+  showViewLink,
+  showBrand,
+}: {
+  widget: DigestWidget;
+  rows: CoinListItem[];
+  showImageSave: boolean;
+  showViewLink: boolean;
+  showBrand: boolean;
+}) {
   if (!rows.length) return null;
 
   const headingId = `digest-${widget.key}`;
@@ -254,13 +284,31 @@ function DigestWidget({ widget, rows }: { widget: DigestWidget; rows: CoinListIt
           {widget.chainIcon && <img src={widget.chainIcon} alt="" className="digest-chain-logo" />}
           <h2 id={headingId}>{widget.title}</h2>
         </div>
-        <div className="digest-card-actions">
-          <SaveDigestImageButton
-            targetId={`digest-card-${widget.key}`}
-            filename={`endorsecoin-${widget.key}.png`}
-          />
-          <ShareDigestButton url={`/digest?${widget.shareParams}`} />
-        </div>
+        {showBrand && (
+          <span className="digest-inline-brand">
+            <Brand />
+          </span>
+        )}
+        {(showImageSave || showViewLink) && (
+          <div className="digest-card-actions">
+            {showImageSave && (
+              <SaveDigestImageButton
+                targetId={`digest-card-${widget.key}`}
+                filename={`endorsecoin-${widget.key}.png`}
+              />
+            )}
+            {showViewLink && (
+              <Link
+                href={`/digest?${widget.viewParams}`}
+                className="digest-action digest-view-card-link"
+                aria-label={`View ${widget.title}`}
+              >
+                <span>Save as image</span>
+                <ArrowUpRight aria-hidden="true" />
+              </Link>
+            )}
+          </div>
+        )}
       </header>
       <ol className="digest-list">
         {rows.map((coin, index) => (
@@ -286,11 +334,20 @@ function DigestWidget({ widget, rows }: { widget: DigestWidget; rows: CoinListIt
 }
 
 function CoinLogo({ coin }: { coin: CoinListItem }) {
-  return coin.image ? (
-    <img src={coin.image} alt="" className="digest-logo" loading="lazy" />
-  ) : (
-    <span className="digest-logo digest-logo-fallback" aria-hidden="true">
-      {coin.logo}
+  return (
+    <span className="digest-logo-wrap">
+      {coin.image ? (
+        <img src={coin.image} alt="" className="digest-logo" loading="lazy" />
+      ) : (
+        <span className="digest-logo digest-logo-fallback" aria-hidden="true">
+          {coin.logo}
+        </span>
+      )}
+      {coin.chainIcon && (
+        <span className="digest-chain-badge" title={coin.networkName}>
+          <img src={coin.chainIcon} alt="" loading="lazy" crossOrigin="anonymous" />
+        </span>
+      )}
     </span>
   );
 }
