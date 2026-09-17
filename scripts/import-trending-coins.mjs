@@ -3006,10 +3006,14 @@ function readPositiveInteger(value, fallback) {
 
 function needsFinalMarketEnrichment(token) {
   return (
-    !Number.isFinite(token.price) ||
-    (!Number.isFinite(token.marketCap) && !Number.isFinite(token.fdv)) ||
-    (!Number.isFinite(token.liquidity) && !Number.isFinite(token.volume))
+    !hasPositiveNumber(token.price) ||
+    (!hasPositiveNumber(token.marketCap) && !hasPositiveNumber(token.fdv)) ||
+    (!hasPositiveNumber(token.liquidity) && !hasPositiveNumber(token.volume))
   );
+}
+
+function hasPositiveNumber(value) {
+  return Number.isFinite(value) && value > 0;
 }
 
 function hasRequiredImportMarketValues(token) {
