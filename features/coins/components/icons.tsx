@@ -13,11 +13,13 @@ export function BoltIcon() {
   );
 }
 
-export function DiscoveryIcon({
-  type,
-}: {
-  type: 'new' | 'trend' | 'presale';
-}) {
+export function DiscoveryIcon({ type }: { type: 'new' | 'gainer' | 'trend' | 'presale' }) {
+  if (type === 'gainer') {
+    return (
+      <Icon icon="solar:chart-2-bold" className="discovery-icon gainer-icon" aria-hidden="true" />
+    );
+  }
+
   if (type === 'trend') {
     return (
       <Icon
@@ -35,5 +37,4 @@ export function DiscoveryIcon({
   if (type === 'presale') {
     return <Icon icon="ix:coin-filled" className="discovery-icon trend-icon" aria-hidden="true" />;
   }
-
 }

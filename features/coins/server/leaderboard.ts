@@ -380,7 +380,7 @@ function buildCustomOrderBy(sort: { key: CoinSortKey; direction: 'asc' | 'desc' 
     return descending
       ? sql`price_usd desc nulls last, id asc`
       : sql`price_usd asc nulls last, id asc`;
-  if (sort.key === 'change')
+  if (sort.key === '24h')
     return descending
       ? sql`change_24h desc nulls last, id asc`
       : sql`change_24h asc nulls last, id asc`;
@@ -502,7 +502,7 @@ function isCoinSortKey(value: string | null | undefined): value is CoinSortKey {
     value === 'name' ||
     value === 'capN' ||
     value === 'price' ||
-    value === 'change' ||
+    value === '24h' ||
     value === 'launch' ||
     value === 'boost' ||
     value === 'votes' ||
@@ -561,7 +561,7 @@ function sortCoins(
   if (sort.key === 'name') result = a.name.localeCompare(b.name);
   else if (sort.key === 'capN') result = a.capN - b.capN;
   else if (sort.key === 'price') result = moneyValue(a.price) - moneyValue(b.price);
-  else if (sort.key === 'change') result = a.change - b.change;
+  else if (sort.key === '24h') result = a.change - b.change;
   else if (sort.key === 'launch')
     result = dateValue(a.launchTimestamp) - dateValue(b.launchTimestamp);
   else if (sort.key === 'boost') result = (a.boost || 0) - (b.boost || 0);

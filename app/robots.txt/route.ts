@@ -12,6 +12,7 @@ export function GET() {
       'Disallow: /admin',
       'Disallow: /api',
       'Disallow: /dashboard',
+      'Disallow: /digest',
       'Disallow: /settings',
       'Disallow: /submit',
       'Disallow: /watchlist',

@@ -14,7 +14,7 @@ export function DiscoveryCard({
   viewMoreHref,
   metric = 'votes',
 }: {
-  icon: 'new' | 'trend' | 'presale';
+  icon: 'new' | 'gainer' | 'trend' | 'presale';
   title: string;
   sub: string;
   coins: Coin[];

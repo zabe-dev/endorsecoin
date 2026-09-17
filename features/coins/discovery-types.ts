@@ -3,6 +3,7 @@ import type { CoinListItem } from '@/features/coins/view';
 
 export type DiscoveryHotspots = {
   newCoins: CoinListItem[];
+  gainers: CoinListItem[];
   trending: CoinListItem[];
   presales: CoinListItem[];
 };

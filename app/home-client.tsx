@@ -126,10 +126,7 @@ export function HomeClient({
   }, []);
   useEffect(() => {
     if (!hotspotsVisible) return;
-    const timer = window.setInterval(
-      () => setHotspotIndex((i) => (i + 1) % hotspotCount),
-      4200,
-    );
+    const timer = window.setInterval(() => setHotspotIndex((i) => (i + 1) % hotspotCount), 4200);
     return () => window.clearInterval(timer);
   }, [hotspotCount, hotspotsVisible]);
   useEffect(() => {
@@ -222,6 +219,7 @@ export function HomeClient({
   const updateCoinRows = (updater: (coin: CoinListItem) => CoinListItem) => {
     setHotspotCoins((current) => ({
       newCoins: current.newCoins.map(updater),
+      gainers: current.gainers.map(updater),
       trending: current.trending.map(updater),
       presales: current.presales.map(updater),
     }));
@@ -396,9 +394,9 @@ export function HomeClient({
     if (start === null) return;
     const delta = start - x;
     if (Math.abs(delta) < 42) return;
-    setHotspotIndex((i) =>
-      (delta > 0 ? (i % hotspotCount) + 1 : (i % hotspotCount) + hotspotCount - 1) %
-      hotspotCount,
+    setHotspotIndex(
+      (i) =>
+        (delta > 0 ? (i % hotspotCount) + 1 : (i % hotspotCount) + hotspotCount - 1) % hotspotCount,
     );
   };
   return (
@@ -448,6 +446,14 @@ export function HomeClient({
                 coins={hotspotCoins.newCoins}
                 viewMoreHref="/?coins=new#leaderboard"
                 metric="launch"
+              />
+              <Discovery
+                icon="gainer"
+                title="Top gainers"
+                sub="Biggest 24h movers."
+                coins={hotspotCoins.gainers}
+                viewMoreHref="/?sort=24h&dir=desc#leaderboard"
+                metric="trend"
               />
               <Discovery
                 icon="trend"
@@ -652,7 +658,7 @@ export function HomeClient({
                 <SH l="Coin" k="name" s={sort} go={sortBy} />
                 <SH l="Market cap" k="capN" s={sort} go={sortBy} />
                 <SH l="Price" k="price" s={sort} go={sortBy} />
-                <SH l="24h" k="change" s={sort} go={sortBy} />
+                <SH l="24h" k="24h" s={sort} go={sortBy} />
                 <SH l="Launch" k="launch" s={sort} go={sortBy} />
                 <SH l="Boost" k="boost" s={sort} go={sortBy} />
                 <SH l="Weekly votes" k="votes" s={sort} go={sortBy} />

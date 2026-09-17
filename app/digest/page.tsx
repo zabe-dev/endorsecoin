@@ -43,8 +43,8 @@ const widgets: DigestWidget[] = [
   {
     key: 'gainers',
     title: '24H Gainers',
-    eyebrow: 'PRICE CHANGE',
-    query: { view: 'top', sort: 'change', direction: 'desc' },
+    eyebrow: '24H MOVE',
+    query: { view: 'top', sort: '24h', direction: 'desc' },
   },
   {
     key: 'trending',
@@ -87,6 +87,7 @@ export async function generateMetadata(): Promise<Metadata> {
       'Top community-ranked crypto coins across market signals this week on EndorseCoin.',
     path: '/digest',
     image: digestSocialImage,
+    robots: { index: false, follow: false },
   });
 }
 

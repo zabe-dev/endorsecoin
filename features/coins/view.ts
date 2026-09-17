@@ -60,7 +60,7 @@ export type CoinListItem = {
 };
 
 export type CoinSortKey =
-  'rank' | 'name' | 'capN' | 'price' | 'change' | 'launch' | 'boost' | 'votes' | 'age';
+  'rank' | 'name' | 'capN' | 'price' | '24h' | 'launch' | 'boost' | 'votes' | 'age';
 
 export const coinCategories: Array<'All' | CoinCategory> = [
   'All',

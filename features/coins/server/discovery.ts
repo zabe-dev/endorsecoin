@@ -79,6 +79,7 @@ async function readDiscoveryData(query: LeaderboardQuery = {}): Promise<Discover
 
   const allIds = uniqueNumbers([
     ...selectionData.newCoins.ids,
+    ...selectionData.gainers.ids,
     ...selectionData.trending.ids,
     ...selectionData.presales.ids,
     ...selectionData.promotedIds,
@@ -94,6 +95,7 @@ async function readDiscoveryData(query: LeaderboardQuery = {}): Promise<Discover
   return {
     hotspots: {
       newCoins: hydrateLeaderboardSelectionFromItems(selectionData.newCoins, itemsById).rows,
+      gainers: hydrateLeaderboardSelectionFromItems(selectionData.gainers, itemsById).rows,
       trending: hydrateLeaderboardSelectionFromItems(selectionData.trending, itemsById).rows,
       presales: hydrateLeaderboardSelectionFromItems(selectionData.presales, itemsById).rows,
     },
@@ -121,15 +123,16 @@ function buildDiscoveryCacheKey(
     query.sort.direction,
     query.page || '',
     query.pageSize || '',
-    'v5',
+    'v6',
   ]
     .map(cacheKeyPart)
     .join(':');
 }
 
 async function getDiscoverySelections(query: LeaderboardQuery = {}) {
-  const [newCoins, trending, presales, promotedIds, leaderboard] = await Promise.all([
+  const [newCoins, gainers, trending, presales, promotedIds, leaderboard] = await Promise.all([
     getLeaderboardSelection({ view: 'new', pageSize: 4 }),
+    getLeaderboardSelection({ view: 'top', sort: '24h', direction: 'desc', pageSize: 4 }),
     getStickyTrendingSelection({ pageSize: 4 }),
     getLeaderboardSelection({ view: 'presales', pageSize: 4 }),
     getCachedActivePromotedCoinIds(),
@@ -138,6 +141,7 @@ async function getDiscoverySelections(query: LeaderboardQuery = {}) {
 
   return {
     newCoins,
+    gainers,
     trending,
     presales,
     promotedIds,
@@ -262,14 +266,16 @@ function leaderboardPageToSelection(page: Awaited<ReturnType<typeof getLeaderboa
 }
 
 async function getDiscoveryHotspots(userId?: string | null): Promise<DiscoveryHotspots> {
-  const [newCoins, trending, presales] = await Promise.all([
+  const [newCoins, gainers, trending, presales] = await Promise.all([
     getLeaderboardPage({ view: 'new', pageSize: 4, userId }),
+    getLeaderboardPage({ view: 'top', sort: '24h', direction: 'desc', pageSize: 4, userId }),
     getStickyTrendingPage(userId),
     getLeaderboardPage({ view: 'presales', pageSize: 4, userId }),
   ]);
 
   return {
     newCoins: newCoins.rows,
+    gainers: gainers.rows,
     trending: trending.rows,
     presales: presales.rows,
   };

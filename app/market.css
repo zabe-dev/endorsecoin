@@ -624,6 +624,9 @@
 .discovery-card-new {
   --hotspot-data: #63d8ff;
 }
+.discovery-card-gainer {
+  --hotspot-data: #9df25f;
+}
 .discovery-card-trend {
   --hotspot-data: #ffc52f;
 }
@@ -2219,6 +2222,10 @@
 .new-icon {
   color: #63d8ff;
   background: #10252b;
+}
+.gainer-icon {
+  color: #9df25f;
+  background: #172811;
 }
 .trend-icon {
   color: #bfa3ff;
