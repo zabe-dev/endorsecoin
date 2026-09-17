@@ -27,13 +27,22 @@ export function SaveDigestImageButton({
     if (!target || state === 'saving') return;
 
     setState('saving');
-    target.classList.add('digest-exporting');
+    const exportHost = document.createElement('div');
+    const exportTarget = target.cloneNode(true) as HTMLElement;
+    exportHost.style.position = 'fixed';
+    exportHost.style.top = '0';
+    exportHost.style.left = '-100000px';
+    exportHost.style.width = '760px';
+    exportHost.style.pointerEvents = 'none';
+    exportTarget.classList.add('digest-exporting');
+    exportHost.appendChild(exportTarget);
+    document.body.appendChild(exportHost);
     try {
       await document.fonts.ready;
-      await Promise.all(Array.from(target.querySelectorAll('img')).map(waitForImage));
+      await Promise.all(Array.from(exportTarget.querySelectorAll('img')).map(waitForImage));
       await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
-      const bounds = target.getBoundingClientRect();
-      const dataUrl = await toPng(target, {
+      const bounds = exportTarget.getBoundingClientRect();
+      const dataUrl = await toPng(exportTarget, {
         backgroundColor: '#0e1114',
         cacheBust: true,
         filter: (node) => !node.classList?.contains('digest-action-exclude'),
@@ -50,7 +59,7 @@ export function SaveDigestImageButton({
     } catch {
       setState('idle');
     } finally {
-      target.classList.remove('digest-exporting');
+      exportHost.remove();
     }
   }
 

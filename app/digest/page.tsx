@@ -1,5 +1,4 @@
 import { JsonLd } from '@/components/seo/json-ld';
-import { Brand } from '@/components/ui/brand';
 import { NETWORKS } from '@/features/coins/networks';
 import { getLeaderboardPage } from '@/features/coins/server/leaderboard';
 import { WeeklyResetChip } from '@/features/leaderboard/components/weekly-reset-chip';
@@ -54,12 +53,6 @@ const widgets: DigestWidget[] = [
     query: { view: 'trending' },
   },
   {
-    key: 'presales',
-    title: 'Presales',
-    eyebrow: 'ACTIVE PRESALES',
-    query: { view: 'presales' },
-  },
-  {
     key: 'watched',
     title: 'Most Watched',
     eyebrow: 'WATCHLISTS',
@@ -70,6 +63,12 @@ const widgets: DigestWidget[] = [
     title: 'Launched Recently',
     eyebrow: 'RECENTLY LIVE',
     query: { view: 'recent' },
+  },
+  {
+    key: 'presales',
+    title: 'Presales',
+    eyebrow: 'ACTIVE PRESALES',
+    query: { view: 'presales' },
   },
 ];
 
@@ -108,7 +107,7 @@ export default async function DigestPage() {
   const marketSections = sections.slice(0, widgets.length).filter(({ rows }) => rows.length > 0);
   const chainSections = sections.slice(widgets.length).filter(({ rows }) => rows.length > 0);
   const title = 'Weekly Digest';
-  const description = 'Six weekly market signals, ranked by the EndorseCoin community.';
+  const description = "This week's top coins, ranked by the EndorseCoin community.";
   return (
     <main className="digest-page">
       <div className="digest-shell">
@@ -121,23 +120,15 @@ export default async function DigestPage() {
             <h1>{title}</h1>
             <p>{description}</p>
           </div>
-          <div className="digest-header-actions">
-            <WeeklyResetChip />
-          </div>
         </header>
         <div className="digest-toolbar">
-          <span>WEEKLY SNAPSHOT</span>
-          <span>TOP 10 PER WIDGET</span>
+          <div className="digest-toolbar-countdown">
+            <WeeklyResetChip />
+          </div>
         </div>
         <div className="digest-grid">
           {marketSections.map(({ widget, rows }) => (
-            <DigestWidget
-              key={widget.key}
-              widget={widget}
-              rows={rows}
-              showImageSave
-              showExportBrand
-            />
+            <DigestWidget key={widget.key} widget={widget} rows={rows} showImageSave />
           ))}
         </div>
         {chainSections.length > 0 && (
@@ -145,13 +136,7 @@ export default async function DigestPage() {
             <h2 className="digest-group-title">Top Ranked By Chain</h2>
             <div className="digest-grid">
               {chainSections.map(({ widget, rows }) => (
-                <DigestWidget
-                  key={widget.key}
-                  widget={widget}
-                  rows={rows}
-                  showImageSave
-                  showExportBrand
-                />
+                <DigestWidget key={widget.key} widget={widget} rows={rows} showImageSave />
               ))}
             </div>
           </>
@@ -185,12 +170,10 @@ function DigestWidget({
   widget,
   rows,
   showImageSave,
-  showExportBrand,
 }: {
   widget: DigestWidget;
   rows: CoinListItem[];
   showImageSave: boolean;
-  showExportBrand: boolean;
 }) {
   if (!rows.length) return null;
 
@@ -237,11 +220,6 @@ function DigestWidget({
           </li>
         ))}
       </ol>
-      {showExportBrand && (
-        <span className="digest-export-brand">
-          <Brand />
-        </span>
-      )}
     </section>
   );
 }
