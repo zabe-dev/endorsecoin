@@ -212,16 +212,32 @@ const airdropSeeds = [
 ];
 
 async function main() {
-  await flushRedis();
+  await runStep('Redis cleanup', flushRedis);
 
   await db.begin(async (tx) => {
-    const preservedUser = await resetData(tx);
+    const preservedUser = await findPreservedUser(tx);
+    await resetData(tx, preservedUser);
 
     if (!shouldSkipSeed) {
-      await ensureAirdropTableExists(tx);
-      const coinIdsBySlug = await seedProjects(tx);
-      await tx`delete from airdrop_submissions where requester_email = ${seedEmail}`;
-      await seedAirdrops(tx, coinIdsBySlug);
+      const airdropTableResult = await runDbStep(tx, 'airdrop_submissions table check', (stepTx) =>
+        ensureAirdropTableExists(stepTx),
+      );
+      const seedProjectsResult = await runDbStep(tx, 'dummy project seed', (stepTx) =>
+        seedProjects(stepTx),
+      );
+
+      if (airdropTableResult.ok && seedProjectsResult.ok) {
+        await runDbStep(
+          tx,
+          'dummy airdrop cleanup',
+          (stepTx) => stepTx`delete from airdrop_submissions where requester_email = ${seedEmail}`,
+        );
+        await runDbStep(tx, 'dummy airdrop seed', (stepTx) =>
+          seedAirdrops(stepTx, seedProjectsResult.value),
+        );
+      } else {
+        console.warn('Skipped dummy airdrop seed because required setup failed.');
+      }
     }
 
     console.log(buildCompletionMessage(preservedUser));
@@ -231,6 +247,23 @@ async function main() {
       );
     }
   });
+}
+
+async function runStep(label, action) {
+  try {
+    return { ok: true, value: await action() };
+  } catch (error) {
+    console.warn(`Skipped ${label}: ${formatError(error)}`);
+    return { ok: false, error };
+  }
+}
+
+async function runDbStep(tx, label, action) {
+  return runStep(label, () => tx.savepoint((stepTx) => action(stepTx)));
+}
+
+function formatError(error) {
+  return error instanceof Error ? error.message : String(error);
 }
 
 async function flushRedis() {
@@ -266,41 +299,67 @@ async function flushRedis() {
   }
 }
 
-async function resetData(tx) {
-  const preservedUser = await findPreservedUser(tx);
+async function resetData(tx, preservedUser) {
   const preservedUserId = preservedUser?.id ?? null;
 
-  const deletedSubmissionIds = await tx`
-    select id
-    from coin_submissions
-  `;
-  const submissionIds = deletedSubmissionIds.map((submission) => submission.id);
+  const deletedSubmissionIdsResult = await runDbStep(
+    tx,
+    'coin submission lookup',
+    (stepTx) => stepTx`
+      select id
+      from coin_submissions
+    `,
+  );
+  const submissionIds = deletedSubmissionIdsResult.ok
+    ? deletedSubmissionIdsResult.value.map((submission) => submission.id)
+    : [];
 
   if (submissionIds.length) {
-    await tx`delete from coin_submission_links where submission_id = any(${submissionIds}::uuid[])`;
-    await tx`delete from coin_submission_contracts where submission_id = any(${submissionIds}::uuid[])`;
-    await tx`delete from coin_submission_categories where submission_id = any(${submissionIds}::uuid[])`;
+    await runDbStep(
+      tx,
+      'coin submission links cleanup',
+      (stepTx) =>
+        stepTx`delete from coin_submission_links where submission_id = any(${submissionIds}::uuid[])`,
+    );
+    await runDbStep(
+      tx,
+      'coin submission contracts cleanup',
+      (stepTx) =>
+        stepTx`delete from coin_submission_contracts where submission_id = any(${submissionIds}::uuid[])`,
+    );
+    await runDbStep(
+      tx,
+      'coin submission categories cleanup',
+      (stepTx) =>
+        stepTx`delete from coin_submission_categories where submission_id = any(${submissionIds}::uuid[])`,
+    );
   }
 
-  await tx`delete from admin_audit_logs`;
-  await tx`delete from rate_limits`;
-  await tx`delete from coin_watchlists`;
-  await tx`delete from coin_votes`;
-  await tx`delete from coin_promotions`;
-  await tx`delete from coin_boosts`;
-  await deleteIfTableExists(tx, 'airdrop_submissions');
-  await tx`delete from payments`;
-  await tx`delete from coin_submissions`;
-  await tx`delete from change_requests`;
-  await tx`delete from coin_links`;
-  await tx`delete from market_snapshots`;
-  await tx`delete from market_sources`;
-  await tx`delete from coins`;
-  await deleteUsers(tx, preservedUserId);
+  const cleanupSteps = [
+    ['admin audit logs cleanup', (stepTx) => stepTx`delete from admin_audit_logs`],
+    ['rate limits cleanup', (stepTx) => stepTx`delete from rate_limits`],
+    ['coin watchlists cleanup', (stepTx) => stepTx`delete from coin_watchlists`],
+    ['coin votes cleanup', (stepTx) => stepTx`delete from coin_votes`],
+    ['coin promotions cleanup', (stepTx) => stepTx`delete from coin_promotions`],
+    ['coin boosts cleanup', (stepTx) => stepTx`delete from coin_boosts`],
+    ['airdrop submissions cleanup', (stepTx) => deleteIfTableExists(stepTx, 'airdrop_submissions')],
+    ['payments cleanup', (stepTx) => stepTx`delete from payments`],
+    ['coin submissions cleanup', (stepTx) => stepTx`delete from coin_submissions`],
+    ['change requests cleanup', (stepTx) => stepTx`delete from change_requests`],
+    ['coin links cleanup', (stepTx) => stepTx`delete from coin_links`],
+    ['market snapshots cleanup', (stepTx) => stepTx`delete from market_snapshots`],
+    ['market sources cleanup', (stepTx) => stepTx`delete from market_sources`],
+    ['coins cleanup', (stepTx) => stepTx`delete from coins`],
+    ['users cleanup', (stepTx) => deleteUsers(stepTx, preservedUserId)],
+    [
+      'market snapshots identity reset',
+      (stepTx) => resetIdentity(stepTx, 'market_snapshots', 'id'),
+    ],
+  ];
 
-  await resetIdentity(tx, 'market_snapshots', 'id');
-
-  return preservedUser;
+  for (const [label, action] of cleanupSteps) {
+    await runDbStep(tx, label, action);
+  }
 }
 
 async function deleteIfTableExists(tx, tableName) {
