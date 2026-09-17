@@ -15,9 +15,9 @@
     "db:generate": "node --env-file=.env.local node_modules/drizzle-kit/bin.cjs generate",
     "db:migrate": "node --env-file=.env.local node_modules/drizzle-kit/bin.cjs migrate",
     "db:studio": "node --env-file=.env.local node_modules/drizzle-kit/bin.cjs studio",
-    "dev:import:mobula": "node --env-file=.env.local scripts/import-mobula.mjs",
-    "dev:resetdata": "node --env-file=.env.local scripts/reset-data.mjs",
-    "dev:reset": "npm run dev:resetdata",
+    "dev:import:trending": "node --env-file=.env.local scripts/import-trending-coins.mjs",
+    "dev:reset:data": "node --env-file=.env.local scripts/reset-data.mjs",
+    "dev:reset": "npm run dev:reset:data",
     "dev:db:reset": "npm run dev:reset",
     "db:reset:dev": "npm run dev:reset"
   },

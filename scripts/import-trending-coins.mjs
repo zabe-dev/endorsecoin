@@ -4,12 +4,12 @@
  * Imports ds.py-selected tokens into EndorseCoin.
  *
  * Usage:
- *   npm run dev:import:mobula
- *   npm run dev:import:mobula -- --csv=scripts/ds-output/trending-coins.csv
- *   npm run dev:import:mobula -- --limit=10
- *   npm run dev:import:mobula -- --dry-run
- *   npm run dev:import:mobula -- --dry-run --debug
- *   npm run dev:import:mobula -- --geckoterminal-batch-size=30
+ *   npm run dev:import:trending
+ *   npm run dev:import:trending -- --csv=scripts/ds-output/trending-coins.csv
+ *   npm run dev:import:trending -- --limit=10
+ *   npm run dev:import:trending -- --dry-run
+ *   npm run dev:import:trending -- --dry-run --debug
+ *   npm run dev:import:trending -- --geckoterminal-batch-size=30
  *
  * This script writes only to tables the app currently reads:
  *   - coins
@@ -118,7 +118,7 @@ class DsOutputSource {
   }
 }
 
-class MobulaCoinImporter {
+class TrendingCoinImporter {
   constructor({ source }) {
     this.source = source;
   }
@@ -763,7 +763,7 @@ function log(message) {
 }
 
 function logSection(title) {
-  console.log(`\n${title}`);
+  console.log(`\n==== ${title} ====`);
 }
 
 // Logs batch progress at a handful of evenly-spaced points (not every batch,
@@ -823,7 +823,7 @@ async function enrichTokensWithMobulaDetails(tokens) {
 
   const totalBatches = Math.ceil(tokens.length / options.detailsBatchSize);
   logSection(
-    `Phase 1/3: Asset details (dates + links) - ${tokens.length} tokens, ${totalBatches} batch(es) of ${options.detailsBatchSize}`,
+    `Mobula asset details (dates + links) - ${tokens.length} tokens, ${totalBatches} batch(es) of ${options.detailsBatchSize}`,
   );
 
   let enrichedCount = 0;
@@ -857,7 +857,7 @@ async function enrichTokensWithMobulaDetails(tokens) {
   }
 
   log(
-    `Phase 1/3 done: applied asset details to ${enrichedCount}/${tokens.length} token(s) in ${formatDuration(Date.now() - phaseStartedAt)}.`,
+    `Mobula asset details done: applied data to ${enrichedCount}/${tokens.length} token(s) in ${formatDuration(Date.now() - phaseStartedAt)}.`,
   );
   return tokens;
 }
@@ -867,7 +867,7 @@ async function enrichTokensWithMobulaMetadata(tokens) {
 
   const totalBatches = Math.ceil(tokens.length / options.detailsBatchSize);
   logSection(
-    `Phase 2/3: Metadata (trust + social links) - ${tokens.length} tokens, ${totalBatches} batch(es) of ${options.detailsBatchSize}`,
+    `Mobula metadata (trust + social links) - ${tokens.length} tokens, ${totalBatches} batch(es) of ${options.detailsBatchSize}`,
   );
 
   let enrichedCount = 0;
@@ -901,7 +901,7 @@ async function enrichTokensWithMobulaMetadata(tokens) {
   }
 
   log(
-    `Phase 2/3 done: applied metadata to ${enrichedCount}/${tokens.length} token(s) in ${formatDuration(Date.now() - phaseStartedAt)}.`,
+    `Mobula metadata done: applied data to ${enrichedCount}/${tokens.length} token(s) in ${formatDuration(Date.now() - phaseStartedAt)}.`,
   );
   return tokens;
 }
@@ -1176,13 +1176,13 @@ async function enrichTokensWithMobulaMarketDetails(tokens) {
   const skippedCount = tokens.length - usableTokens.length;
 
   if (!usableTokens.length) {
-    log('Phase 3/3: Market details - skipped, no tokens on a supported chain.');
+    log('Mobula market details skipped, no tokens on a supported chain.');
     return tokens;
   }
 
   const totalBatches = Math.ceil(usableTokens.length / options.marketDetailsBatchSize);
   logSection(
-    `Phase 3/3: Market details (chart/DEX links) - ${usableTokens.length} tokens, ${totalBatches} batch(es) of ${options.marketDetailsBatchSize}` +
+    `Mobula market details (chart/DEX links) - ${usableTokens.length} tokens, ${totalBatches} batch(es) of ${options.marketDetailsBatchSize}` +
       (skippedCount ? ` (${skippedCount} skipped, unsupported chain)` : ''),
   );
 
@@ -1216,7 +1216,7 @@ async function enrichTokensWithMobulaMarketDetails(tokens) {
   }
 
   log(
-    `Phase 3/3 done: applied market details to ${enrichedCount}/${tokens.length} token(s) in ${formatDuration(
+    `Mobula market details done: applied data to ${enrichedCount}/${tokens.length} token(s) in ${formatDuration(
       Date.now() - phaseStartedAt,
     )}.`,
   );
@@ -2902,7 +2902,7 @@ function dryRunRow(token) {
 }
 
 async function main() {
-  const importer = new MobulaCoinImporter({
+  const importer = new TrendingCoinImporter({
     source: new DsOutputSource(options.csvPath),
   });
   await importer.run();
