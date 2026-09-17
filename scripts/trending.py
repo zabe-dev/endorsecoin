@@ -131,6 +131,72 @@ EXCLUDE_SYMBOLS = {
     "KAVA",
     "THETA",
     "APE",  # ApeCoin — Yuga Labs ecosystem/governance token
+    "STBL",
+    "YAK",
+    "OVER",
+    "ETHFI",
+    "RADIO",
+    "DEEP",
+    "NS",
+    "CETUS",
+    "NAVX",
+    # additional stablecoins and fiat/commodity-backed assets
+    "FUSD",
+    "DOLA",
+    "MIM",
+    "JPYC",
+    "BOLD",
+    "AUSD",
+    "USDG",
+    "USDGLO",
+    "MSUSD",
+    "ZCHF",
+    "UZDT",
+    "MXNB",
+    "BRLA",
+    "THBILL",
+    "USD₮0",
+    # established application, protocol, and infrastructure tokens
+    "MOTO",
+    "SYN",
+    "ENA",
+    "TEL",
+    "ATH",
+    "RAIL",
+    "ILV",
+    "AAVE.E",
+    "QI",
+    "MYST",
+    "QUICK",
+    "XOR",
+    "ORBS",
+    "GST",
+    "GMT",
+    "GEOD",
+    "SUPER",
+    "GOHM",
+    "LPT",
+    "PNP",
+    "OHM",
+    "HEGIC",
+    "AERO",
+    "MORPHO",
+    "WLD",
+    "OLAS",
+    "STG",
+    "LQDR",
+    "BEETS",
+    "BOO",
+    "DEUS",
+    "PRIME",
+    "BRUSH",
+    "ANY",
+    "SHRAP",
+    "SAND",
+    "GRAIL",
+    "PNG",
+    "TART",
+    "LIF3",
     # DEX / lending protocol governance tokens
     "UNI",
     "SUSHI",
@@ -300,6 +366,20 @@ def is_excluded_by_name(name):
     return any(substr in lowered for substr in EXCLUDE_NAME_SUBSTRINGS)
 
 
+STABLECOIN_NAME_PATTERN = re.compile(
+    r"\b(?:stablecoin|[a-z0-9-]+\s+usd|usd\s+coin)\b", re.IGNORECASE
+)
+GENERIC_TOKEN_NAME_PATTERN = re.compile(r"(?:^|[\s_-])token(?:$|[\s_-])", re.IGNORECASE)
+
+
+def is_stablecoin_name(name):
+    return bool(name) and bool(STABLECOIN_NAME_PATTERN.search(name.strip()))
+
+
+def is_generic_token_name(name):
+    return bool(name) and bool(GENERIC_TOKEN_NAME_PATTERN.search(name.strip()))
+
+
 # ---------------------------------------------------------------------------
 # HEURISTIC TIER (skipped with --lenient): word-level patterns indicating a
 # protocol/venue/fund/structured-product name rather than a community token.
@@ -350,6 +430,11 @@ PRODUCT_NAME_WORDS = {
     "rwa",
     "dtf",  # Reserve Protocol's "decentralized token folio" product class
     "reserve",
+    "governance",
+    "utility",
+    "dao",
+    "game",
+    "games",
 }
 
 # Bare major-company names — catches tokenized-stock deploys that don't use
@@ -600,6 +685,10 @@ def denial_reason(name, symbol, strict=True):
         return "symbol-denylist"
     if is_excluded_by_name(name):
         return "name-denylist"
+    if is_stablecoin_name(name):
+        return "stablecoin-name"
+    if is_generic_token_name(name):
+        return "generic-token-name"
     if is_leveraged_product(name):
         return "leveraged-product"
     if is_name_spam(name):
