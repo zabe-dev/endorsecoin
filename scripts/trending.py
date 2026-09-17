@@ -32,6 +32,8 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_OUTPUT_DIR = os.path.join(SCRIPT_DIR, "ds-output")
 DEFAULT_OUTPUT_CSV = os.path.join(DEFAULT_OUTPUT_DIR, "trending-coins.csv")
 TRENDING_FETCH_ATTEMPTS = 3
+PAIR_RESOLVE_ATTEMPTS = 3
+DEXSCREENER_MIN_INTERVAL = 1.1
 
 # Standard comma-delimited CSV. csv.writer/DictWriter auto-quote any field
 # that contains a comma (e.g. a token name like "Foo, Inc"), so this is
@@ -884,28 +886,55 @@ def resolve_pair(chain: str, pair_address: str) -> dict | None:
     address, symbol, name, chain, price, liquidity and volume for the base
     token — the last two are needed for the denylist audit trail.
     """
-    resp = requests.get(
-        DEX_API_PAIR.format(chain=chain, pair_address=pair_address), timeout=15
-    )
-    if resp.status_code != 200:
-        return None
+    retryable_statuses = {403, 408, 425, 429, 500, 502, 503, 504}
+    url = DEX_API_PAIR.format(chain=chain, pair_address=pair_address)
 
-    data = resp.json()
-    pair = data.get("pair") or (data.get("pairs") or [None])[0]
-    if not pair:
-        return None
+    for attempt in range(1, PAIR_RESOLVE_ATTEMPTS + 1):
+        try:
+            resp = requests.get(
+                url,
+                timeout=15,
+                headers={"User-Agent": "trending-tokens-script/1.0"},
+            )
+            if resp.status_code != 200:
+                if resp.status_code not in retryable_statuses:
+                    return None
+                error = f"HTTP {resp.status_code}"
+            else:
+                data = resp.json()
+                if not isinstance(data, dict):
+                    pair = None
+                else:
+                    pair = data.get("pair") or (data.get("pairs") or [None])[0]
+                if isinstance(pair, dict):
+                    base = pair.get("baseToken", {})
+                    return {
+                        "chain": pair.get("chainId"),
+                        "contract_address": base.get("address"),
+                        "symbol": base.get("symbol"),
+                        "name": base.get("name"),
+                        "price_usd": pair.get("priceUsd"),
+                        "liquidity_usd": (pair.get("liquidity") or {}).get("usd"),
+                        "volume_24h_usd": (pair.get("volume") or {}).get("h24"),
+                        "pair_address": pair_address,
+                    }
+                error = "empty pair response"
+        except (requests.RequestException, ValueError) as exc:
+            error = str(exc) or exc.__class__.__name__
 
-    base = pair.get("baseToken", {})
-    return {
-        "chain": pair.get("chainId"),
-        "contract_address": base.get("address"),
-        "symbol": base.get("symbol"),
-        "name": base.get("name"),
-        "price_usd": pair.get("priceUsd"),
-        "liquidity_usd": (pair.get("liquidity") or {}).get("usd"),
-        "volume_24h_usd": (pair.get("volume") or {}).get("h24"),
-        "pair_address": pair_address,
-    }
+        if attempt == PAIR_RESOLVE_ATTEMPTS:
+            return None
+        delay = DEXSCREENER_MIN_INTERVAL * (2 ** (attempt - 1))
+        print(
+            f"  Pair resolve failed for {chain}/{pair_address}: {error}."
+        )
+        print(
+            f"  Retrying in {delay}s "
+            f"({attempt + 1}/{PAIR_RESOLVE_ATTEMPTS})..."
+        )
+        time.sleep(delay)
+
+    return None
 
 
 def fetch_gecko_trending_tokens(chain: str, limit: int) -> list[dict]:
@@ -990,7 +1019,7 @@ def main():
     parser.add_argument(
         "--delay",
         type=float,
-        default=0.3,
+        default=DEXSCREENER_MIN_INTERVAL,
         help="Delay between API calls (rate-limit friendly)",
     )
     parser.add_argument(
@@ -1009,6 +1038,7 @@ def main():
         help="skip the live S&P 500 ticker cross-check; the static EXCLUDE_SYMBOLS list still applies",
     )
     args = parser.parse_args()
+    args.delay = max(args.delay, DEXSCREENER_MIN_INTERVAL)
 
     global LIVE_CHECK_ENABLED
     LIVE_CHECK_ENABLED = not args.no_live_check
@@ -1059,6 +1089,8 @@ def main():
     denied = []
     seen_addresses = set()
     seen_symbols = {}
+    failed_resolutions = 0
+    duplicate_contracts = 0
 
     for i, (source, candidate, pair_address) in enumerate(candidates, 1):
         if source == "geckoterminal":
@@ -1068,6 +1100,7 @@ def main():
             chain = candidate
             info = resolve_pair(chain, pair_address)
         if not info:
+            failed_resolutions += 1
             print(f"  [{i}] failed to resolve {chain}/{pair_address or source}")
             time.sleep(args.delay)
             continue
@@ -1078,6 +1111,7 @@ def main():
 
         address_key = f"{chain}:{(address or '').lower()}"
         if address and address_key in seen_addresses:
+            duplicate_contracts += 1
             time.sleep(args.delay)
             continue
 
@@ -1127,6 +1161,23 @@ def main():
         print(f"\nSaved {len(results)} tokens to {out_path}")
     else:
         print("\nNo results resolved.")
+
+    resolved = len(results) + len(denied) + duplicate_contracts
+    accounted = resolved + failed_resolutions
+    print(
+        "\nSummary: "
+        f"{len(candidates)} candidates | "
+        f"{accounted} accounted | "
+        f"{len(results)} saved | "
+        f"{len(denied)} denied | "
+        f"{duplicate_contracts} duplicate contracts skipped | "
+        f"{failed_resolutions} failed resolution"
+    )
+    if accounted != len(candidates):
+        print(
+            f"Warning: summary mismatch ({accounted} accounted vs "
+            f"{len(candidates)} candidates)."
+        )
 
     if denied:
         write_denied(review_path, denied)
