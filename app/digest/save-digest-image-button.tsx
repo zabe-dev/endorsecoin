@@ -27,6 +27,7 @@ export function SaveDigestImageButton({
     if (!target || state === 'saving') return;
 
     setState('saving');
+    target.classList.add('digest-exporting');
     try {
       await document.fonts.ready;
       await Promise.all(Array.from(target.querySelectorAll('img')).map(waitForImage));
@@ -48,6 +49,8 @@ export function SaveDigestImageButton({
       setState('saved');
     } catch {
       setState('idle');
+    } finally {
+      target.classList.remove('digest-exporting');
     }
   }
 

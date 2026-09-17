@@ -16,12 +16,6 @@
   gap: 32px;
   padding: 16px 0 34px;
 }
-.digest-header-single {
-  width: min(760px, 100%);
-  margin: 0 auto;
-  padding-right: 0;
-  padding-left: 0;
-}
 .digest-kicker,
 .digest-widget-label,
 .digest-toolbar,
@@ -87,40 +81,11 @@
   align-items: center;
   gap: 8px;
 }
-.digest-inline-brand {
-  display: inline-flex;
-  flex-shrink: 0;
-}
-.digest-inline-brand .brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: #fff;
-  font-size: 22px;
-  font-weight: 700;
-  text-decoration: none;
-  white-space: nowrap;
-}
-.digest-inline-brand .brand-mark img {
-  width: 34px;
-  height: 34px;
-}
-.digest-inline-brand .brand-mark {
-  width: 34px;
-  height: 34px;
-}
-.digest-grid-single .digest-widget-title {
-  flex: 1;
-}
 .digest-card-actions .digest-action {
   justify-content: center;
 }
 .digest-save-image-button {
   width: 108px;
-}
-.digest-view-card-link {
-  width: 108px;
-  text-decoration: none;
 }
 .digest-action {
   display: inline-flex;
@@ -165,35 +130,10 @@
 .digest-toolbar a {
   color: var(--lime);
 }
-.digest-toolbar-single {
-  justify-content: flex-end;
-}
 .digest-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
-}
-.digest-grid-single {
-  width: min(760px, 100%);
-  margin: 0 auto;
-  grid-template-columns: 1fr;
-}
-.digest-single-actions {
-  display: flex;
-  width: min(760px, 100%);
-  justify-content: flex-end;
-  margin: 0 auto 16px;
-  padding: 0;
-}
-.digest-grid-single .digest-widget {
-  align-self: start;
-}
-.digest-grid-single .digest-widget {
-  border: 1px solid #242b30;
-  background: #0e1114;
-}
-.digest-grid-single .digest-widget-header {
-  padding: 28px 20px 16px;
 }
 .digest-group-title {
   margin: 42px 0 14px;
@@ -203,11 +143,39 @@
   font-weight: 700;
 }
 .digest-widget {
+  position: relative;
   min-width: 0;
   overflow: hidden;
   border: 1px solid #242b30;
   border-radius: 8px;
   background: #0e1114;
+}
+.digest-export-brand {
+  position: absolute;
+  right: 20px;
+  bottom: 10px;
+  opacity: 0;
+  pointer-events: none;
+}
+.digest-export-brand .brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.digest-export-brand .brand-mark,
+.digest-export-brand .brand-mark img {
+  width: 24px;
+  height: 24px;
+}
+.digest-widget.digest-exporting .digest-export-brand {
+  opacity: 1;
+}
+.digest-widget.digest-exporting .digest-list {
+  padding-bottom: 48px;
 }
 .digest-widget-header {
   display: flex;
@@ -230,7 +198,7 @@
   margin: 0;
   color: #fff;
   font-family: var(--font-space-grotesk), sans-serif;
-  font-size: 28px;
+  font-size: 22px;
   font-weight: 700;
   line-height: 1.05;
 }
@@ -260,23 +228,6 @@
 }
 .digest-list li:last-child {
   border-bottom: 0;
-}
-.digest-grid-single .digest-list {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  padding: 20px;
-}
-.digest-grid-single .digest-list li {
-  min-width: 0;
-  border-bottom: 0;
-}
-.digest-grid-single .digest-coin {
-  min-height: 86px;
-  border: 1px solid #242b30;
-  border-radius: 8px;
-  background: #12171b;
-  padding: 14px;
 }
 .digest-coin {
   display: grid;
@@ -387,10 +338,6 @@
     display: block;
     padding-top: 8px;
   }
-  .digest-header-single {
-    padding-right: 0;
-    padding-left: 0;
-  }
   .digest-header h1 {
     font-size: 32px;
   }
@@ -403,8 +350,29 @@
   }
   .digest-header-actions .week-chip {
     display: grid;
-    grid-template-columns: auto auto;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    width: 100%;
+    gap: 8px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    padding: 9px 11px;
     flex-shrink: 0;
+  }
+  .digest-header-actions .week-chip span,
+  .digest-header-actions .week-chip b,
+  .digest-header-actions .week-chip small {
+    grid-row: auto;
+    grid-column: auto;
+    white-space: nowrap;
+  }
+  .digest-header-actions .week-chip b {
+    justify-self: center;
+    font-size: 15px;
+  }
+  .digest-header-actions .week-chip small {
+    justify-self: end;
   }
   .digest-period {
     flex-shrink: 0;
@@ -420,11 +388,8 @@
     gap: 10px;
     padding: 16px 16px 14px;
   }
-  .digest-grid-single .digest-widget-header {
-    padding-top: 24px;
-  }
   .digest-widget h2 {
-    font-size: 22px;
+    font-size: 20px;
   }
   .digest-toolbar {
     flex-wrap: wrap;
@@ -433,58 +398,12 @@
   .digest-grid {
     grid-template-columns: 1fr;
   }
-  .digest-grid-single .digest-list {
-    grid-template-columns: 1fr;
-  }
-  .digest-single-actions {
-    padding-right: 0;
-    padding-left: 0;
-  }
 }
 @media (max-width: 420px) {
   .digest-widget-header,
   .digest-list {
     padding-right: 14px;
     padding-left: 14px;
-  }
-  .digest-grid-single .digest-widget-header {
-    padding-right: 14px;
-    padding-left: 14px;
-  }
-  .digest-header-single {
-    padding-right: 0;
-    padding-left: 0;
-  }
-  .digest-grid-single .digest-list {
-    padding-right: 10px;
-    padding-left: 10px;
-  }
-  .digest-single-actions {
-    padding-right: 0;
-    padding-left: 0;
-  }
-  .digest-grid-single .digest-list {
-    grid-template-columns: 1fr;
-  }
-  .digest-grid-single .digest-coin {
-    grid-template-columns: 28px 40px minmax(0, 1fr) auto;
-    grid-template-rows: none;
-    min-height: 78px;
-    gap: 5px 10px;
-    padding: 12px 14px;
-  }
-  .digest-grid-single .digest-coin-copy,
-  .digest-grid-single .digest-rank,
-  .digest-grid-single .digest-votes,
-  .digest-grid-single .digest-logo-wrap {
-    grid-column: auto;
-    grid-row: auto;
-    align-self: center;
-    justify-self: auto;
-  }
-  .digest-grid-single .digest-logo-wrap {
-    width: 42px;
-    height: 42px;
   }
   .digest-coin {
     grid-template-columns: 28px 40px minmax(0, 1fr);
@@ -495,9 +414,6 @@
   .digest-rank,
   .digest-logo {
     align-self: center;
-    grid-row: 1 / span 2;
-  }
-  .digest-grid-single .digest-logo-wrap {
     grid-row: 1 / span 2;
   }
   .digest-coin-copy {
