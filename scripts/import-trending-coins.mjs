@@ -211,7 +211,7 @@ class TrendingCoinImporter {
         }
       }
 
-      logImportProgress(current, saneTokens.length, writePhaseStartedAt);
+      logImportProgress(token, current, saneTokens.length, writePhaseStartedAt);
     }
 
     logSection('Import finished');
@@ -801,7 +801,7 @@ function logBatchProgress(
 // Logs import-loop progress at a handful of evenly-spaced points (scales with
 // total size, so a 500-token run and a 9,000-token run both get ~20 updates)
 // with a live ETA, plus always the first and last token.
-function logImportProgress(current, total, phaseStartedAt) {
+function logImportProgress(token, current, total, phaseStartedAt) {
   const every = Math.max(1, Math.round(total / 20));
   const isFirst = current === 1;
   const isLast = current === total;
@@ -814,7 +814,8 @@ function logImportProgress(current, total, phaseStartedAt) {
   const etaMs = ratePerMs > 0 ? remaining / ratePerMs : 0;
 
   log(
-    `Import progress: token ${current}/${total} (${pct}%)` +
+    `Import progress: ${token.symbol || token.name || 'unknown'} [${token.contract.chain}] ` +
+      `token ${current}/${total} (${pct}%)` +
       (isLast ? ` - done in ${formatDuration(elapsedMs)}` : ` - ETA ${formatDuration(etaMs)}`),
   );
 }
