@@ -98,8 +98,7 @@ export function HomeClient({
   const [isLeaderboardPending, startLeaderboardTransition] = useTransition();
   const [hotspotsVisible, setHotspotsVisible] = useState(true),
     [hotspotIndex, setHotspotIndex] = useState(0);
-  const hasPresaleHotspots = hotspotCoins.presales.length > 0;
-  const hotspotCount = hasPresaleHotspots ? 4 : 3;
+  const hotspotCount = 4;
   const visibleHotspotIndex = hotspotIndex % hotspotCount;
   useEffect(() => {
     function closeChainMenu(event: PointerEvent) {
@@ -463,16 +462,14 @@ export function HomeClient({
                 viewMoreHref="/?coins=trending#leaderboard"
                 metric="trend"
               />
-              {hasPresaleHotspots && (
-                <Discovery
-                  icon="presale"
-                  title="Presale coins"
-                  sub="Ending soon, moving fast."
-                  coins={hotspotCoins.presales}
-                  viewMoreHref="/?coins=presales#leaderboard"
-                  metric="presaleEnd"
-                />
-              )}
+              <Discovery
+                icon="presale"
+                title="Presale coins"
+                sub="Ending soon, moving fast."
+                coins={hotspotCoins.presales}
+                viewMoreHref="/?coins=presales#leaderboard"
+                metric="presaleEnd"
+              />
             </div>
             <div className="hotspot-controls">
               <div className="hotspot-dots">
