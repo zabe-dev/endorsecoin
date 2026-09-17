@@ -223,9 +223,6 @@ h3,
   height: 90px;
   padding: 0 58px 0 18px;
 }
-.fixed-footer-ad-banner-placeholder .aads-ad-unit {
-  height: 90px;
-}
 .fixed-footer-ad-banner-placeholder-inner {
   display: flex;
   width: min(1320px, 100%);

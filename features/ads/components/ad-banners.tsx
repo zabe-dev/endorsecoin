@@ -207,24 +207,29 @@ export function PremiumAdBanner({ ads = [], offset = 0, fullWidth = false }: Pre
   const ad = useSelectedAd(ads, offset, false);
   const className = `${fullWidth ? '' : 'container '}premium-ad-banner`;
 
-  if (ad) {
+  if (!ad) {
     return (
-      <Link
-        className={`${className} ad-banner-image`}
-        href={ad.targetUrl}
-        target="_blank"
-        rel="sponsored noopener noreferrer"
-      >
-        <AdBadge />
-        <AdPicture ad={ad} />
-      </Link>
+      <div className={className}>
+        <small>PREMIUM ADVERTISEMENT</small>
+        <div>
+          <b>Reach early project investors.</b>
+          <span>Premium inventory · Measured impressions and clicks</span>
+        </div>
+        <Link href="/advertise">View ad packages ↗</Link>
+      </div>
     );
   }
 
   return (
-    <div className={`${className} aads-fallback-slot`}>
-      <AadsFallback placement="premium" />
-    </div>
+    <Link
+      className={`${className} ad-banner-image`}
+      href={ad.targetUrl}
+      target="_blank"
+      rel="sponsored noopener noreferrer"
+    >
+      <AdBadge />
+      <AdPicture ad={ad} />
+    </Link>
   );
 }
 
@@ -255,7 +260,12 @@ export function FixedFooterBanner({ ads = [], offset = 0 }: BannerProps) {
           </Link>
         ) : (
           <div className="fixed-footer-ad-banner-placeholder">
-            <AadsFallback placement="fixed" />
+            <div className="fixed-footer-ad-banner-placeholder-inner">
+              <small>AD SPACE</small>
+              <b>endorsecoin</b>
+              <span>Reach early project investors.</span>
+              <Link href="/advertise">View ad packages ↗</Link>
+            </div>
           </div>
         )}
         <button
