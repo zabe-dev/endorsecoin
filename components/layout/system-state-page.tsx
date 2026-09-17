@@ -1,49 +1,23 @@
-'use client';
-
-import { Home, RotateCcw } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
-import type { ReactNode } from 'react';
 
 export type SystemStatePageProps = {
-  eyebrow: string;
-  title: string;
-  description: string;
-  icon: ReactNode;
-  primaryLabel?: string;
-  secondaryLabel?: string;
-  onSecondaryClick?: () => void;
+  code: string;
+  message: string;
 };
 
-export function SystemStatePage({
-  eyebrow,
-  title,
-  description,
-  icon,
-  primaryLabel = 'Back to home',
-  secondaryLabel,
-  onSecondaryClick,
-}: SystemStatePageProps) {
+export function SystemStatePage({ code, message }: SystemStatePageProps) {
   return (
     <main className="market-page">
       <section className="container-fallback system-state-shell">
         <div className="system-state-card">
-          <div className="system-state-icon">{icon}</div>
-          <p className="eyebrow">
-            <span>●</span> {eyebrow}
-          </p>
-          <h1>{title}</h1>
-          <p>{description}</p>
+          <p className="system-state-code">{code}</p>
+          <p className="system-state-message">{message}</p>
           <div className="system-state-actions">
             <Link className="system-state-primary" href="/">
-              <Home aria-hidden="true" />
-              {primaryLabel}
+              <ArrowLeft aria-hidden="true" />
+              Back to home
             </Link>
-            {secondaryLabel && onSecondaryClick && (
-              <button className="system-state-secondary" type="button" onClick={onSecondaryClick}>
-                <RotateCcw aria-hidden="true" />
-                {secondaryLabel}
-              </button>
-            )}
           </div>
         </div>
       </section>
