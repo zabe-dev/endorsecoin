@@ -95,6 +95,7 @@ EXCLUDE_SYMBOLS = {
     "CBBTC",
     # major L1/L2 base assets
     "BTC",
+    "BITCOIN",
     "ETH",
     "BNB",
     "SOL",
@@ -332,8 +333,60 @@ def is_excluded(symbol):
     return symbol.strip().upper() in EXCLUDE_SYMBOLS
 
 
-# Same idea as EXCLUDE_SYMBOLS but matched case-insensitively against the
-# token *name*, for corporate/branded tokens that don't have a recognizable
+# Full canonical names for established assets. Exact matching prevents a
+# community token such as "Ethereumcat" from being denied accidentally.
+EXCLUDE_NAME_EXACT = {
+    "bitcoin",
+    "ethereum",
+    "binance coin",
+    "solana",
+    "xrp",
+    "cardano",
+    "tron",
+    "toncoin",
+    "avalanche",
+    "polygon",
+    "fantom",
+    "arbitrum",
+    "optimism",
+    "sui",
+    "cosmos",
+    "polkadot",
+    "near protocol",
+    "internet computer",
+    "filecoin",
+    "hedera",
+    "vechain",
+    "algorand",
+    "multiversx",
+    "stellar",
+    "litecoin",
+    "bitcoin cash",
+    "ethereum classic",
+    "monero",
+    "zcash",
+    "aptos",
+    "sei",
+    "celestia",
+    "injective",
+    "quant",
+    "flow",
+    "kava",
+    "theta network",
+    "apecoin",
+    "tether",
+    "usd coin",
+    "dai",
+    "binance usd",
+    "trueusd",
+    "first digital usd",
+    "usde",
+    "paypal usd",
+    "pax dollar",
+    "gemini dollar",
+}
+
+# Name substrings for corporate/branded tokens that don't have a recognizable
 # ticker (e.g. "Robinhood Token").
 EXCLUDE_NAME_SUBSTRINGS = {
     "robinhood token",
@@ -365,7 +418,9 @@ def is_excluded_by_name(name):
     if not name:
         return False
     lowered = name.strip().lower()
-    return any(substr in lowered for substr in EXCLUDE_NAME_SUBSTRINGS)
+    return lowered in EXCLUDE_NAME_EXACT or any(
+        substr in lowered for substr in EXCLUDE_NAME_SUBSTRINGS
+    )
 
 
 STABLECOIN_NAME_PATTERN = re.compile(
