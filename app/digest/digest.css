@@ -271,7 +271,7 @@
 .digest-votes {
   color: var(--lime);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 500;
   white-space: nowrap;
 }
 .digest-votes small {

@@ -264,7 +264,7 @@ function DigestWidget({ widget, rows }: { widget: DigestWidget; rows: CoinListIt
                 <span className="digest-coin-copy">
                   <strong>{coin.name}</strong>
                   <span>
-                    {coin.symbol} <i aria-hidden="true">/</i> {coin.networkName}
+                    {coin.symbol} <i aria-hidden="true">/</i> {coin.chain}
                   </span>
                 </span>
                 <span className="digest-votes">
