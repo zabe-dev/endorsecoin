@@ -43,6 +43,14 @@ const GECKOTERMINAL_REQUEST_SPACING_MS = Math.max(
   6100,
   readPositiveInteger(process.env.GECKOTERMINAL_REQUEST_SPACING_MS, 6100),
 );
+const DEXPAPRIKA_API_BASE_URL = trimTrailingSlash(
+  process.env.DEXPAPRIKA_API_BASE_URL || 'https://api.dexpaprika.com',
+);
+const DEXPAPRIKA_API_KEY = String(process.env.DEXPAPRIKA_API_KEY || '').trim();
+const DEXPAPRIKA_REQUEST_SPACING_MS = Math.max(
+  2100,
+  readPositiveInteger(process.env.DEXPAPRIKA_REQUEST_SPACING_MS, 2100),
+);
 const DATABASE_URL = process.env.DATABASE_URL;
 let mobulaApiKeyIndex = 0;
 
@@ -51,6 +59,7 @@ const scriptStartTime = Date.now();
 const options = parseImporterOptions(process.argv.slice(2));
 const R2_IMAGE_CACHE_CONTROL = 'public, max-age=31536000, immutable';
 let geckoTerminalNextAllowedAt = 0;
+let dexPaprikaNextAllowedAt = 0;
 const MAX_IMPORT_PRICE_USD = 1_000_000;
 const MAX_IMPORT_MARKET_CAP_USD = 1_000_000_000_000;
 const MAX_IMPORT_FDV_USD = 1_000_000_000_000;
@@ -70,6 +79,11 @@ const dexScreenerChainIds = {
   tron: 'tron',
   fantom: 'fantom',
   xrpl: 'xrpl',
+};
+const dexPaprikaNetworks = {
+  sui: 'sui',
+  tron: 'tron',
+  fantom: 'fantom',
 };
 
 if (!DATABASE_URL && !options.dryRun) {
@@ -1271,6 +1285,124 @@ async function enrichTokensWithMobulaMarketDetails(tokens) {
       Date.now() - phaseStartedAt,
     )}.`,
   );
+  return tokens;
+}
+
+async function waitForDexPaprikaSlot() {
+  const now = Date.now();
+  const waitMs = Math.max(0, dexPaprikaNextAllowedAt - now);
+  if (waitMs) await sleep(waitMs);
+  dexPaprikaNextAllowedAt = Date.now() + DEXPAPRIKA_REQUEST_SPACING_MS;
+}
+
+async function fetchDexPaprikaTokenDetails(network, address) {
+  await waitForDexPaprikaSlot();
+
+  const url = new URL(
+    `/networks/${encodeURIComponent(network)}/tokens/${encodeURIComponent(address)}`,
+    DEXPAPRIKA_API_BASE_URL,
+  );
+
+  try {
+    const response = await fetch(url, {
+      headers: {
+        accept: 'application/json',
+        ...(DEXPAPRIKA_API_KEY ? { Authorization: DEXPAPRIKA_API_KEY } : {}),
+      },
+    });
+    if (!response.ok) {
+      if (options.debug) {
+        console.warn(
+          `DexPaprika token data failed for ${address}: ${response.status} ${response.statusText}`,
+        );
+      }
+      return null;
+    }
+    const json = await response.json();
+    return json && typeof json === 'object' ? json : null;
+  } catch (error) {
+    if (options.debug) {
+      console.warn(`DexPaprika token data failed for ${address}:`, error);
+    }
+    return null;
+  }
+}
+
+function applyDexPaprikaDetails(token, details) {
+  if (!details || typeof details !== 'object') return false;
+
+  const summary = details.summary && typeof details.summary === 'object' ? details.summary : {};
+  const day = summary['24h'] && typeof summary['24h'] === 'object' ? summary['24h'] : {};
+  const before = JSON.stringify({
+    name: token.name,
+    symbol: token.symbol,
+    description: token.description,
+    price: token.price,
+    marketCap: token.marketCap,
+    fdv: token.fdv,
+    liquidity: token.liquidity,
+    volume: token.volume,
+    change24h: token.change24h,
+    totalSupply: token.totalSupply,
+  });
+
+  token.name = pickString(details, ['name']) || token.name;
+  token.symbol = pickString(details, ['symbol']) || token.symbol;
+  token.description = sanitizePlainText(pickString(details, ['description'])) || token.description;
+  token.projectLinks = {
+    ...token.projectLinks,
+    ...compactObject({
+      website: firstUrl('website', [pickString(details, ['website'])]),
+      x: firstUrl('x', [pickString(details, ['twitter'])]),
+    }),
+  };
+  token.price = pickSaneMarketDetailNumber(token, 'price', pickNumber(summary, ['price_usd']));
+  token.fdv = pickSaneMarketDetailNumber(token, 'fdv', pickNumber(details, ['fdv']));
+  token.liquidity = pickNumber(summary, ['liquidity_usd']) ?? token.liquidity;
+  token.volume = pickNumber(day, ['volume_usd']) ?? token.volume;
+  token.change24h = pickNumber(day, ['last_price_usd_change']) ?? token.change24h;
+  token.totalSupply = pickNumber(details, ['total_supply']) ?? token.totalSupply;
+  token.marketExchangeName = 'DexPaprika';
+  token.marketExchangeSupported = true;
+
+  return (
+    before !==
+    JSON.stringify({
+      name: token.name,
+      symbol: token.symbol,
+      description: token.description,
+      price: token.price,
+      marketCap: token.marketCap,
+      fdv: token.fdv,
+      liquidity: token.liquidity,
+      volume: token.volume,
+      change24h: token.change24h,
+      totalSupply: token.totalSupply,
+    })
+  );
+}
+
+async function enrichTokensWithDexPaprikaDetails(tokens) {
+  if (!DEXPAPRIKA_API_KEY) {
+    log('DexPaprika skipped: DEXPAPRIKA_API_KEY is not configured.');
+    return tokens;
+  }
+
+  const candidates = tokens.filter(
+    (token) => dexPaprikaNetworks[token.contract.chain] && needsFinalMarketEnrichment(token),
+  );
+  if (!candidates.length) return tokens;
+
+  logSection(`DexPaprika final market fallback - ${candidates.length} coin(s)`);
+  let enrichedCount = 0;
+  for (const token of candidates) {
+    const details = await fetchDexPaprikaTokenDetails(
+      dexPaprikaNetworks[token.contract.chain],
+      token.contract.address,
+    );
+    if (details && applyDexPaprikaDetails(token, details)) enrichedCount += 1;
+  }
+  log(`DexPaprika fallback done: applied data to ${enrichedCount}/${candidates.length} coin(s).`);
   return tokens;
 }
 
@@ -2897,6 +3029,7 @@ async function runFinalEnrichmentAttempt(tokens) {
   await enrichTokensWithMobulaMarketDetails(candidates);
   await enrichTokensWithGeckoTerminalMarketDetails(candidates);
   await enrichTokensWithDexScreenerDetails(candidates);
+  await enrichTokensWithDexPaprikaDetails(candidates);
 
   const unresolved = candidates.filter((token) => !hasRequiredImportMarketValues(token));
   if (unresolved.length) {
