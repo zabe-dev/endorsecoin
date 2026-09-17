@@ -15,10 +15,10 @@ function getCurrentYear() {
 
 const exploreLinks = [
   { href: '/#leaderboard', label: 'Discover' },
-  { href: '/digest', label: 'Digest' },
   { href: '/airdrops', label: 'Airdrops' },
   { href: '/partners', label: 'Partners' },
   { href: '/advertise', label: 'Advertise' },
+  { href: '/digest', label: 'Weekly Digest' },
 ];
 
 const platformLinks = [
