@@ -4,6 +4,9 @@ import { Check, Download } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import { useEffect, useState } from 'react';
 
+type SaveState = 'idle' | 'saving' | 'saved';
+const saveCooldownMs = 2_000;
+
 export function SaveDigestImageButton({
   targetId,
   filename,
@@ -11,18 +14,19 @@ export function SaveDigestImageButton({
   targetId: string;
   filename: string;
 }) {
-  const [saved, setSaved] = useState(false);
+  const [state, setState] = useState<SaveState>('idle');
 
   useEffect(() => {
-    if (!saved) return;
-    const timeout = window.setTimeout(() => setSaved(false), 1600);
+    if (state !== 'saved') return;
+    const timeout = window.setTimeout(() => setState('idle'), saveCooldownMs);
     return () => window.clearTimeout(timeout);
-  }, [saved]);
+  }, [state]);
 
   async function saveImage() {
     const target = document.getElementById(targetId);
-    if (!target) return;
+    if (!target || state === 'saving') return;
 
+    setState('saving');
     try {
       const dataUrl = await toPng(target, {
         backgroundColor: '#0e1114',
@@ -34,9 +38,9 @@ export function SaveDigestImageButton({
       link.download = filename;
       link.href = dataUrl;
       link.click();
-      setSaved(true);
+      setState('saved');
     } catch {
-      setSaved(false);
+      setState('idle');
     }
   }
 
@@ -46,11 +50,14 @@ export function SaveDigestImageButton({
         type="button"
         className="digest-share"
         onClick={() => void saveImage()}
+        disabled={state !== 'idle'}
         title="Save card as image"
         aria-label="Save card as image"
       >
-        {saved ? <Check aria-hidden="true" /> : <Download aria-hidden="true" />}
-        <span>{saved ? 'Saved' : 'Save as image'}</span>
+        {state === 'saved' ? <Check aria-hidden="true" /> : <Download aria-hidden="true" />}
+        <span>
+          {state === 'saving' ? 'Saving...' : state === 'saved' ? 'Saved' : 'Save as image'}
+        </span>
       </button>
     </span>
   );

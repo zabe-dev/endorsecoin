@@ -88,7 +88,7 @@ export function WatchlistPanel({
         <div className="watchlist-page-toolbar">
           <button type="button" onClick={() => void copyWatchlistUrl()}>
             {copiedWatchlistUrl ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
-            COPY PUBLIC LINK
+            Copy link
           </button>
           <span>{coins.length}</span>
         </div>

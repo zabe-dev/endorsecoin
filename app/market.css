@@ -590,6 +590,13 @@
   font-weight: 500;
   line-height: 1;
 }
+.mini-coin-metric.metric-trend b {
+  font-size: 10px;
+}
+.mini-coin-metric.metric-trend b svg {
+  width: 10px;
+  height: 10px;
+}
 .mini-coin-votes b svg {
   width: 12px;
   height: 12px;

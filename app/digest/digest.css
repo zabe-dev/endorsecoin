@@ -54,6 +54,11 @@
   justify-items: end;
   gap: 14px;
 }
+.digest-header-actions .week-chip {
+  display: grid;
+  border-left: 0;
+  padding-left: 0;
+}
 .digest-period {
   color: #a8b0b8;
   font-size: 11px;
@@ -63,6 +68,12 @@
 }
 .digest-share-actions {
   display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.digest-card-actions {
+  display: inline-flex;
+  flex-shrink: 0;
   align-items: center;
   gap: 8px;
 }
@@ -87,6 +98,10 @@
 .digest-share:hover {
   border-color: var(--lime);
   background: #182019;
+}
+.digest-share:disabled {
+  cursor: wait;
+  opacity: 0.7;
 }
 .digest-share svg {
   width: 13px;
@@ -147,7 +162,6 @@
   justify-content: space-between;
   gap: 16px;
   padding: 20px 20px 16px;
-  border-bottom: 1px solid #242b30;
 }
 .digest-widget-label {
   display: block;
@@ -323,6 +337,11 @@
     justify-content: space-between;
     gap: 12px;
     margin-top: 24px;
+  }
+  .digest-header-actions .week-chip {
+    display: grid;
+    grid-template-columns: auto auto;
+    flex-shrink: 0;
   }
   .digest-period {
     flex-shrink: 0;

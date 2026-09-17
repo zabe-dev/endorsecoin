@@ -1,7 +1,7 @@
 import { JsonLd } from '@/components/seo/json-ld';
 import { NETWORKS } from '@/features/coins/networks';
 import { getLeaderboardPage } from '@/features/coins/server/leaderboard';
-import { getCurrentVoteWeekStart } from '@/features/coins/server/interactions';
+import { WeeklyResetChip } from '@/features/leaderboard/components/weekly-reset-chip';
 import type { CoinListItem } from '@/features/coins/view';
 import { cacheKeyPart } from '@/lib/cache/cache-key';
 import { getCacheVersion } from '@/lib/cache/cache-version';
@@ -10,6 +10,7 @@ import { createPublicPageMetadata, siteName, siteUrl } from '@/lib/seo/metadata'
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { SaveDigestImageButton } from './save-digest-image-button';
+import { ShareDigestButton } from './share-digest-button';
 import './digest.css';
 
 /* eslint-disable @next/next/no-img-element -- Coin logos use user-submitted external URLs. */
@@ -129,9 +130,6 @@ export default async function DigestPage({ searchParams }: DigestParams) {
     : selectedWidget
       ? [selectedWidget]
       : [...widgets, ...chainWidgets];
-  const weekStart = getCurrentVoteWeekStart();
-  const weekEnd = new Date(weekStart);
-  weekEnd.setUTCDate(weekEnd.getUTCDate() + 6);
   const leaderboardVersion = await getCacheVersion('leaderboard');
   const digestCacheKey = [
     'digest',
@@ -177,9 +175,7 @@ export default async function DigestPage({ searchParams }: DigestParams) {
             <p>{description}</p>
           </div>
           <div className="digest-header-actions">
-            <span className="digest-period">
-              {formatDate(weekStart)} - {formatDate(weekEnd)}
-            </span>
+            <WeeklyResetChip />
           </div>
         </header>
         <div className={isSingleDigest ? 'digest-toolbar digest-toolbar-single' : 'digest-toolbar'}>
@@ -258,10 +254,13 @@ function DigestWidget({ widget, rows }: { widget: DigestWidget; rows: CoinListIt
           {widget.chainIcon && <img src={widget.chainIcon} alt="" className="digest-chain-logo" />}
           <h2 id={headingId}>{widget.title}</h2>
         </div>
-        <SaveDigestImageButton
-          targetId={`digest-card-${widget.key}`}
-          filename={`endorsecoin-${widget.key}.png`}
-        />
+        <div className="digest-card-actions">
+          <SaveDigestImageButton
+            targetId={`digest-card-${widget.key}`}
+            filename={`endorsecoin-${widget.key}.png`}
+          />
+          <ShareDigestButton url={`/digest?${widget.shareParams}`} />
+        </div>
       </header>
       <ol className="digest-list">
         {rows.map((coin, index) => (
@@ -313,12 +312,4 @@ function formatMetricLabel(key: string) {
 
 function readParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
-}
-
-function formatDate(value: Date) {
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    timeZone: 'UTC',
-  }).format(value);
 }
