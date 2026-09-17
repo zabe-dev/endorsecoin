@@ -3,6 +3,9 @@ import { NETWORKS } from '@/features/coins/networks';
 import { getLeaderboardPage } from '@/features/coins/server/leaderboard';
 import { getCurrentVoteWeekStart } from '@/features/coins/server/interactions';
 import type { CoinListItem } from '@/features/coins/view';
+import { cacheKeyPart } from '@/lib/cache/cache-key';
+import { getCacheVersion } from '@/lib/cache/cache-version';
+import { rememberJson } from '@/lib/cache/json-cache';
 import { createPublicPageMetadata, siteName, siteUrl } from '@/lib/seo/metadata';
 import type { Metadata } from 'next';
 import Link from 'next/link';
@@ -12,6 +15,7 @@ import './digest.css';
 /* eslint-disable @next/next/no-img-element -- Coin logos use user-submitted external URLs. */
 
 const widgetSize = 10;
+const digestCacheSeconds = Number(process.env.DIGEST_CACHE_SECONDS || 60);
 const chainConfigs = Object.values(NETWORKS).filter((network) => network.enabled);
 const digestSocialImage = `${siteUrl}/image-1200x628.png`;
 
@@ -128,11 +132,23 @@ export default async function DigestPage({ searchParams }: DigestParams) {
   const weekStart = getCurrentVoteWeekStart();
   const weekEnd = new Date(weekStart);
   weekEnd.setUTCDate(weekEnd.getUTCDate() + 6);
-  const sections = await Promise.all(
-    activeWidgets.map(async (widget) => ({
-      widget,
-      rows: (await getLeaderboardPage({ ...widget.query, pageSize: widgetSize })).rows,
-    })),
+  const leaderboardVersion = await getCacheVersion('leaderboard');
+  const digestCacheKey = [
+    'digest',
+    leaderboardVersion,
+    selectedChain?.key || '',
+    selectedWidget?.key || '',
+    'v1',
+  ]
+    .map(cacheKeyPart)
+    .join(':');
+  const sections = await rememberJson(digestCacheKey, { ttlSeconds: digestCacheSeconds }, () =>
+    Promise.all(
+      activeWidgets.map(async (widget) => ({
+        widget,
+        rows: (await getLeaderboardPage({ ...widget.query, pageSize: widgetSize })).rows,
+      })),
+    ),
   );
   const marketSections = sortEmptySectionsLast(
     sections.slice(0, selectedChain || selectedWidget ? sections.length : widgets.length),
