@@ -3,6 +3,8 @@ import 'server-only';
 import { recordMetric } from '@/lib/observability/metrics';
 import Redis from 'ioredis';
 
+export const REDIS_KEY_PREFIX = 'endorsecoin:';
+
 let redisClient: Redis | null | undefined;
 let redisConnectPromise: Promise<Redis | null> | null = null;
 let redisUnavailableUntil = 0;
@@ -22,7 +24,7 @@ export function getRedisClient() {
 
   redisConnectPromise = null;
   redisClient = new Redis(redisUrl, {
-    keyPrefix: 'endorsecoin:',
+    keyPrefix: REDIS_KEY_PREFIX,
     connectTimeout: 1000,
     enableOfflineQueue: false,
     lazyConnect: true,

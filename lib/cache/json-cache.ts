@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { recordMetric, timeAsync } from '@/lib/observability/metrics';
-import { getReadyRedisClient } from './redis';
+import { getReadyRedisClient, REDIS_KEY_PREFIX } from './redis';
 
 type CacheOptions = {
   ttlSeconds: number;
@@ -127,7 +127,7 @@ function cacheNamespace(key: string) {
 
 function logCache(event: 'HIT' | 'MISS' | 'SKIP' | 'WRITE', message: string) {
   if (process.env.NODE_ENV === 'production') return;
-  console.info(`[redis-cache] ${event} ${readableCacheLog(message)}`);
+  console.info(`[redis-cache] ${event} ${readableCacheLog(`${REDIS_KEY_PREFIX}${message}`)}`);
 }
 
 function readableCacheLog(message: string) {

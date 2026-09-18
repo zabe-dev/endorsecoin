@@ -5,12 +5,10 @@ export const siteName = 'EndorseCoin';
 export const homeTitle = 'Discover New Crypto Coins, Presales and Airdrops | EndorseCoin';
 export const homeDescription =
   'Discover new crypto projects, explore presale tokens, and vote on trending coins. Compare community rankings, watchlists, and find your next crypto gem.';
-const r2PublicUrl = trimTrailingSlash(process.env.R2_PUBLIC_URL || '');
-const defaultSocialImage = 'https://assets.endorsecoin.com/site/image-1200x628.png';
+const defaultSocialImage =
+  'https://assets.endorsecoin.com/s/66289267-a3fc-4f89-b38a-d11866a6f1ee.png';
 
-export const socialImage =
-  process.env.NEXT_PUBLIC_SOCIAL_IMAGE_URL ||
-  (r2PublicUrl ? `${r2PublicUrl}/site/image-1200x628.png` : defaultSocialImage);
+export const socialImage = defaultSocialImage;
 export const summaryImage = '/logo.png';
 
 type PublicPageMetadataOptions = {
@@ -74,8 +72,4 @@ export function createPrivatePageMetadata(title: string, path: string): Metadata
       follow: false,
     },
   };
-}
-
-function trimTrailingSlash(value: string) {
-  return value.replace(/\/+$/u, '');
 }
