@@ -500,7 +500,7 @@ export function HomeClient({
           />
           <SimpleTable
             className="promoted-table"
-            coins={rankCoins([...promotedCoins].sort(sortByVotes))}
+            coins={[...promotedCoins].sort(sortByServerRank)}
             watchlist={watchlist}
             watchAnimating={watchAnimating}
             voted={voted}
@@ -768,16 +768,12 @@ export function HomeClient({
   );
 }
 
-function sortByVotes(a: CoinListItem, b: CoinListItem) {
-  return b.votes - a.votes || a.name.localeCompare(b.name);
-}
-
-function rankCoins(coins: CoinListItem[]) {
-  return coins.map((coin, index) => ({ ...coin, rank: index + 1 }));
-}
-
 function uniqueCoinIds(coins: CoinListItem[]) {
   return Array.from(new Set(coins.map((coin) => coin.coinId)));
+}
+
+function sortByServerRank(a: CoinListItem, b: CoinListItem) {
+  return a.rank - b.rank || a.coinId - b.coinId;
 }
 
 function serverViewToLabel(view: ServerLeaderboardView): LeaderboardLabel {

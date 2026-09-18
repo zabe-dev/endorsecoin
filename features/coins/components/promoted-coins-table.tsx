@@ -217,7 +217,7 @@ export function PromotedCoinsTable({
       )}
       <CoinTable
         className={className}
-        coins={rows}
+        coins={[...rows].sort(sortByServerRank)}
         watchlist={watched}
         watchAnimating={watchAnimating}
         voted={voted}
@@ -230,4 +230,8 @@ export function PromotedCoinsTable({
       <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} />
     </>
   );
+}
+
+function sortByServerRank(a: CoinListItem, b: CoinListItem) {
+  return a.rank - b.rank || a.coinId - b.coinId;
 }
