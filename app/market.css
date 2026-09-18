@@ -259,21 +259,6 @@
 .premium-ad-banner:not(.ad-banner-image) {
   min-height: 120px;
 }
-.basic-ad-banner.aads-fallback-slot,
-.premium-ad-banner.aads-fallback-slot {
-  border: 0;
-  background: transparent;
-  padding: 0;
-  box-shadow: none;
-  min-height: 0;
-}
-.aads-ad-unit {
-  display: block;
-  margin: auto;
-  border: 0;
-  padding: 0;
-  overflow: hidden;
-}
 .ad-creative-badge {
   position: absolute;
   top: 8px;

@@ -62,10 +62,11 @@ function AdBadge() {
 }
 
 function AadsFallback({ placement }: { placement: string }) {
-  const isPremium = placement === 'premium';
+  const isFooter = placement === 'footer';
+  const isPremium = placement === 'premium' || isFooter;
   const adUnit = isPremium ? '2455624' : '2455618';
   const size = isPremium ? '970x90' : '728x90';
-  const width = isPremium ? 970 : 728;
+  const width = isFooter ? '100%' : isPremium ? 970 : 728;
   const height = 90;
 
   return (
@@ -200,8 +201,13 @@ function BasicBannerSlot({
   }
 
   return (
-    <div className={`basic-ad-banner basic-ad-banner--${slot} aads-fallback-slot`}>
-      <AadsFallback placement={`basic-${imageMode}-${slot}`} />
+    <div className={`basic-ad-banner basic-ad-banner--${slot}`}>
+      <small>AD SPACE</small>
+      <div className="ad-placeholder-copy">
+        <b>Reach early project investors.</b>
+        <span>Premium inventory · Measured impressions and clicks</span>
+      </div>
+      <Link href="/advertise">View ad packages ↗</Link>
     </div>
   );
 }
@@ -228,8 +234,13 @@ export function PremiumAdBanner({ ads = [], offset = 0, fullWidth = false }: Pre
 
   if (!ad) {
     return (
-      <div className={`${className} aads-fallback-slot`}>
-        <AadsFallback placement="premium" />
+      <div className={className}>
+        <small>PREMIUM ADVERTISEMENT</small>
+        <div>
+          <b>Reach early project investors.</b>
+          <span>Premium inventory · Measured impressions and clicks</span>
+        </div>
+        <Link href="/advertise">View ad packages ↗</Link>
       </div>
     );
   }
@@ -276,12 +287,7 @@ export function FixedFooterBanner({ ads = [], offset = 0 }: BannerProps) {
           </Link>
         ) : (
           <div className="fixed-footer-ad-banner-placeholder">
-            <div className="fixed-footer-ad-banner-placeholder-inner">
-              <small>AD SPACE</small>
-              <b>endorsecoin</b>
-              <span>Reach early project investors.</span>
-              <Link href="/advertise">View ad packages ↗</Link>
-            </div>
+            <AadsFallback placement="footer" />
           </div>
         )}
         <button
