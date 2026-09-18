@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "node node_modules/drizzle-kit/bin.cjs migrate && next start",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -16,10 +16,7 @@
     "db:migrate": "node --env-file=.env.local node_modules/drizzle-kit/bin.cjs migrate",
     "db:studio": "node --env-file=.env.local node_modules/drizzle-kit/bin.cjs studio",
     "dev:import:trending": "node --env-file=.env.local scripts/import-trending-coins.mjs",
-    "dev:reset:data": "node --env-file=.env.local scripts/reset-data.mjs",
-    "dev:reset": "npm run dev:reset:data",
-    "dev:db:reset": "npm run dev:reset",
-    "db:reset:dev": "npm run dev:reset"
+    "dev:reset:data": "node --env-file=.env.local scripts/reset-data.mjs"
   },
   "dependencies": {
     "@emnapi/core": "1.11.3",
