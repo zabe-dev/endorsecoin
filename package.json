@@ -7,6 +7,7 @@
   },
   "scripts": {
     "dev": "next dev",
+    "prebuild": "node scripts/ensure-database.mjs",
     "build": "next build",
     "start": "node node_modules/drizzle-kit/bin.cjs migrate && next start",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",

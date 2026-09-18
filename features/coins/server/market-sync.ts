@@ -140,15 +140,9 @@ const geckoTerminalApiBaseUrl =
 const dexPaprikaApiBaseUrl = process.env.DEXPAPRIKA_API_BASE_URL || 'https://api.dexpaprika.com';
 const dexPaprikaApiKey = String(process.env.DEXPAPRIKA_API_KEY || '').trim();
 const requestTimeoutMs = Number(process.env.MOBULA_REQUEST_TIMEOUT_MS || 8_000);
-const cacheSeconds = Number(
-  process.env.MARKET_SYNC_CACHE_SECONDS || process.env.MARKET_DATA_CACHE_SECONDS || 900,
-);
-const defaultSyncLimit = Number(
-  process.env.MARKET_SYNC_LIMIT || process.env.MARKET_DATA_SYNC_LIMIT || 7,
-);
-const maxSyncLimit = Number(
-  process.env.MARKET_SYNC_MAX_LIMIT || process.env.MARKET_DATA_MAX_SYNC_LIMIT || 120,
-);
+const cacheSeconds = Number(process.env.MARKET_SYNC_CACHE_SECONDS || 900);
+const defaultSyncLimit = Number(process.env.MARKET_SYNC_LIMIT || 7);
+const maxSyncLimit = Number(process.env.MARKET_SYNC_MAX_LIMIT || 120);
 const requestSpacingMs = Math.max(1_050, Number(process.env.MOBULA_REQUEST_SPACING_MS || 1_050));
 const geckoTerminalRequestSpacingMs = Math.max(
   6_100,
@@ -161,9 +155,7 @@ const dexPaprikaRequestSpacingMs = Math.max(
 const maxSyncedPriceUsd = 1_000_000;
 const maxSyncedMarketCapUsd = 1_000_000_000_000;
 const maxSyncedFdvUsd = 1_000_000_000_000;
-const syncLockTtlMs = Number(
-  process.env.MARKET_SYNC_LOCK_TTL_MS || process.env.MOBULA_SYNC_LOCK_TTL_MS || 120_000,
-);
+const syncLockTtlMs = Number(process.env.MARKET_SYNC_LOCK_TTL_MS || 120_000);
 const baseBackoffMs = Number(process.env.MARKET_SYNC_ERROR_BACKOFF_MS || 15 * 60 * 1000);
 const maxBackoffMs = Number(process.env.MARKET_SYNC_MAX_ERROR_BACKOFF_MS || 12 * 60 * 60 * 1000);
 const invalidAddressErrorCode = 'invalid-address-format';
@@ -575,7 +567,7 @@ async function fetchMobulaTokenDetails(
     return {
       ok: false,
       code: 'request-failed',
-      message: 'MOBULA_API_KEY or MOBULA_API_KEYS is not set.',
+      message: 'MOBULA_API_KEYS is not set.',
     };
   }
 
@@ -1026,7 +1018,6 @@ function getNextMobulaApiKey() {
 function getMobulaApiKeys() {
   return uniqueStrings([
     ...splitEnvList(process.env.MOBULA_API_KEYS),
-    ...splitEnvList(process.env.MOBULA_API_KEY),
   ]);
 }
 

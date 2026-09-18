@@ -19,10 +19,7 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const requestedLimit = Number(
-    url.searchParams.get('limit') ||
-      process.env.MARKET_SYNC_LIMIT ||
-      process.env.MARKET_DATA_SYNC_LIMIT ||
-      7,
+    url.searchParams.get('limit') || process.env.MARKET_SYNC_LIMIT || 7,
   );
   const limit = Number.isFinite(requestedLimit) ? requestedLimit : 7;
   const result = await syncMobulaMarketData(limit);

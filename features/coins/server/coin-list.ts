@@ -28,8 +28,7 @@ import {
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 
 const boostMultipliers = [10, 30, 50, 100, 500] as const;
-const syncMarketDataOnPageRead =
-  process.env.MARKET_SYNC_ON_PAGE === 'true' || process.env.MARKET_DATA_SYNC_ON_PAGE === 'true';
+const syncMarketDataOnPageRead = process.env.MARKET_SYNC_ON_PAGE === 'true';
 const publicCoinListCacheSeconds = Number(process.env.PUBLIC_COIN_LIST_CACHE_SECONDS || 60);
 const publicCoinDetailCacheSeconds = Number(process.env.PUBLIC_COIN_DETAIL_CACHE_SECONDS || 60);
 

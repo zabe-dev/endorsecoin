@@ -1,8 +1,7 @@
 import 'server-only';
 
-import { readFileSync } from 'node:fs';
 import { recordMetric } from '@/lib/observability/metrics';
-import Redis, { type RedisOptions } from 'ioredis';
+import Redis from 'ioredis';
 
 let redisClient: Redis | null | undefined;
 let redisConnectPromise: Promise<Redis | null> | null = null;
@@ -21,17 +20,14 @@ export function getRedisClient() {
     return redisClient;
   }
 
-  const tls = getRedisTlsOptions();
-  if (tls === null) return null;
-
   redisConnectPromise = null;
   redisClient = new Redis(redisUrl, {
+    keyPrefix: 'endorsecoin:',
     connectTimeout: 1000,
     enableOfflineQueue: false,
     lazyConnect: true,
     maxRetriesPerRequest: 1,
     retryStrategy: () => null,
-    ...(tls ? { tls } : null),
   });
 
   redisClient.on('error', (error) => {
@@ -80,20 +76,6 @@ export function getRedisDiagnostics() {
       redisUnavailableUntil > Date.now() ? new Date(redisUnavailableUntil).toISOString() : null,
     lastError: lastRedisError,
   };
-}
-
-function getRedisTlsOptions(): RedisOptions['tls'] | undefined | null {
-  const caPath = process.env.REDIS_TLS_CA_CERT_PATH;
-  if (!caPath) return undefined;
-
-  try {
-    return { ca: readFileSync(caPath, 'utf8') };
-  } catch (error) {
-    markRedisUnavailable(
-      `Failed to read REDIS_TLS_CA_CERT_PATH: ${error instanceof Error ? error.message : String(error)}`,
-    );
-    return null;
-  }
 }
 
 function markRedisUnavailable(message: string) {

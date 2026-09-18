@@ -14,7 +14,6 @@
 
 import Redis from 'ioredis';
 import postgres from 'postgres';
-import { readFileSync } from 'node:fs';
 
 const DATABASE_URL = process.env.DATABASE_URL;
 const REDIS_URL = process.env.REDIS_URL;
@@ -74,25 +73,12 @@ async function flushRedis() {
     return;
   }
 
-  const redisTlsCaPath = process.env.REDIS_TLS_CA_CERT_PATH;
-  if (redisTlsCaPath) {
-    try {
-      readFileSync(redisTlsCaPath, 'utf8');
-    } catch (error) {
-      console.log(
-        `Redis cleanup skipped. Could not read REDIS_TLS_CA_CERT_PATH: ${formatError(error)}`,
-      );
-      return;
-    }
-  }
-
   const redis = new Redis(REDIS_URL, {
     connectTimeout: 3000,
     enableOfflineQueue: false,
     lazyConnect: true,
     maxRetriesPerRequest: 1,
     retryStrategy: () => null,
-    ...(redisTlsCaPath ? { tls: { ca: readFileSync(redisTlsCaPath, 'utf8') } } : {}),
   });
   redis.on('error', () => {});
 

@@ -2824,7 +2824,6 @@ function getNextMobulaApiKey() {
 function getMobulaApiKeys() {
   return uniqueStrings([
     ...splitEnvList(process.env.MOBULA_API_KEYS),
-    ...splitEnvList(process.env.MOBULA_API_KEY),
   ]);
 }
 

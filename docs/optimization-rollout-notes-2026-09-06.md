@@ -14,21 +14,11 @@ These notes explain the optimization work that has been committed during this pa
 - `CLOUDFLARE_TURNSTILE_SECRET_KEY` — server secret for verifying Turnstile submissions.
 - `NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_SITE_KEY` — public Turnstile site key used by the browser.
 
-### Redis and cache tuning
+### Redis and cache
 
 - `REDIS_URL` — Redis connection string. For your TLS Redis setup this should include the correct username/password if using ACL users.
-- `REDIS_RETRY_PAUSE_MS` — how long the app pauses Redis usage after a Redis connection failure. Default: `30000`.
-- `REDIS_TLS_CA_CERT_PATH` — optional path to a mounted CA certificate file for TLS Redis. Use this instead of `REDIS_TLS_CA_CERT` when the certificate is available as a file inside the app container.
-- `COIN_INTERACTION_CACHE_SECONDS` — public vote/watchlist summary cache TTL. Default: `30`.
-- `DISCOVERY_CACHE_SECONDS` — homepage/discovery payload cache TTL. Default: `30`.
-- `LEADERBOARD_CACHE_SECONDS` — leaderboard ID selection cache TTL. Default: `30`.
-- `PROMOTED_COINS_CACHE_SECONDS` — promoted coin cache TTL. Default: `60`.
-- `PUBLIC_COIN_LIST_CACHE_SECONDS` — public coin list cache TTL. Default: `60`.
-- `PUBLIC_COIN_DETAIL_CACHE_SECONDS` — public coin detail cache TTL. Default: `60`.
-- `PUBLIC_WATCHLIST_CACHE_SECONDS` — public watchlist cache TTL. Default: `60`.
-- `PUBLIC_AIRDROP_LIST_CACHE_SECONDS` — public airdrop page cache TTL. Default: `60`.
-- `BANNER_AD_CACHE_SECONDS` — banner rotation cache TTL. Default: `60`.
-- `TOPBAR_SUMMARY_CACHE_SECONDS` — topbar totals cache TTL. Default: `60`.
+
+Cache TTLs and Redis retry timing use stable code defaults. Optional overrides are grouped at the bottom of `.env.example`; leave them unchanged unless cache behavior needs adjustment.
 
 ### Scheduled jobs and protected endpoints
 
@@ -43,31 +33,23 @@ For production, prefer using one long random value for `MAINTENANCE_SECRET`, one
 
 ### Topbar prices
 
-- `TOPBAR_PRICE_FETCH_ON_MISS` — when `true`, a normal visitor request may fetch prices if Redis has no cached value. When `false`, visitors only read cached or last-good data. For production, use `false` once a scheduled refresh is configured.
-- `TOPBAR_PRICE_CACHE_SECONDS` — active topbar price cache TTL. Default: `120`.
-- `TOPBAR_PRICE_LAST_GOOD_SECONDS` — how long last-good topbar prices are retained as fallback. Default: `86400`.
 - `TOPBAR_PRICE_DAILY_LIMIT` — safety limit for price refresh calls. Default: `480`.
-- `TOPBAR_BINANCE_API_BASE_URL` — optional custom Binance API base URL.
 - `TOPBAR_BINANCE_FALLBACK_BASE_URLS` — comma-separated Binance fallback URLs.
 
 ### Mobula market sync
 
-- `MOBULA_API_KEY` — Mobula API key.
-- `MOBULA_API_KEYS` — optional comma-separated list of Mobula API keys. The app rotates through them.
+- `MOBULA_API_KEYS` — one or more comma-separated Mobula API keys. The app rotates through them.
 - `MOBULA_API_BASE_URL` — Mobula API base URL. Default: `https://api.mobula.io`.
 - `MOBULA_REQUEST_TIMEOUT_MS` — request timeout. Default: `8000`.
 - `MOBULA_REQUEST_SPACING_MS` — pacing between Mobula requests. Default: `1050`.
 - `GECKOTERMINAL_API_BASE_URL` — GeckoTerminal API base used for TRON market sync. Default: `https://api.geckoterminal.com`.
 - `GECKOTERMINAL_REQUEST_SPACING_MS` — pacing between GeckoTerminal requests. Default: `6100`, matching the public API's lower request limit.
-- `MARKET_SYNC_CACHE_SECONDS` — how old a snapshot must be before it is considered stale. Default: `900`.
 - `MARKET_SYNC_LIMIT` — default number of coins to refresh per sync run. Default: `7`.
 - `MARKET_SYNC_MAX_LIMIT` — hard maximum accepted by the sync worker. Default: `120`.
 - `MARKET_SYNC_ON_PAGE` — when `true`, public reads can trigger market refreshes. For production, keep this `false` and use scheduled sync.
 - `MARKET_SYNC_LOCK_TTL_MS` — Redis lock TTL for market sync. Default: `120000`.
 - `MARKET_SYNC_ERROR_BACKOFF_MS` — first retry delay after a market provider error. Default: `900000`.
 - `MARKET_SYNC_MAX_ERROR_BACKOFF_MS` — maximum retry delay after repeated provider errors. Default: `43200000`.
-
-Older aliases `MARKET_DATA_SYNC_LIMIT`, `MARKET_DATA_MAX_SYNC_LIMIT`, `MARKET_DATA_CACHE_SECONDS`, `MARKET_DATA_SYNC_ON_PAGE`, and `MOBULA_SYNC_LOCK_TTL_MS` are still read by the code as fallback names, but the `MARKET_SYNC_*` names are the cleaner ones to use going forward.
 
 ### R2 image storage
 
@@ -103,7 +85,7 @@ Submitted logos are uploaded with long immutable cache headers. The cropper now 
 
 - Topbar price refresh can run as a scheduled job.
 - Last-good topbar prices are cached so the UI can keep showing recent data if a provider fails.
-- `TOPBAR_PRICE_FETCH_ON_MISS` lets production avoid live provider fetches during visitor requests once scheduling is in place.
+- Topbar price refresh keeps cached and last-good values available when providers fail.
 
 ### Market sync
 
@@ -147,7 +129,7 @@ Submitted logos are uploaded with long immutable cache headers. The cropper now 
    - `POST https://endorsecoin.com/api/maintenance/run` with `Authorization: Bearer <MAINTENANCE_SECRET>`.
    - Optionally `GET or POST https://endorsecoin.com/api/market/sync?limit=7` with `Authorization: Bearer <MARKET_SYNC_SECRET>` if you want separate market-sync pacing.
 4. Keep `MARKET_SYNC_ON_PAGE=false` in production.
-5. Once scheduled topbar refresh is working, set `TOPBAR_PRICE_FETCH_ON_MISS=false` in production.
+5. Keep scheduled topbar refresh enabled in production.
 6. Run pending migrations after deployment with `npm run db:migrate` if Coolify does not already do this during deploy.
 7. After deploy, check `/api/health/readiness` and `/api/metrics` with the correct bearer token.
 
