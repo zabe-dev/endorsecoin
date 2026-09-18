@@ -16,6 +16,7 @@ type PremiumBannerProps = BannerProps & {
 };
 
 const BASIC_AD_ROTATION_MS = 60_000;
+const FIXED_FOOTER_AD_DISMISSAL_MS = 3 * 60 * 60 * 1000;
 
 function useSelectedAd(ads: PublicBannerAd[] = [], offset = 0, rotating = false) {
   const activeAds = useMemo(() => ads.filter((ad) => ad.desktopImageUrl), [ads]);
@@ -61,39 +62,6 @@ function AdBadge() {
   return <span className="ad-creative-badge">Ad</span>;
 }
 
-function AadsFallback({ placement }: { placement: string }) {
-  const isFooter = placement === 'footer';
-  const isPremium = placement === 'premium' || isFooter;
-  const adUnit = isPremium ? '2455624' : '2455618';
-  const size = isPremium ? '970x90' : '728x90';
-  const width = isFooter ? '100%' : isPremium ? 970 : 728;
-  const height = 90;
-
-  return (
-    <div
-      className={`aads-ad-unit-frame aads-ad-unit-frame--${placement}`}
-      style={{ width, height: 'auto', margin: 'auto', position: 'relative', zIndex: 99998 }}
-    >
-      <iframe
-        className="aads-ad-unit"
-        title="Advertisement"
-        data-aa={adUnit}
-        src={`https://ad.a-ads.com/${adUnit}/?size=${size}`}
-        loading="lazy"
-        style={{
-          border: 0,
-          padding: 0,
-          width,
-          height,
-          overflow: 'hidden',
-          display: 'block',
-          margin: 'auto',
-        }}
-      />
-    </div>
-  );
-}
-
 function AdPicture({ ad }: { ad: PublicBannerAd }) {
   return (
     <span className="ad-banner-media" aria-label={ad.title || 'Advertisement'}>
@@ -102,14 +70,12 @@ function AdPicture({ ad }: { ad: PublicBannerAd }) {
         frameClassName="ad-banner-img-frame--desktop"
         ad={ad}
         initialSrc={ad.desktopImageUrl}
-        fallbackSrc={ad.desktopImageUrl}
       />
       <AdImageContent
         key={`mobile-${ad.id}-${ad.mobileImageUrl || ad.desktopImageUrl}`}
         frameClassName="ad-banner-img-frame--mobile"
         ad={ad}
         initialSrc={ad.mobileImageUrl || ad.desktopImageUrl}
-        fallbackSrc={ad.desktopImageUrl}
         decorative
       />
     </span>
@@ -126,7 +92,6 @@ function BasicAdPicture({ ad, mode }: { ad: PublicBannerAd; mode: 'desktop' | 'm
         key={`basic-${mode}-${ad.id}-${initialSrc}`}
         ad={ad}
         initialSrc={initialSrc}
-        fallbackSrc={ad.desktopImageUrl}
       />
     </span>
   );
@@ -136,42 +101,22 @@ function AdImageContent({
   ad,
   frameClassName,
   initialSrc,
-  fallbackSrc,
   decorative = false,
 }: {
   ad: PublicBannerAd;
   frameClassName?: string;
   initialSrc: string;
-  fallbackSrc: string;
   decorative?: boolean;
 }) {
-  const [src, setSrc] = useState(initialSrc);
-  const [failed, setFailed] = useState(false);
-
-  if (failed) {
-    return (
-      <span className={`ad-banner-img-frame ${frameClassName || ''} ad-banner-img-frame--pending`}>
-        <span className="ad-banner-loading-copy">Advertisement</span>
-      </span>
-    );
-  }
-
   return (
     <span className={`ad-banner-img-frame ${frameClassName || ''}`}>
       <img
         className="ad-banner-img"
-        src={src}
+        src={initialSrc}
         alt={decorative ? '' : ad.title || 'Advertisement'}
         aria-hidden={decorative ? true : undefined}
         decoding="async"
         loading="lazy"
-        onError={() => {
-          if (src !== fallbackSrc) {
-            setSrc(fallbackSrc);
-            return;
-          }
-          setFailed(true);
-        }}
       />
     </span>
   );
@@ -287,14 +232,19 @@ export function FixedFooterBanner({ ads = [], offset = 0 }: BannerProps) {
           </Link>
         ) : (
           <div className="fixed-footer-ad-banner-placeholder">
-            <AadsFallback placement="footer" />
+            <div className="fixed-footer-ad-banner-placeholder-inner">
+              <small>AD SPACE</small>
+              <b>endorsecoin</b>
+              <span>Reach early project investors.</span>
+              <Link href="/advertise">View ad packages ↗</Link>
+            </div>
           </div>
         )}
         <button
           className="fixed-footer-ad-banner-close"
           type="button"
           onClick={() => {
-            window.localStorage.setItem('endorsecoin-fixed-footer-ad-closed', '1');
+            window.localStorage.setItem('endorsecoin-fixed-footer-ad-closed', String(Date.now()));
             setDismissed(true);
           }}
           aria-label="Close ad"
@@ -314,5 +264,10 @@ function subscribeFixedAdStorage(callback: () => void) {
 
 function getFixedAdSnapshot() {
   if (typeof window === 'undefined') return false;
-  return window.localStorage.getItem('endorsecoin-fixed-footer-ad-closed') !== '1';
+  const closedAt = Number(window.localStorage.getItem('endorsecoin-fixed-footer-ad-closed'));
+  if (!Number.isFinite(closedAt) || Date.now() - closedAt >= FIXED_FOOTER_AD_DISMISSAL_MS) {
+    window.localStorage.removeItem('endorsecoin-fixed-footer-ad-closed');
+    return true;
+  }
+  return false;
 }

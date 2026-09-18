@@ -291,34 +291,11 @@
   width: 100%;
   line-height: 0;
 }
-.ad-banner-media--pending {
-  display: grid;
-  min-height: 120px;
-  place-items: center;
-  line-height: 1.2;
-}
 .ad-banner-img-frame {
   position: relative;
   display: block;
   width: 100%;
   line-height: 0;
-}
-.ad-banner-img-frame--pending {
-  display: grid;
-  min-height: 120px;
-  place-items: center;
-  line-height: 1.2;
-}
-.ad-banner-loading-copy {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  color: var(--sub);
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
 }
 .ad-banner-image .ad-banner-img {
   width: 100%;
