@@ -3,6 +3,7 @@
 /* eslint-disable @next/next/no-img-element -- Ad creatives need plain desktop/mobile images that scale by container width without Next image sizing constraints. */
 import type { PublicBannerAd } from '@/features/ads/types';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 
 type BannerProps = {
@@ -247,6 +248,7 @@ export function PremiumAdBanner({ ads = [], offset = 0, fullWidth = false }: Pre
 }
 
 export function FixedFooterBanner({ ads = [], offset = 0 }: BannerProps) {
+  const pathname = usePathname();
   const ad = useSelectedAd(ads, offset, false);
   const visibleFromStorage = useSyncExternalStore(
     subscribeFixedAdStorage,
@@ -256,7 +258,8 @@ export function FixedFooterBanner({ ads = [], offset = 0 }: BannerProps) {
   const [dismissed, setDismissed] = useState(false);
   const visible = visibleFromStorage && !dismissed;
 
-  if (!visible) return null;
+  const adsAllowed = pathname === '/' || pathname === '/airdrops' || pathname?.startsWith('/coin/');
+  if (!adsAllowed || !visible) return null;
 
   return (
     <aside className="fixed-footer-ad-banner">

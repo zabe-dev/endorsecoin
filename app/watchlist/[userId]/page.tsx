@@ -4,8 +4,6 @@ import {
   AccountPagination,
   PublicWatchlistTable,
 } from '@/features/account/components/account-panel';
-import { PremiumAdBanner } from '@/features/ads/components/ad-banners';
-import { getActiveBannerAds } from '@/features/ads/server/banner-ads';
 import { getWatchlistTablePage } from '@/features/account/server/watchlist';
 import { db } from '@/lib/db/client';
 import { users } from '@/lib/db/schema';
@@ -32,10 +30,9 @@ export default async function PublicWatchlistPage({ params, searchParams }: Watc
   const [owner] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
   if (!owner) notFound();
 
-  const [watchlistPage, bannerAds] = await Promise.all([
-    getWatchlistTablePage(userId, session?.user.id, { page: readParam(query?.page) }),
-    getActiveBannerAds(),
-  ]);
+  const watchlistPage = await getWatchlistTablePage(userId, session?.user.id, {
+    page: readParam(query?.page),
+  });
   const ownerName = owner.name.trim() || 'Investor';
 
   return (
@@ -62,9 +59,6 @@ export default async function PublicWatchlistPage({ params, searchParams }: Watc
           )}
           <AccountPagination pagination={watchlistPage} />
         </section>
-        <div className="account-table-ad account-table-ad-inline">
-          <PremiumAdBanner ads={bannerAds.premium} offset={3} />
-        </div>
       </section>
       <SiteFooter />
     </main>

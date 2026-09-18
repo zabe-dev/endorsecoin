@@ -1,8 +1,6 @@
 import { SiteFooter } from '@/components/layout/site-footer';
 import { SiteHeader } from '@/components/layout/site-header';
 import { WatchlistPanel } from '@/features/account/components/account-panel';
-import { PremiumAdBanner } from '@/features/ads/components/ad-banners';
-import { getActiveBannerAds } from '@/features/ads/server/banner-ads';
 import { getWatchlistTablePage } from '@/features/account/server/watchlist';
 import { getCurrentSession } from '@/lib/auth/session';
 import { createPrivatePageMetadata } from '@/lib/seo/metadata';
@@ -22,10 +20,9 @@ export default async function WatchlistPage({ searchParams }: WatchlistPageProps
   const session = await getCurrentSession();
   if (!session) redirect('/');
 
-  const [watchlistPage, bannerAds] = await Promise.all([
-    getWatchlistTablePage(session.user.id, session.user.id, { page: readParam(params?.page) }),
-    getActiveBannerAds(),
-  ]);
+  const watchlistPage = await getWatchlistTablePage(session.user.id, session.user.id, {
+    page: readParam(params?.page),
+  });
 
   return (
     <main className="market-page">
@@ -35,7 +32,6 @@ export default async function WatchlistPage({ searchParams }: WatchlistPageProps
         coins={watchlistPage.rows}
         isSignedIn={true}
         pagination={watchlistPage}
-        afterTable={<PremiumAdBanner ads={bannerAds.premium} offset={3} />}
       />
       <SiteFooter />
     </main>

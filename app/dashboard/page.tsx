@@ -2,8 +2,6 @@ import { SiteFooter } from '@/components/layout/site-footer';
 import { SiteHeader } from '@/components/layout/site-header';
 import { AccountPanel } from '@/features/account/components/account-panel';
 import type { AccountTablePage } from '@/features/account/types';
-import { PremiumAdBanner } from '@/features/ads/components/ad-banners';
-import { getActiveBannerAds } from '@/features/ads/server/banner-ads';
 import { getPublicCoinListItemsByIds } from '@/features/coins/server/coin-list';
 import { getCurrentSession } from '@/lib/auth/session';
 import { createPrivatePageMetadata } from '@/lib/seo/metadata';
@@ -37,7 +35,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     eq(coinSubmissions.requesterEmail, session.user.email),
     eq(coinSubmissions.submissionType, 'new-coin'),
   );
-  const [submissionCountRows, deletionRequests, bannerAds] = await Promise.all([
+  const [submissionCountRows, deletionRequests] = await Promise.all([
     db
       .select({ count: sql<number>`count(*)::int` })
       .from(coinSubmissions)
@@ -56,7 +54,6 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         ),
       )
       .orderBy(desc(coinSubmissions.createdAt)),
-    getActiveBannerAds(),
   ]);
   const total = Number(submissionCountRows[0]?.count || 0);
   const pages = Math.max(1, Math.ceil(total / dashboardPageSize));
@@ -130,7 +127,6 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
               : undefined),
         }))}
         pagination={pagination}
-        afterTable={<PremiumAdBanner ads={bannerAds.premium} offset={2} />}
       />
       <SiteFooter />
     </main>
