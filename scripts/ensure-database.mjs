@@ -12,7 +12,7 @@ if (!process.env.DATABASE_URL && typeof process.loadEnvFile === 'function') {
 }
 
 if (!process.env.DATABASE_URL) {
-  console.log('[db] DATABASE_URL is not set; skipping first-build migration.');
+  console.log('[db] DATABASE_URL is not set; skipping initial migration check.');
   process.exit(0);
 }
 
@@ -33,7 +33,7 @@ try {
   `;
 
   if (hasApplicationTables) {
-    console.log('[db] Application tables exist; skipping first-build migration.');
+    console.log('[db] Application tables exist; skipping initial migration.');
   } else {
     console.log('[db] No application tables found; running initial migrations.');
     execFileSync(process.execPath, ['node_modules/drizzle-kit/bin.cjs', 'migrate'], {
