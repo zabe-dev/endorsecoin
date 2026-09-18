@@ -24,8 +24,8 @@
 
 import { createHash, createHmac, randomUUID } from 'crypto';
 import { readFileSync } from 'fs';
-import { fileURLToPath } from 'url';
 import postgres from 'postgres';
+import { fileURLToPath } from 'url';
 
 const MOBULA_DETAILS_URL = 'https://api.mobula.io/api/2/asset/details';
 const MOBULA_METADATA_URL = 'https://api.mobula.io/api/1/multi-metadata';
@@ -592,102 +592,86 @@ function normalizeImportChain(value) {
   if (normalized === 'arb') return 'arbitrum';
   if (['avax', 'avalanche c-chain'].includes(normalized)) return 'avalanche';
   if (['op', 'optimistic ethereum'].includes(normalized)) return 'optimism';
-  if (normalized === 'robinhood') return 'hood';
+  if (normalized === 'hood' || normalized === 'robinhood') return 'hood';
   if (normalized === 'trx') return 'tron';
   if (normalized === 'xrp' || normalized === 'xrp ledger') return 'xrpl';
 
   return normalized;
 }
 
+const EVM_CHAINS = [
+  'ethereum',
+  'bsc',
+  'polygon',
+  'avalanche',
+  'arbitrum',
+  'base',
+  'optimism',
+  'fantom',
+  'robinhood',
+  'hood',
+];
+
+// Matches EVM_HREF: 0x + 40 hex, optional extra 24 hex, optional :tag
+const EVM_ADDRESS_RE = /^0x[0-9a-fA-F]{40}(?:[0-9a-fA-F]{24})?(?::[A-Za-z0-9_-]+)?$/;
+const SOLANA_ADDRESS_RE = /^[A-Za-z0-9]{32,48}$/;
+const TRON_ADDRESS_RE = /^(?:[Tt][A-Za-z0-9]{33}|41[0-9a-fA-F]{40}|0x[0-9a-fA-F]{40})$/;
+const XRPL_ADDRESS_RE =
+  /^(?:[0-9A-Fa-f]{40}|[A-Za-z0-9]{2,32})\.r[A-Za-z0-9]{24,40}(?:_[A-Za-z0-9]{2,40})?$/;
+
+function normalizeEvmAddress(address) {
+  if (!EVM_ADDRESS_RE.test(address)) return '';
+
+  const colon = address.indexOf(':');
+  if (colon === -1) return address.toLowerCase();
+
+  return address.slice(0, colon).toLowerCase() + address.slice(colon);
+}
+
+function normalizeTronAddress(address) {
+  if (!TRON_ADDRESS_RE.test(address)) return '';
+  if (address.startsWith('0x') || address.startsWith('41') || address.startsWith('0X')) {
+    return address.toLowerCase();
+  }
+  return address;
+}
+
 function normalizeImportAddress(chain, value) {
   const address = String(value || '').trim();
   if (!address) return '';
 
-  if (
-    [
-      'ethereum',
-      'bsc',
-      'polygon',
-      'avalanche',
-      'arbitrum',
-      'base',
-      'optimism',
-      'fantom',
-      'hood',
-    ].includes(
-      chain,
-    )
-  ) {
-    if (chain === 'hood') {
-      return /^0x[a-fA-F0-9]{64}$/.test(address) ? address.toLowerCase() : '';
-    }
-    return /^0x[a-fA-F0-9]{40}$/.test(address) ? address.toLowerCase() : '';
+  if (EVM_CHAINS.includes(chain)) {
+    return normalizeEvmAddress(address);
   }
 
   if (chain === 'solana') {
-    return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address) ? address : '';
+    return SOLANA_ADDRESS_RE.test(address) ? address : '';
   }
 
   if (chain === 'tron') {
-    return /^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(address) ? address : '';
+    return normalizeTronAddress(address);
   }
 
   if (chain === 'sui') {
-    const packageId = address.match(/^0x[a-fA-F0-9]{64}/)?.[0] || '';
-    return packageId ? packageId.toLowerCase() : '';
+    const match = address.match(
+      /^0x[0-9a-fA-F]{1,64}(::[A-Za-z_][A-Za-z0-9_]*::[A-Za-z_][A-Za-z0-9_]*(?:<.+>)?)?$/,
+    );
+    if (!match) return '';
+    const separatorIndex = address.indexOf(':');
+    const hexPart = separatorIndex === -1 ? address : address.slice(0, separatorIndex);
+    const rest = separatorIndex === -1 ? '' : address.slice(separatorIndex);
+    return `${hexPart.toLowerCase()}${rest}`;
   }
 
   if (chain === 'xrpl') {
-    return /^(?:[A-Za-z0-9_-]{1,64}\.)?r[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(address)
-      ? address
-      : '';
+    return XRPL_ADDRESS_RE.test(address) ? address : '';
   }
 
   return '';
 }
 
 function normalizeChartPairAddress(chain, value) {
-  const address = String(value || '').trim();
-  if (!address) return '';
-
-  if (
-    [
-      'ethereum',
-      'bsc',
-      'polygon',
-      'avalanche',
-      'arbitrum',
-      'base',
-      'optimism',
-      'fantom',
-      'hood',
-    ].includes(
-      chain,
-    )
-  ) {
-    return /^0x[a-fA-F0-9]{40}$/.test(address) ? address.toLowerCase() : '';
-  }
-
-  if (chain === 'solana') {
-    return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address) ? address : '';
-  }
-
-  if (chain === 'tron') {
-    return /^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(address) ? address : '';
-  }
-
-  if (chain === 'sui') {
-    const packageId = address.match(/^0x[a-fA-F0-9]{64}/)?.[0] || '';
-    return packageId ? packageId.toLowerCase() : '';
-  }
-
-  if (chain === 'xrpl') {
-    return /^(?:[A-Za-z0-9_-]{1,64}\.)?r[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(address)
-      ? address
-      : '';
-  }
-
-  return '';
+  return normalizeImportAddress(chain, value);
 }
 
 function readArgValue(values, name) {
@@ -847,7 +831,7 @@ function logBatchProgress(
   const etaMs = ratePerMs > 0 ? remainingTokens / ratePerMs : 0;
 
   log(
-      `${label}: coin ${tokensSoFar}/${totalTokens} (${pct}%, batch ${batchNumber}/${totalBatches})` +
+    `${label}: coin ${tokensSoFar}/${totalTokens} (${pct}%, batch ${batchNumber}/${totalBatches})` +
       (isLast ? ` - done in ${formatDuration(elapsedMs)}` : ` - ETA ${formatDuration(etaMs)}`),
   );
 }
@@ -1350,19 +1334,21 @@ async function fetchDexPaprikaSearchDetails(network, address, token) {
       });
       if (!response.ok) continue;
       const json = await response.json();
-      const match = (Array.isArray(json?.tokens) ? json.tokens : []).find(
-        (item) => {
-          if (String(item?.chain || '').toLowerCase() !== network.toLowerCase()) return false;
-          const itemId = normalizeContractAddress(item?.id);
-          const tokenAddress = normalizeContractAddress(address);
-          if (itemId === tokenAddress) return true;
-          if (network !== 'sui' || !itemId.startsWith(`${tokenAddress}::`)) return false;
-          return (
-            String(item?.name || '').trim().toLowerCase() === String(token.name).trim().toLowerCase() ||
-            String(item?.symbol || '').trim().toLowerCase() === String(token.symbol).trim().toLowerCase()
-          );
-        },
-      );
+      const match = (Array.isArray(json?.tokens) ? json.tokens : []).find((item) => {
+        if (String(item?.chain || '').toLowerCase() !== network.toLowerCase()) return false;
+        const itemId = normalizeContractAddress(item?.id);
+        const tokenAddress = normalizeContractAddress(address);
+        if (itemId === tokenAddress) return true;
+        if (network !== 'sui' || !itemId.startsWith(`${tokenAddress}::`)) return false;
+        return (
+          String(item?.name || '')
+            .trim()
+            .toLowerCase() === String(token.name).trim().toLowerCase() ||
+          String(item?.symbol || '')
+            .trim()
+            .toLowerCase() === String(token.symbol).trim().toLowerCase()
+        );
+      });
       if (match) return dexPaprikaSearchItemToDetails(match);
     } catch (error) {
       if (options.debug) console.warn(`DexPaprika search failed for ${query}:`, error);

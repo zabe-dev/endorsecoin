@@ -20,7 +20,7 @@ import os
 import re
 import sys
 import time
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
 import requests
 from playwright.sync_api import sync_playwright
@@ -28,28 +28,21 @@ from playwright.sync_api import sync_playwright
 DEX_API_PAIR = "https://api.dexscreener.com/latest/dex/pairs/{chain}/{pair_address}"
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Default output directory for the CSV and any files generated at runtime
-# (debug screenshots/HTML, the denied-token audit CSV).
 DEFAULT_OUTPUT_DIR = os.path.join(SCRIPT_DIR, "ds-output")
 DEFAULT_OUTPUT_CSV = os.path.join(DEFAULT_OUTPUT_DIR, "trending-coins.csv")
 TRENDING_FETCH_ATTEMPTS = 3
 PAIR_RESOLVE_ATTEMPTS = 3
 DEXSCREENER_MIN_INTERVAL = 1.1
 
-# Standard comma-delimited CSV. csv.writer/DictWriter auto-quote any field
-# that contains a comma (e.g. a token name like "Foo, Inc"), so this is
-# safe to open directly in Excel/Sheets or read with any CSV parser.
 CSV_DELIMITER = ","
 
 # =============================================================================
 # Filters out stablecoins, wrapped/staked assets, major L1/L2s, DEX/CEX governance
-# tokens, tokenized tocks/ETFs, and other "real product" tokens so only genuine
-# community tokens remain. Deliberately over-inclusive: denies on any doubt, and
-# the denied-token audit file (always in ds-output/) is how false positives get spotted and walked back.
+# tokens, tokenized stocks/ETFs, and other "real product" tokens so only genuine
+# community tokens remain.
 # =============================================================================
 
 EXCLUDE_SYMBOLS = {
-    # stablecoins (incl. non-USD fiat-pegged)
     "USDT",
     "USDC",
     "DAI",
@@ -76,7 +69,6 @@ EXCLUDE_SYMBOLS = {
     "GYEN",
     "XSGD",
     "CNHT",
-    # wrapped / liquid-staked native assets
     "WETH",
     "WBTC",
     "WBNB",
@@ -94,7 +86,6 @@ EXCLUDE_SYMBOLS = {
     "BNSOL",
     "JITOSOL",
     "CBBTC",
-    # major L1/L2 base assets
     "BTC",
     "BITCOIN",
     "ETH",
@@ -134,7 +125,7 @@ EXCLUDE_SYMBOLS = {
     "FLOW",
     "KAVA",
     "THETA",
-    "APE",  # ApeCoin — Yuga Labs ecosystem/governance token
+    "APE",
     "STBL",
     "YAK",
     "OVER",
@@ -144,7 +135,6 @@ EXCLUDE_SYMBOLS = {
     "NS",
     "CETUS",
     "NAVX",
-    # additional stablecoins and fiat/commodity-backed assets
     "FUSD",
     "DOLA",
     "MIM",
@@ -160,7 +150,6 @@ EXCLUDE_SYMBOLS = {
     "BRLA",
     "THBILL",
     "USD₮0",
-    # established application, protocol, and infrastructure tokens
     "MOTO",
     "SYN",
     "ENA",
@@ -201,7 +190,6 @@ EXCLUDE_SYMBOLS = {
     "PNG",
     "TART",
     "LIF3",
-    # DEX / lending protocol governance tokens
     "UNI",
     "SUSHI",
     "CAKE",
@@ -224,11 +212,10 @@ EXCLUDE_SYMBOLS = {
     "ZRX",
     "BNT",
     "CVX",
-    "LINK",  # Chainlink
-    "PENDLE",  # Pendle Finance
-    "STRATEGY",  # current corporate name of former MicroStrategy (MSTR)
-    "CME",  # Chicago Mercantile Exchange
-    # centralized-exchange / corporate chain-native tokens
+    "LINK",
+    "PENDLE",
+    "STRATEGY",
+    "CME",
     "OKB",
     "CRO",
     "FTT",
@@ -236,11 +223,8 @@ EXCLUDE_SYMBOLS = {
     "KCS",
     "LEO",
     "GT",
-    "HOOD",  # Robinhood Markets' own Nasdaq ticker
-    "𝕏",  # X (Twitter) platform branding
-    # major public-company / ETF tickers — Robinhood Chain trades tokenized
-    # equities, so these are far more likely real tokenized stock than a
-    # coincidental meme-ticker collision
+    "HOOD",
+    "𝕏",
     "AAPL",
     "MSFT",
     "GOOGL",
@@ -282,14 +266,12 @@ EXCLUDE_SYMBOLS = {
     "SLV",
     "TQQQ",
     "SQQQ",
-    # found un-denied in prior audit runs — real product/protocol tickers or
-    # established off-chain tickers that a permissionless token reuses
-    "TSLR",  # also a live leveraged-TSLA ETF ticker
-    "HBTC",  # Huobi BTC — wrapped-BTC product
-    "LIT",  # Litentry / Lighter (zk perp DEX) shorthand
-    "CLANKER",  # token-deployer service
-    "V4",  # Uniswap v4 infra
-    "PRISM",  # two separate real contracts use this ticker
+    "TSLR",
+    "HBTC",
+    "LIT",
+    "CLANKER",
+    "V4",
+    "PRISM",
     "STAX",
     "WOOD",
     "POOLS",
@@ -298,33 +280,28 @@ EXCLUDE_SYMBOLS = {
     "LOCK",
     "ZFORGE",
     "LEV7",
-    "DTF",  # Reserve's "decentralized token folio" product class
+    "DTF",
     "QUBIT",
     "INDEX",
     "DELTA",
     "NOTE",
     "OPEN",
-    "MUSE",  # appears on two separate contracts
+    "MUSE",
     "RSTR",
     "RKST",
     "UNIHOOD",
     "BAWSAQ",
     "ICOIN",
-    "AMC",  # AMC Entertainment NYSE ticker
-    "AI",  # C3.ai NYSE ticker
-    "AU",  # gold — tokenized-gold products use it
-    "MOO",  # Beefy Finance governance token
-    "PUMP",  # pump.fun token
-    "RSI",  # trading-indicator term, reused by structured products
-    "BOW",  # Bowhead Specialty Holdings NYSE ticker
-    # gold-backed commodity tokens — symbol-only, not name-substring, since
-    # plenty of legit meme tokens have "Gold" in the name
+    "AMC",
+    "AI",
+    "AU",
+    "MOO",
+    "PUMP",
+    "RSI",
+    "BOW",
     "XAUT",
     "XAUT0",
     "PAXG",
-    # Standing policy: any ticker collision is denied, full stop, even if the
-    # name reads as a harmless meme — that's exactly what a copycat would
-    # pick. Do not remove entries here without confirming a false positive.
 }
 
 
@@ -334,8 +311,6 @@ def is_excluded(symbol):
     return symbol.strip().upper() in EXCLUDE_SYMBOLS
 
 
-# Full canonical names for established assets. Exact matching prevents a
-# community token such as "Ethereumcat" from being denied accidentally.
 EXCLUDE_NAME_EXACT = {
     "bitcoin",
     "ethereum",
@@ -387,8 +362,6 @@ EXCLUDE_NAME_EXACT = {
     "gemini dollar",
 }
 
-# Name substrings for corporate/branded tokens that don't have a recognizable
-# ticker (e.g. "Robinhood Token").
 EXCLUDE_NAME_SUBSTRINGS = {
     "robinhood token",
     "ondo tokenized",
@@ -438,13 +411,6 @@ def is_generic_token_name(name):
     return bool(name) and bool(GENERIC_TOKEN_NAME_PATTERN.search(name.strip()))
 
 
-# ---------------------------------------------------------------------------
-# HEURISTIC TIER (skipped with --lenient): word-level patterns indicating a
-# protocol/venue/fund/structured-product name rather than a community token.
-# Whole-word matching only, to avoid "note" eating "Notes on a Frog".
-# This tier trades precision for recall — false positives are expected and
-# get walked back via ALLOW_SYMBOLS once confirmed in the audit file.
-# ---------------------------------------------------------------------------
 PRODUCT_NAME_WORDS = {
     "protocol",
     "finance",
@@ -486,7 +452,7 @@ PRODUCT_NAME_WORDS = {
     "dex",
     "cex",
     "rwa",
-    "dtf",  # Reserve Protocol's "decentralized token folio" product class
+    "dtf",
     "reserve",
     "governance",
     "utility",
@@ -495,9 +461,6 @@ PRODUCT_NAME_WORDS = {
     "games",
 }
 
-# Bare major-company names — catches tokenized-stock deploys that don't use
-# the standard ticker. Whole-word match, so "Big Apple Coin" is also caught;
-# accepted per the "deny when unsure" policy.
 BARE_COMPANY_NAME_WORDS = {
     "apple",
     "amazon",
@@ -535,44 +498,29 @@ BARE_COMPANY_NAME_WORDS = {
     "anthropic",
 }
 
-# A name that's really a domain ("pools.trade", "ZECFORGE.tech") is a
-# platform advertising itself, not a community token.
 DOMAIN_NAME_PATTERN = re.compile(
     r"\b[\w-]+\.(fun|trade|tech|io|xyz|app|finance|exchange|money|network|"
     r"com|org|net|wtf|gg|ai|so|to|sh)\b",
     re.IGNORECASE,
 )
 
-# "REPONAME github.com/owner/REPONAME" is a tokenize-a-repo meme trend, not
-# the token advertising its own domain — exempt these dev-platform refs.
 DOMAIN_ALLOWLIST = {"github.com", "gitlab.com"}
 
-# Versioned naming ("Programmable V4") is how protocols label releases;
-# communities don't ship point releases.
 VERSIONED_NAME_PATTERN = re.compile(r"\bv[2-9]\b", re.IGNORECASE)
 
-# Structured/leveraged product tickers: OPENAIX1L, LEV7, BTC3S, ETH2XL.
 LEVERAGED_SYMBOL_PATTERN = re.compile(
     r"(^LEV\d+$)|(\d+X[LS]$)|(X\d+[LS]$)|(\d+(LONG|SHORT)$)", re.IGNORECASE
 )
 
-# Cross-chain "canonical" bridged-asset naming: "Cardano (Universal)",
-# "Bitcoin Avalanche Bridged (BTC.b)" — same category as wrapped/staked
-# above but with different naming conventions.
 BRIDGED_ASSET_NAME_PATTERN = re.compile(
     r"\(universal\)|\(ccip-bridged\)|\(wormhole\)|\bbridged\b", re.IGNORECASE
 )
 
-# Stock-ticker-shaped symbol (3-5 letters) paired with a corporate suffix
-# in the name. Kept narrow — a blanket "any short symbol" rule would gut
-# the whole chain.
 CORPORATE_SUFFIX_PATTERN = re.compile(
     r"\b(inc|corp|corporation|ltd|llc|plc|nv|sa|ag|holdings|group)\b\.?$",
     re.IGNORECASE,
 )
 
-# Yield-bearing stablecoin wrappers (e.g. "syrupUSDC"): suffix match, not
-# substring, so "DAIFUKU" (a dessert meme) isn't wrongly caught.
 _STABLE_BASE_TICKERS = ("USDC", "USDT", "DAI", "USDE", "BUSD", "TUSD")
 _DERIVATIVE_BASE_TICKERS = ("ETH", "BTC", "SOL", "BNB", "AVAX", "MATIC", "ARB", "OP")
 
@@ -585,35 +533,19 @@ def is_stablecoin_derivative(symbol):
 
 
 def is_base_asset_derivative(symbol):
-    """Catches compact wrapped/staked tickers (ALETH, WBTC, BETH) that the
-    name-substring rule above would miss."""
     if not symbol:
         return False
     sym = symbol.strip().upper()
     return any(sym.endswith(base) and sym != base for base in _DERIVATIVE_BASE_TICKERS)
 
 
-# Escape hatch: symbols listed here pass even if the heuristic tier flags
-# them. Use once a specific false positive is confirmed via the denied-token audit file.
 ALLOW_SYMBOLS = set()
 
-# ---------------------------------------------------------------------------
-# LIVE TICKER CROSS-CHECK (4th tier, on by default; --no-live-check to skip)
-#
-# EXCLUDE_SYMBOLS is hand-maintained and will always lag reality. This tier
-# checks trending symbols against a runtime-fetched S&P 500 ticker list so
-# new real-world collisions get caught without a manual edit. Deliberately
-# narrow in scope (S&P 500, not the full ticker universe) to avoid denying
-# real community tokens over obscure micro-cap collisions.
-# ---------------------------------------------------------------------------
 _LIVE_TICKER_CACHE = None
-LIVE_CHECK_ENABLED = True  # flipped by --no-live-check in main()
+LIVE_CHECK_ENABLED = True
 
 
 def _load_live_ticker_set():
-    """Best-effort fetch, cached for the process. Failure just skips this
-    tier for the run — it's a supplement to EXCLUDE_SYMBOLS, not a
-    replacement, so it must never block the whole script."""
     global _LIVE_TICKER_CACHE
     if _LIVE_TICKER_CACHE is not None:
         return _LIVE_TICKER_CACHE
@@ -637,8 +569,7 @@ def live_ticker_collision(symbol):
         return None
     sym = symbol.strip().upper()
     if len(sym) < 2 or len(sym) > 5 or not sym.isalpha():
-        return None  # not ticker-shaped; longer/mixed strings produce too
-        # many coincidental hits to be worth checking
+        return None
     if sym in _load_live_ticker_set():
         return f"live-ticker-match:{sym}"
     return None
@@ -649,7 +580,6 @@ def _words(text):
 
 
 def heuristic_reason(name, symbol):
-    """Short reason string if the heuristic tier rejects, else None."""
     name = (name or "").strip()
     symbol = (symbol or "").strip()
 
@@ -674,8 +604,6 @@ def heuristic_reason(name, symbol):
     return None
 
 
-# Leveraged structured products ("OPENAI 1x Long") track a real company or
-# asset with a multiplier — a DeFi financial product, not a meme.
 LEVERAGED_PRODUCT_PATTERN = re.compile(r"\d+\s*x\s*(long|short)\b", re.IGNORECASE)
 
 
@@ -683,8 +611,6 @@ def is_leveraged_product(name):
     return bool(name) and bool(LEVERAGED_PRODUCT_PATTERN.search(name))
 
 
-# Names running to hundreds of characters are usually dozens of real token
-# names stuffed together to game trending visibility, not a real project.
 MAX_NAME_LENGTH = 80
 
 
@@ -692,8 +618,6 @@ def is_name_spam(name):
     return bool(name) and len(name.strip()) > MAX_NAME_LENGTH
 
 
-# Placeholder/test deploys — exact match only, so real meme names like
-# "Contest Coin" aren't caught by a "test" substring.
 EXACT_JUNK_NAMES = {
     "test token",
     "test coin",
@@ -710,10 +634,6 @@ def is_junk_name(name):
     return bool(name) and name.strip().lower() in EXACT_JUNK_NAMES
 
 
-# Emoji in name or symbol — a spam/attention-grab signal, so this runs
-# unconditionally rather than only under the strict/heuristic tier. Ranges
-# cover the actual emoji blocks and deliberately exclude general
-# punctuation/geometric shapes to avoid false-positiving on dashes/quotes.
 EMOJI_PATTERN = re.compile(
     "["
     "\U0001f000-\U0001faff"
@@ -735,8 +655,6 @@ def has_emoji(name, symbol):
 
 
 def denial_reason(name, symbol, strict=True):
-    """Single entry point. Returns a reason string to deny, or None to keep.
-    strict=False disables the heuristic + live-ticker tiers."""
     if symbol and symbol.strip().upper() in ALLOW_SYMBOLS:
         return None
     if is_excluded(symbol):
@@ -793,11 +711,9 @@ def write_denied(path, rows):
 
 
 # =============================================================================
-# DEXSCREENER SCRAPING — replaces the old Birdeye /defi/token_trending calls.
+# DEXSCREENER SCRAPING
 # =============================================================================
 
-
-# Dexscreener's trending sort field per timeframe.
 TIMEFRAME_RANK_FIELDS = {
     "m5": "trendingScoreM5",
     "h1": "trendingScoreH1",
@@ -805,7 +721,6 @@ TIMEFRAME_RANK_FIELDS = {
     "h24": "trendingScoreH24",
 }
 
-# Keep this aligned with the chains accepted by import-trending-coins.mjs.
 DEXSCREENER_CHAIN_SLUGS = {
     "ethereum": "ethereum",
     "bsc": "bsc",
@@ -823,42 +738,76 @@ DEXSCREENER_CHAIN_SLUGS = {
 }
 SUPPORTED_CHAINS = tuple(DEXSCREENER_CHAIN_SLUGS.values())
 GECKO_TRENDING_NETWORKS = {}
-PAIR_ADDRESS_PATTERNS = {
-    "ethereum": re.compile(r"0x[0-9a-fA-F]{40}"),
-    "bsc": re.compile(r"0x[0-9a-fA-F]{40}"),
-    "polygon": re.compile(r"0x[0-9a-fA-F]{40}"),
-    "avalanche": re.compile(r"0x[0-9a-fA-F]{40}"),
-    "arbitrum": re.compile(r"0x[0-9a-fA-F]{40}"),
-    "base": re.compile(r"0x[0-9a-fA-F]{40}"),
-    "optimism": re.compile(r"0x[0-9a-fA-F]{40}"),
-    "fantom": re.compile(r"0x[0-9a-fA-F]{40}"),
-    "robinhood": re.compile(r"0x[0-9a-fA-F]{64}"),
-    "solana": re.compile(r"[1-9A-HJ-NP-Za-km-z]{32,44}"),
-    "sui": re.compile(r"0x[0-9a-fA-F]{64}"),
-    "tron": re.compile(r"T[1-9A-HJ-NP-Za-km-z]{33}"),
-    "xrpl": re.compile(r"[A-Za-z0-9._-]+"),
+
+EVM_HREF = r"(0x[0-9a-fA-F]{40}(?:[0-9a-fA-F]{24})?(?::[A-Za-z0-9_-]+)?)"
+
+PAIR_HREF_RE = {
+    "ethereum": re.compile(rf"^/ethereum/{EVM_HREF}(?:/|\?|#|$)", re.I),
+    "bsc": re.compile(rf"^/bsc/{EVM_HREF}(?:/|\?|#|$)", re.I),
+    "polygon": re.compile(rf"^/polygon/{EVM_HREF}(?:/|\?|#|$)", re.I),
+    "avalanche": re.compile(rf"^/avalanche/{EVM_HREF}(?:/|\?|#|$)", re.I),
+    "arbitrum": re.compile(rf"^/arbitrum/{EVM_HREF}(?:/|\?|#|$)", re.I),
+    "base": re.compile(rf"^/base/{EVM_HREF}(?:/|\?|#|$)", re.I),
+    "optimism": re.compile(rf"^/optimism/{EVM_HREF}(?:/|\?|#|$)", re.I),
+    "fantom": re.compile(rf"^/fantom/{EVM_HREF}(?:/|\?|#|$)", re.I),
+    "robinhood": re.compile(rf"^/robinhood/{EVM_HREF}(?:/|\?|#|$)", re.I),
+    "sui": re.compile(r"^/sui/(0x[0-9a-fA-F]{1,64})(?:/|\?|#|$)", re.I),
+    "solana": re.compile(r"^/solana/([A-Za-z0-9]{32,48})(?:/|\?|#|$)", re.I),
+    "tron": re.compile(
+        r"^/tron/((?:[Tt][A-Za-z0-9]{33})|(?:41[0-9a-fA-F]{40})|(?:0x[0-9a-fA-F]{40}))(?:/|\?|#|$)",
+        re.I,
+    ),
+    "xrpl": re.compile(
+        r"^/xrpl/((?:[0-9A-Fa-f]{40}|[A-Za-z0-9]{2,32})\.r[A-Za-z0-9]{24,40}(?:_[A-Za-z0-9]{2,40})?)"
+        r"(?:/|\?|#|$)",
+        re.I,
+    ),
 }
+
+
+def _pair_slug_from_href(chain: str, href: str) -> str | None:
+    if not href:
+        return None
+    path = urlsplit(href).path or href
+    if not path.startswith("/"):
+        path = "/" + path
+    pat = PAIR_HREF_RE.get(chain)
+    if not pat:
+        return None
+    m = pat.search(path)
+    return m.group(1) if m else None
+
+
+def _collect_pair_from_row(chain: str, row: dict, seen: set, pairs: list) -> None:
+    if not isinstance(row, dict):
+        return
+    row_chain = str(row.get("chainId") or chain).lower()
+    if row_chain != chain:
+        return
+    addr = row.get("pairAddress") or row.get("pair") or row.get("id")
+    if not addr:
+        url = row.get("url") or ""
+        slug = _pair_slug_from_href(chain, url)
+        addr = slug
+    if not addr:
+        return
+    addr = str(addr)
+    if row_chain != "xrpl" and ":" in addr and not addr.lower().startswith("0x"):
+        addr = addr.split(":")[-1]
+    key = f"{row_chain}:{addr}".lower()
+    if key in seen:
+        return
+    seen.add(key)
+    pairs.append((row_chain, addr))
 
 
 def scrape_trending_pair_addresses(
     chain: str, limit: int, last: str = "h24"
 ) -> list[tuple[str, str]]:
-    """
-    Loads the Dexscreener trending page for a chain/category, ranked by
-    trending score over the last m5/h1/h6/h24, and returns a list of
-    (chain, pair_address) tuples in ranked order.
-
-    Only reads the first page of results as initially rendered (no
-    scrolling/pagination) — Dexscreener's trending table loads up to 100
-    rows on first load, which is why --limit is capped at 100.
-    """
     rank_field = TIMEFRAME_RANK_FIELDS[last]
     url = f"https://dexscreener.com/{chain}?rankBy={rank_field}&order=desc"
-    pairs = []
-
-    # Match links for this chain regardless of address format. EVM addresses
-    # use 0x, while Solana, Sui, and Tron use other formats.
-    link_selector = f'a[href*="/{chain}/"]'
+    pairs: list[tuple[str, str]] = []
+    seen: set[str] = set()
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
@@ -867,67 +816,77 @@ def scrape_trending_pair_addresses(
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
                 "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
             ),
-            viewport={"width": 1400, "height": 1000},
+            viewport={"width": 1400, "height": 1800},
         )
-        page.goto(url, timeout=60000, wait_until="domcontentloaded")
 
+        def on_response(resp):
+            try:
+                ct = (resp.headers.get("content-type") or "").lower()
+                if "json" not in ct:
+                    return
+                data = resp.json()
+            except Exception:
+                return
+            rows = []
+            if isinstance(data, dict):
+                for key in ("pairs", "results", "data", "items"):
+                    val = data.get(key)
+                    if isinstance(val, list):
+                        rows = val
+                        break
+                if not rows and isinstance(data.get("pair"), dict):
+                    rows = [data["pair"]]
+            elif isinstance(data, list):
+                rows = data
+            for row in rows:
+                _collect_pair_from_row(chain, row, seen, pairs)
+
+        page.on("response", on_response)
+        page.goto(url, timeout=60000, wait_until="domcontentloaded")
         try:
-            page.wait_for_selector(link_selector, timeout=30000)
+            page.wait_for_load_state("networkidle", timeout=20000)
         except Exception:
+            pass
+        page.wait_for_timeout(1500)
+
+        if len(pairs) < limit:
+            for _ in range(30):
+                hrefs = page.eval_on_selector_all(
+                    "a[href]",
+                    "els => els.map(e => e.getAttribute('href')).filter(Boolean)",
+                )
+                for href in hrefs:
+                    slug = _pair_slug_from_href(chain, href)
+                    if not slug:
+                        continue
+                    key = f"{chain}:{slug}".lower()
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    pairs.append((chain, slug))
+                if len(pairs) >= limit:
+                    break
+                page.evaluate(
+                    "window.scrollBy(0, Math.max(window.innerHeight * 0.9, 700))"
+                )
+                page.wait_for_timeout(400)
+
+        if len(pairs) < 5:
             os.makedirs(DEFAULT_OUTPUT_DIR, exist_ok=True)
             page.screenshot(
-                path=os.path.join(DEFAULT_OUTPUT_DIR, "debug-screenshot.png"),
+                path=os.path.join(DEFAULT_OUTPUT_DIR, f"debug-{chain}.png"),
                 full_page=True,
             )
             with open(
-                os.path.join(DEFAULT_OUTPUT_DIR, "debug-page.html"),
+                os.path.join(DEFAULT_OUTPUT_DIR, f"debug-{chain}.html"),
                 "w",
                 encoding="utf-8",
             ) as f:
                 f.write(page.content())
-            browser.close()
-            raise RuntimeError(
-                "Could not find pair rows.\n"
-                "Saved debug-screenshot.png and debug-page.html for inspection.\n"
-                "The page may be showing a bot-check/CAPTCHA, or the chain slug "
-                "may be wrong."
-            )
-
-        seen = set()
-        idle_rounds = 0
-        for _ in range(40):
-            page.wait_for_timeout(350)
-            before_count = len(pairs)
-            links = page.query_selector_all(link_selector)
-            for link in links:
-                href = link.get_attribute("href")
-                if not href or href in seen:
-                    continue
-                seen.add(href)
-                parts = urlsplit(href).path.strip("/").split("/")
-                if len(parts) != 2:
-                    continue
-                row_chain, pair_address = parts
-                pattern = PAIR_ADDRESS_PATTERNS.get(row_chain)
-                if pattern and pattern.fullmatch(pair_address):
-                    pairs.append((row_chain, pair_address))
-                if len(pairs) >= limit:
-                    break
-
-            if len(pairs) >= limit:
-                break
-
-            idle_rounds = idle_rounds + 1 if len(pairs) == before_count else 0
-            at_bottom = page.evaluate(
-                "window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 20"
-            )
-            if at_bottom and idle_rounds >= 3:
-                break
-            page.evaluate("window.scrollBy(0, Math.max(window.innerHeight * 0.8, 600))")
 
         browser.close()
 
-    return pairs
+    return pairs[:limit]
 
 
 def scrape_trending_pair_addresses_with_retry(
@@ -949,13 +908,11 @@ def scrape_trending_pair_addresses_with_retry(
 
 
 def resolve_pair(chain: str, pair_address: str) -> dict | None:
-    """
-    Calls the Dexscreener API for a single pair and extracts contract
-    address, symbol, name, chain, price, liquidity and volume for the base
-    token — the last two are needed for the denylist audit trail.
-    """
     retryable_statuses = {403, 408, 425, 429, 500, 502, 503, 504}
-    url = DEX_API_PAIR.format(chain=chain, pair_address=pair_address)
+    url = DEX_API_PAIR.format(
+        chain=chain,
+        pair_address=quote(pair_address, safe="._-"),
+    )
 
     for attempt in range(1, PAIR_RESOLVE_ATTEMPTS + 1):
         try:
@@ -993,13 +950,8 @@ def resolve_pair(chain: str, pair_address: str) -> dict | None:
         if attempt == PAIR_RESOLVE_ATTEMPTS:
             return None
         delay = DEXSCREENER_MIN_INTERVAL * (2 ** (attempt - 1))
-        print(
-            f"  Pair resolve failed for {chain}/{pair_address}: {error}."
-        )
-        print(
-            f"  Retrying in {delay}s "
-            f"({attempt + 1}/{PAIR_RESOLVE_ATTEMPTS})..."
-        )
+        print(f"  Pair resolve failed for {chain}/{pair_address}: {error}.")
+        print(f"  Retrying in {delay}s ({attempt + 1}/{PAIR_RESOLVE_ATTEMPTS})...")
         time.sleep(delay)
 
     return None
@@ -1029,7 +981,9 @@ def fetch_gecko_trending_tokens(chain: str, limit: int) -> list[dict]:
     seen = set()
     for pool in pools[:limit] if isinstance(pools, list) else []:
         attributes = pool.get("attributes") or {}
-        relationship = ((pool.get("relationships") or {}).get("base_token") or {}).get("data") or {}
+        relationship = ((pool.get("relationships") or {}).get("base_token") or {}).get(
+            "data"
+        ) or {}
         token = tokens_by_id.get(relationship.get("id"), {})
         address = str(token.get("address") or "").strip()
         if not address or address.lower() in seen:
@@ -1111,11 +1065,6 @@ def main():
     global LIVE_CHECK_ENABLED
     LIVE_CHECK_ENABLED = not args.no_live_check
 
-    # The results file has a fixed name and is overwritten on every run. The
-    # denied-token audit file is timestamped instead, since it's meant as a
-    # per-run diagnostic trail rather than a rolling "latest results" file.
-    # Both always live in DEFAULT_OUTPUT_DIR ("ds-output") — there's no flag
-    # to redirect them elsewhere.
     run_stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M")
     out_path = DEFAULT_OUTPUT_CSV
     review_path = os.path.join(DEFAULT_OUTPUT_DIR, f"denied-{run_stamp}.csv")
@@ -1133,7 +1082,9 @@ def main():
         if chain in GECKO_TRENDING_NETWORKS:
             try:
                 gecko_tokens = fetch_gecko_trending_tokens(chain, args.limit)
-                candidates.extend(("geckoterminal", token, "") for token in gecko_tokens)
+                candidates.extend(
+                    ("geckoterminal", token, "") for token in gecko_tokens
+                )
                 print(f"  GeckoTerminal: {len(gecko_tokens)} token(s)")
             except Exception as error:
                 if args.chain:
@@ -1141,17 +1092,20 @@ def main():
                 print(f"  Skipping {chain}: {error}")
             continue
         try:
-            candidates.extend(
-                ("dexscreener", chain, pair_address)
-                for chain, pair_address in scrape_trending_pair_addresses_with_retry(
-                    chain, args.limit, args.last
-                )
+            chain_pairs = scrape_trending_pair_addresses_with_retry(
+                chain, args.limit, args.last
             )
+            candidates.extend(
+                ("dexscreener", c, pair_address) for c, pair_address in chain_pairs
+            )
+            print(f"  Found {len(chain_pairs)} {chain} candidates")
         except Exception as error:
             if args.chain:
                 raise
             print(f"  Skipping {chain}: {error}")
-    print(f"Found {len(candidates)} trending candidates. Resolving and deduplicating...")
+    print(
+        f"Found {len(candidates)} trending candidates. Resolving and deduplicating..."
+    )
 
     results = []
     denied = []
@@ -1189,9 +1143,6 @@ def main():
             else denial_reason(name, symbol, strict=not args.lenient)
         )
 
-        # Ticker collisions: the trending list is rank-ordered, so the first
-        # contract to claim a symbol is the one actually trending; a later
-        # duplicate is at best ambiguous and gets denied instead.
         key = (symbol or "").strip().upper()
         if reason is None and not args.no_filter and key and key in seen_symbols:
             reason = f"duplicate-symbol:{seen_symbols[key]}"
