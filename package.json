@@ -3,10 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "engines": {
-    "node": "26.x"
+    "node": "22"
   },
   "scripts": {
-    "dev": "NODE_EXTRA_CA_CERTS=.certs/coolify-ca.crt next dev",
+    "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
