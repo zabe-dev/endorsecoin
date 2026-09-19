@@ -4,6 +4,7 @@
 import { BoltIcon } from '@/features/coins/components';
 import { FormattedPrice } from '@/features/coins/components/formatted-price';
 import { getNetworkConfig } from '@/features/coins/networks';
+import { formatChangePercent } from '@/features/coins/view';
 import { Icon as IconifyIcon } from '@iconify/react';
 import { BadgeCheck, Check, Copy } from 'lucide-react';
 import type { CoinDetailView } from '../types';
@@ -136,8 +137,7 @@ export function CoinHero({
                 </strong>
                 {coin.price !== '—' && (
                   <span className={coin.change >= 0 ? 'positive' : 'negative'}>
-                    {coin.change >= 0 ? '+' : ''}
-                    {coin.change}%
+                    {formatChangePercent(coin.change)}
                   </span>
                 )}
               </div>

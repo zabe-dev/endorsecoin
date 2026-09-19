@@ -198,6 +198,14 @@ export function formatVotes(value: number) {
   return String(value);
 }
 
+export function formatChangePercent(value: number) {
+  const formatted = new Intl.NumberFormat('en-US', {
+    maximumFractionDigits: 2,
+  }).format(value);
+
+  return `${value >= 0 ? '+' : ''}${formatted}%`;
+}
+
 function formatMoney(value: number | null) {
   if (value === null) return '—';
   return new Intl.NumberFormat('en-US', {

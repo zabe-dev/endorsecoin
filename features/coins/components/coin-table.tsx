@@ -3,6 +3,7 @@
 
 import { VoteButton, WatchlistButton } from '@/components/ui/action-buttons';
 import {
+  formatChangePercent,
   formatVotes,
   type CoinListItem as Coin,
   type CoinSortKey as SortKey,
@@ -106,8 +107,7 @@ export function CoinCells({ coin, linkEnabled = true }: { coin: Coin; linkEnable
       </td>
       <td>
         <span className={coin.change >= 0 ? 'positive' : 'negative'}>
-          {coin.change >= 0 ? '+' : ''}
-          {coin.change}%
+          {formatChangePercent(coin.change)}
         </span>
       </td>
       <td className="muted-cell">{coin.launch}</td>

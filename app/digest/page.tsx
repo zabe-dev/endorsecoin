@@ -2,7 +2,7 @@ import { JsonLd } from '@/components/seo/json-ld';
 import { NETWORKS } from '@/features/coins/networks';
 import { getLeaderboardPage } from '@/features/coins/server/leaderboard';
 import { WeeklyResetChip } from '@/features/leaderboard/components/weekly-reset-chip';
-import type { CoinListItem } from '@/features/coins/view';
+import { formatChangePercent, type CoinListItem } from '@/features/coins/view';
 import { cacheKeyPart } from '@/lib/cache/cache-key';
 import { getCacheVersion } from '@/lib/cache/cache-version';
 import { rememberJson } from '@/lib/cache/json-cache';
@@ -248,7 +248,7 @@ function CoinLogo({ coin }: { coin: CoinListItem }) {
 }
 
 function formatMetric(key: string, coin: CoinListItem) {
-  if (key === 'gainers') return `${coin.change > 0 ? '+' : ''}${coin.change.toFixed(2)}`;
+  if (key === 'gainers') return formatChangePercent(coin.change).replace('%', '');
   const value =
     key === 'trending' ? coin.recentVotes : key === 'watched' ? coin.watchCount : coin.votes;
   return new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(

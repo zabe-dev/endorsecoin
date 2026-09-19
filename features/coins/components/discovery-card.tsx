@@ -1,7 +1,7 @@
 'use client';
 /* eslint-disable @next/next/no-img-element -- Project logos can come from submitted URLs later. */
 
-import { formatVotes, type CoinListItem as Coin } from '@/features/coins/view';
+import { formatChangePercent, formatVotes, type CoinListItem as Coin } from '@/features/coins/view';
 import { ArrowDownRight, ArrowUpRight } from 'lucide-react';
 import Link from 'next/link';
 import { BoltIcon, DiscoveryIcon } from './icons';
@@ -136,8 +136,4 @@ function formatMetric(coin: Coin, metric: 'votes' | 'launch' | 'presaleEnd' | 't
   if (metric === 'presaleEnd')
     return coin.presaleEnd === '—' ? 'No end date' : `${coin.presaleEnd}`;
   return `${formatVotes(coin.votes)} votes`;
-}
-
-function formatChangePercent(value: number) {
-  return `${value >= 0 ? '+' : ''}${value}%`;
 }
